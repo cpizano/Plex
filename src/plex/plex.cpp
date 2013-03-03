@@ -41,6 +41,46 @@
 #include <vector>
 #include <unordered_map>
 
+class PlexException {
+  int line_;
+  const char* message_;
+
+protected:
+  void PostCtor() {
+    if (::IsDebuggerPresent()) {
+      __debugbreak();
+    }
+  }
+
+public:
+  PlexException(int line, const char* message) : line_(line), message_(message) {}
+  virtual ~PlexException() {}
+  const char* Message() const { return message_; }
+  int Line() const { return line_; }
+};
+
+class IOException : public PlexException {
+  DWORD error_code_;
+
+public:
+  IOException(int line)
+      : PlexException(line, "IO problem"), error_code_(::GetLastError()) {
+    PostCtor();
+  }
+  DWORD ErrorCode() const { return error_code_; }
+};
+
+class TokenizerException : public PlexException {
+  int source_line_;
+
+public:
+  TokenizerException(int line, int source_line)
+      : PlexException(line, "Tokenizer problem"), source_line_(source_line)  {
+    PostCtor();
+  }
+  int SourceLine() const { return source_line_; }
+};
+
 std::string UTF16ToAscii(const std::wstring& utf16) {
   std::string result;
   result.reserve(utf16.size());
@@ -247,7 +287,7 @@ public:
   ~File() {
     if (handle_ != INVALID_HANDLE_VALUE) {
       if (!::CloseHandle(handle_)) {
-        throw __LINE__;
+        throw IOException(__LINE__);
       }
     }
   }
@@ -315,14 +355,14 @@ public:
     DWORD access = (protection == PAGE_READONLY) ? FILE_MAP_READ : FILE_MAP_WRITE | FILE_MAP_READ;
     HANDLE map = ::CreateFileMappingW(file.handle_, 0, protection, 0, 0, name);
     if (map == 0) {
-      throw __LINE__;
+      throw IOException(__LINE__);
     }
 
     ULARGE_INTEGER uli;
     uli.QuadPart = offset;
     char* start = reinterpret_cast<char*>(::MapViewOfFile(map, access, uli.HighPart, uli.LowPart, map_size));
     if (!start) {
-      throw __LINE__;
+      throw IOException(__LINE__);
     }
 
     return FileView(map, start, start + file.SizeInBytes());
@@ -332,7 +372,7 @@ public:
     MEMORY_BASIC_INFORMATION mbi = {0};
     ::VirtualQuery(Start(), &mbi, sizeof(mbi));
     if (!mbi.RegionSize) {
-      throw __LINE__;
+      throw IOException(__LINE__);
     }
     return mbi.RegionSize;
   }
@@ -340,12 +380,12 @@ public:
   ~FileView() {
     if (Start()) {
       if (!::UnmapViewOfFile(Start())) {
-        throw __LINE__;
+        throw IOException(__LINE__);
       }
     }
     if (map_) {
       if (!::CloseHandle(map_)) {
-        throw __LINE__;
+        throw IOException(__LINE__);
       }
     }
   }
@@ -650,11 +690,11 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
     if (point == 0) {
       if (curr != range.End()) {
         // End of the file, must only be at the end.
-        throw __LINE__;
+        throw TokenizerException(__LINE__, line);
       }
       if (str) {
         // Incomplete token, unexpected EoF.
-        throw __LINE__;
+        throw TokenizerException(__LINE__, line);
       }
 
       // Insert a final token to simplify further processing.
@@ -674,7 +714,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
 
     } else if ((point <  0x20) || (point == 0x7F)) {
       // Nonprintables are unrecoberable erros.
-      throw __LINE__;
+      throw TokenizerException(__LINE__, line);
     } else {
       int symbol_type;
       switch (point) {
@@ -737,7 +777,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   } while (curr);
 
   // Range needs to be null terminated.
-  throw __LINE__;
+  throw TokenizerException(__LINE__, line);
 }
 
 bool IsCppTokenNextTo(CppTokenVector::iterator it) {
@@ -783,7 +823,7 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
     long line, expected_count;
     ss >> line >> expected_count;
     if (!ss)
-      throw __LINE__;
+      throw TokenizerException(__LINE__, it->line);
 
     CppTokenVector line_tokens;
     std::for_each(begin(tokens), end(tokens),
@@ -833,7 +873,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           auto it2 = it + 1;
           while (*it2->range.Start() != '"') {
             if (it2->line != it->line)
-              throw __LINE__;   // $$ fix multiline.
+              throw TokenizerException(__LINE__, it->line);   // $$ fix multiline.
             if (*it2->range.Start() == '\\') 
               ++it2;
             ++it2; 
@@ -855,7 +895,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           auto it2 = it + 1;
           while (*it2->range.Start() != '\'') {
             if (it2->line != it->line)
-              throw __LINE__;
+              throw TokenizerException(__LINE__, it->line);
             if (*it2->range.Start() == '\\')
               ++it2;
             ++it2; 
@@ -876,7 +916,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           if (it != tokens.begin()) {
             if ((it - 1)->line == it->line) {
               // can't have tokens before a # in the same line.
-              throw __LINE__;
+              throw TokenizerException(__LINE__, it->line);
             }
           }
           // Next token is the kind.
@@ -884,7 +924,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           auto pp_type = GetCppPreprocessorKeyword(it2->range);
           if (pp_type == CppToken::unknown) {
             // unrecongized preprocessor directive;
-            throw __LINE__;
+            throw TokenizerException(__LINE__, it->line);
           }
           int count = 0;
           while (it2->line == it->line) { ++it2; ++count;}
@@ -937,7 +977,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           long long value;
           ss >> value;
           if (!ss)
-            throw __LINE__;
+            throw TokenizerException(__LINE__, it->line);
           size_t np = ss.tellg();
           if (np != -1) {
             // failed to fully consume the number. See if we have a
@@ -947,7 +987,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
               case 'E' : {
                 // Mantissa + exponent form. 'e' must be the last char.
                 if ((np + 1) != number.size())
-                  throw __LINE__;
+                  throw TokenizerException(__LINE__, it->line);
               }
               break;
               case 'x' :
@@ -956,10 +996,10 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
                 ss.seekg(0);
                 ss >> std::hex >> value;
                 if (!ss)
-                  throw __LINE__;
+                  throw TokenizerException(__LINE__, it->line);
                 np = ss.tellg();
                 if (np != -1)
-                  throw __LINE__;
+                  throw TokenizerException(__LINE__, it->line);
               }
               break;
               // $$$ handle better the f, l ul u and ll cases.
@@ -970,7 +1010,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
               case 'u' :
               case 'U' : break;
               default:
-                throw __LINE__;
+                throw TokenizerException(__LINE__, it->line);
             }
           }
           // ok, it seems to be a number. See if we can coalease with + - or .
@@ -994,7 +1034,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           // identifier.
           it->type = CppToken::identifier;
         } else {
-          throw __LINE__;
+          throw TokenizerException(__LINE__, it->line);
         }
       }
     } else if (it->type == CppToken::sos) {
@@ -1002,36 +1042,54 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
     } else if (it->type == CppToken::eos) {
       return true;
     } else {
-      throw __LINE__;
+      throw TokenizerException(__LINE__, it->line);
     }
     // advance to next token.
     ++it;
   }
 
-  throw __LINE__;
+  throw TokenizerException(__LINE__, 0);
 }
 
 int wmain(int argc, wchar_t* argv[]) {
 
   if (argc != 3) {
-    wprintf(L"invalid # of options\n");
+    wprintf(L"error: invalid # of options\n");
     return 1;
   }
 
   if (argv[1] != std::wstring(L"--tokens-test")) {
-    wprintf(L"unrecognized option\n");
+    wprintf(L"error: unrecognized option\n");
     return 1;
   }
 
-  FilePath path(argv[2]);
-  FileParams fparams = FileView::GetParams(FileView::read_only);
-  File file = File::Create(path, fparams, FileSecurity());
-  FileView view = FileView::Create(file, 0ULL, 0ULL, nullptr);
+  try {
+    FilePath path(argv[2]);
+    FileParams fparams = FileView::GetParams(FileView::read_only);
+    File file = File::Create(path, fparams, FileSecurity());
+    if (!file.IsValid()) {
+       wprintf(L"error: could not open input file\n");
+       return 1;
+    }
 
-  CppTokenVector tv = TokenizeCpp(view);
-  TestResults results;
-  LexCppTokens(tv, results);
-  results.tokens = tv.size();
+    FileView view = FileView::Create(file, 0ULL, 0ULL, nullptr);
 
-  return  results.failures ? 1 : 0;
+    CppTokenVector tv = TokenizeCpp(view);
+    TestResults results;
+    LexCppTokens(tv, results);
+    results.tokens = tv.size();
+
+    return  results.failures ? 1 : 0;
+
+  } catch (PlexException& ex) {
+    wprintf(L"\nerror: fatal exception [%S]\n"
+            L"in program line %d, version (%S)\n",
+            ex.Message(), ex.Line(), __DATE__);
+  } catch (int line) {
+    wprintf(L"\nerror: fatal exception [unknown]\n"
+            L"in program line %d, version (%S)\n",
+            line, __DATE__);
+  }
+
+  return 2;
 }
