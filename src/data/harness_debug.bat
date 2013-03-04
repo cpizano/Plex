@@ -17,6 +17,7 @@ for /F %%x in ('dir /B/D *.cc') do (
 echo %count% files processed.
 
 if %errcount% NEQ 0 goto error2
+echo no errors found.
 goto end
 
 :error1

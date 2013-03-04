@@ -1,4 +1,4 @@
-// Some comment here
+// test_001, part of the plex test suite.
 
 long global_dec = -778;  
 long goblal_hex = 0xB671;
@@ -8,6 +8,7 @@ const char name[] = "fooo bar";
 const wchar_t the_surname[] = L"soft \"masato";
 const double dable = .33335671e-12;
 
+#if defined(plex)
 #pragma plex_test token_count 1 1
 #pragma plex_test token_count 3 5
 #pragma plex_test token_count 4 5
@@ -18,3 +19,4 @@ const double dable = .33335671e-12;
 #pragma plex_test token_count 9 6
 #pragma plex_test token_count 10 0
 #pragma plex_test name_count 6
+#endif

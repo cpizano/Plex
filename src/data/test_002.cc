@@ -1,4 +1,4 @@
-// Some comment here
+// test_002, part of the plex test suite.
 
 namespace oxen {
 #if 1
@@ -10,8 +10,9 @@ class Foo {
 #endif
 }  // namespace
 
+#if defined(plex)
 #pragma plex_test token_count 3 3
-#pragma plex_test token_count 4 2
+#pragma plex_test token_count 4 1
 #pragma plex_test token_count 5 3
 #pragma plex_test token_count 6 2
 #pragma plex_test token_count 7 10
@@ -19,4 +20,5 @@ class Foo {
 #pragma plex_test token_count 9 2
 #pragma plex_test token_count 10 1
 #pragma plex_test token_count 11 2
-#pragma plex_test name_count 9
+#pragma plex_test name_count 4
+#endif
