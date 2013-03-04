@@ -15,12 +15,11 @@
 // ---------------------------
 // 001 coalese strings "aaa""bb""cc" even in different lines.
 // 002 learn to ignore #if 0.
-// 003 throw a real exception object and print diagnostics.
 // 004 implement plex_test pragmas.
-// 005 make a test harness.
 // 006 make 7 test files that run in the harness.
 // 007 handle comments at the end if prepropsesor lines.
 // 008 handle comments at the end of strings.
+// 009 fix test fail line 14 test_002.cc (#if)
 //
 // Longer term
 // ---------------------------
@@ -1079,7 +1078,12 @@ int wmain(int argc, wchar_t* argv[]) {
     LexCppTokens(tv, results);
     results.tokens = tv.size();
 
-    return  results.failures ? 1 : 0;
+    if (results.failures) {
+      wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
+      return 1;
+    }
+
+    return 0;
 
   } catch (PlexException& ex) {
     wprintf(L"\nerror: fatal exception [%S]\n"
