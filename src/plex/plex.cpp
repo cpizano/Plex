@@ -41,6 +41,8 @@
 #include <vector>
 #include <unordered_map>
 
+#pragma region exceptions
+
 class PlexException {
   int line_;
   const char* message_;
@@ -80,6 +82,8 @@ public:
   }
   int SourceLine() const { return source_line_; }
 };
+
+#pragma endregion
 
 std::string UTF16ToAscii(const std::wstring& utf16) {
   std::string result;
@@ -158,6 +162,9 @@ public:
   }
 };
 
+int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
+  return -1;
+}
 
 #pragma region file_io
 
@@ -584,6 +591,14 @@ struct CppToken {
     : range(range), type(type), line(line) { }
 };
 
+std::string ToString(const CppToken& tok) {
+  return std::string(tok.range.Start(), tok.range.Size());
+}
+
+bool EqualToStr(const CppToken& tok, const char* str) {
+  return (::strncmp(str,  tok.range.Start(), tok.range.Size()) == 0);
+}
+
 template<typename T, size_t count>
 size_t FindToken(T (&kw)[count], const MemRange<char>& r) {
  auto f = std::lower_bound(&kw[0], &kw[count], r, 
@@ -662,10 +677,6 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
 }
 
 typedef std::vector<CppToken> CppTokenVector;
-
-int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
-  return -1;
-}
 
 CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   CppTokenVector tv;
@@ -817,8 +828,8 @@ struct TestResults {
 bool ProcessTestPragma(CppTokenVector::iterator it,
                        const CppTokenVector& tokens,
                        TestResults& results) {
-  if (::strncmp("token_count",  it->range.Start(), it->range.Size()) == 0) {
-    // token count: (line count).
+  if (EqualToStr(*it, "token_count")) {
+    // token count format is: token_count line count
     std::istringstream ss((it + 1)->range.Start());
     long line, expected_count;
     ss >> line >> expected_count;
@@ -845,10 +856,11 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
     wprintf(L"token dump for line %d (type, value):\n", line);
     std::for_each(begin(line_tokens), end(line_tokens),
         [](const CppToken& tok) {
-      std::string str(tok.range.Start(), tok.range.Size());
-      wprintf(L"%d- %S\n", tok.type, str.c_str());
+      wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
     });
     wprintf(L"\n");
+  } else if (EqualToStr(*it, "name_count")) {
+    // name count format is: name_count count
   }
   return true;
 }
@@ -931,8 +943,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           // $$$ need to handle the 'null directive' which is a # in a single line.         
           if (pp_type == CppToken::prep_pragma) {
             if (count > 2) {
-              MemRange<char>& r = (it + 2)->range;
-              if (::strncmp("plex_test",  r.Start(), r.Size()) == 0) {
+              if (EqualToStr(*(it+2), "plex_test")) {
                 // Handle testing specific pragmas.
                 if (!ProcessTestPragma(it + 3, tokens, results))
                   return false;
