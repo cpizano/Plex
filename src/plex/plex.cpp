@@ -15,11 +15,9 @@
 // ---------------------------
 // 001 coalese strings "aaa""bb""cc" even in different lines.
 // 002 learn to ignore #if 0.
-// 004 implement plex_test pragmas. --> name_count
 // 006 make 7 test files that run in the harness.
-// 007 handle comments at the end if prepropsesor lines.
+// 007 handle comments at the end if prepropcesor lines.
 // 008 handle comments at the end of strings.
-// 009 fix test fail line 14 test_002.cc (#if)
 // 010 add test files to a project that compiles
 //
 // Longer term
@@ -828,11 +826,9 @@ struct TestResults {
 void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tokens) {
   wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
       line, actual, expected);
-
-  wprintf(L"token dump: (type, value):\n");
-  std::for_each(begin(tokens), end(tokens), [](const CppToken& tok) {
+  for (auto& tok : tokens) {
     wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
-  });
+  }
   wprintf(L"\n");
 }
 
