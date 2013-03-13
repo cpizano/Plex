@@ -825,20 +825,31 @@ struct TestResults {
   }
 };
 
+void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tokens) {
+  wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
+      line, actual, expected);
+
+  wprintf(L"token dump: (type, value):\n");
+  std::for_each(begin(tokens), end(tokens), [](const CppToken& tok) {
+    wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
+  });
+  wprintf(L"\n");
+}
+
 bool ProcessTestPragma(CppTokenVector::iterator it,
                        const CppTokenVector& tokens,
                        TestResults& results) {
+
+  std::istringstream ss((it + 1)->range.Start());
   if (EqualToStr(*it, "token_count")) {
     // token count format is: token_count line count
-    std::istringstream ss((it + 1)->range.Start());
     long line, expected_count;
     ss >> line >> expected_count;
     if (!ss)
       throw TokenizerException(__LINE__, it->line);
 
     CppTokenVector line_tokens;
-    std::for_each(begin(tokens), end(tokens),
-        [line, &line_tokens] (const CppToken& tok) {
+    std::for_each(begin(tokens), end(tokens), [line, &line_tokens] (const CppToken& tok) {
       if (tok.line == line)
         line_tokens.push_back(tok);
     });
@@ -849,18 +860,26 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
       return true;
 
     ++results.failures;
+    TestErrorDump(it->line, line_tokens.size(), expected_count, line_tokens);
 
-    wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
-        it->line, line_tokens.size(), expected_count);
-
-    wprintf(L"token dump for line %d (type, value):\n", line);
-    std::for_each(begin(line_tokens), end(line_tokens),
-        [](const CppToken& tok) {
-      wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
-    });
-    wprintf(L"\n");
   } else if (EqualToStr(*it, "name_count")) {
     // name count format is: name_count count
+    long expected_count;
+    ss >> expected_count;
+    if (!ss)
+      throw TokenizerException(__LINE__, it->line);
+
+    CppTokenVector name_tokens;
+    std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
+      if (tok.type == CppToken::identifier)
+        name_tokens.push_back(tok);
+    });
+
+    if (name_tokens.size() == expected_count)
+      return true;
+    ++results.failures;
+    TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
+
   }
   return true;
 }
