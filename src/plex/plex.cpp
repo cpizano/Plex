@@ -18,7 +18,11 @@
 // 006 make 7 test files that run in the harness.
 // 007 handle comments at the end if prepropcesor lines.
 // 008 handle comments at the end of strings.
-// 010 add test files to a project that compiles
+// 011 handle the scope resolution operator (aka ::).
+// 012 exclude predefined macros from identifiers.
+// 013 in test failure print the name of the file.
+// 014 normalize "//" processing to be in the two token section.
+// 015 recognize -> as a token.
 //
 // Longer term
 // ---------------------------
@@ -813,6 +817,9 @@ void CoaleseToken(CppTokenVector::iterator first,
                                 last->range.End());
 }
 
+
+
+
 struct TestResults {
   size_t tokens;
   int tests;
@@ -939,7 +946,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
         }
         break;
         case CppToken::hash : {
-          // Handle coalesing all tokens in a preprocessor or pragama line.
+          // Handle coalesing all tokens in a preprocessor or pragma line.
           if (it != tokens.begin()) {
             if ((it - 1)->line == it->line) {
               // can't have tokens before a # in the same line.
@@ -976,7 +983,6 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           if (tt_type != CppToken::unknown) {
             CoaleseToken(it, it + 1, tt_type);
             tokens.erase(it + 1);
-
             // Here we handle the two three-char cases: >>= and <<=.
             if (IsCppTokenNextTo(it, CppToken::eq)) {
               if (it->type == CppToken::left_shift) {
@@ -1059,6 +1065,20 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
         } else if (::isalpha(c) || (c == '_')) {
           // identifier.
           it->type = CppToken::identifier;
+
+          // handle the case of a qualified name, first the global scope.
+          if ((it - 1)->type == CppToken::name_scope) {
+            it = it - 1;
+            CoaleseToken(it, it + 1, CppToken::identifier);
+            tokens.erase(it + 1);
+            // and secondly the fully qualified case.
+            if ((it - 1)->type == CppToken::identifier) {
+              it = it - 1;
+              CoaleseToken(it, it + 1, CppToken::identifier);
+              tokens.erase(it + 1);
+            }
+          }
+
         } else {
           throw TokenizerException(__LINE__, it->line);
         }

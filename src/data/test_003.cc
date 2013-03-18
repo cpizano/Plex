@@ -7,7 +7,7 @@ V bar(V x, V y, int z) {
   if (--z >= 3)
     return x + y * (z - 1);
   else
-    return y + z;
+    return y + z;  // TODO(fixme).
 }
 
 #if defined(plex)
@@ -29,7 +29,7 @@ bool baz(unsigned int pp, char* arr) {
 #pragma plex_test token_count 7 7
 #pragma plex_test token_count 8 10   // note: z - 1 is two tokens. 
 #pragma plex_test token_count 9 1
-#pragma plex_test token_count 10 5
+#pragma plex_test token_count 10 6
 #pragma plex_test token_count 11 1
 #pragma plex_test token_count 12 0
 
@@ -38,7 +38,5 @@ bool baz(unsigned int pp, char* arr) {
 #pragma plex_test token_count 19 7
 #pragma plex_test token_count 20 12
 #pragma plex_test token_count 21 1
-
 #pragma plex_test name_count 24
-
 #endif
