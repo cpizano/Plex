@@ -18,11 +18,10 @@
 // 006 make 7 test files that run in the harness.
 // 007 handle comments at the end if prepropcesor lines.
 // 008 handle comments at the end of strings.
-// 011 handle the scope resolution operator (aka ::).
 // 012 exclude predefined macros from identifiers.
-// 013 in test failure print the name of the file.
 // 014 normalize "//" processing to be in the two token section.
 // 015 recognize -> as a token.
+// 016 have a test with printfs.
 //
 // Longer term
 // ---------------------------
@@ -183,6 +182,8 @@ public:
   std::string ToAscii() const {
     return UTF16ToAscii(path_);
   }
+
+  const wchar_t* Raw() { return path_.c_str(); }
 };
 
 class FileParams {
@@ -824,9 +825,10 @@ struct TestResults {
   size_t tokens;
   int tests;
   int failures;
+  const wchar_t* file;
 
-  TestResults()
-     : tokens(0), tests(0), failures(0) {
+  TestResults(const wchar_t* file)
+     : tokens(0), tests(0), failures(0), file(file) {
   }
 };
 
@@ -858,11 +860,13 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
     });
 
     ++results.tests;
-
     if (line_tokens.size() == expected_count)
       return true;
 
     ++results.failures;
+    if (results.failures == 1) {
+      wprintf(L"file [%s]\n",  results.file);
+    }
     TestErrorDump(it->line, line_tokens.size(), expected_count, line_tokens);
 
   } else if (EqualToStr(*it, "name_count")) {
@@ -878,9 +882,14 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
         name_tokens.push_back(tok);
     });
 
+    ++results.tests;
     if (name_tokens.size() == expected_count)
       return true;
+
     ++results.failures;
+    if (results.failures == 1) {
+      wprintf(L"file [%s]\n",  results.file);
+    }
     TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
 
   }
@@ -1121,25 +1130,26 @@ int wmain(int argc, wchar_t* argv[]) {
     FileView view = FileView::Create(file, 0ULL, 0ULL, nullptr);
 
     CppTokenVector tv = TokenizeCpp(view);
-    TestResults results;
+    TestResults results(argv[2]);
     LexCppTokens(tv, results);
     results.tokens = tv.size();
 
     if (results.failures) {
       wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
       return 1;
-    }
-
+    } 
+      
+    wprintf(L"done: [%s] with %d OK tests\n", argv[2], results.tests);
     return 0;
 
   } catch (PlexException& ex) {
-    wprintf(L"\nerror: fatal exception [%S]\n"
+    wprintf(L"\nerror: [%s] fatal exception [%S]\n"
             L"in program line %d, version (%S)\n",
-            ex.Message(), ex.Line(), __DATE__);
+            argv[2], ex.Message(), ex.Line(), __DATE__);
   } catch (int line) {
-    wprintf(L"\nerror: fatal exception [unknown]\n"
+    wprintf(L"\nerror: [%s] fatal exception [unknown]\n"
             L"in program line %d, version (%S)\n",
-            line, __DATE__);
+            argv[2], line, __DATE__);
   }
 
   return 2;
