@@ -16,7 +16,7 @@
 // 001 coalese strings "aaa""bb""cc" even in different lines.
 // 002 learn to ignore #if 0.
 // 006 make 7 test files that run in the harness.
-// 007 handle comments at the end if prepropcesor lines.
+// 007 handle comments at the end of prepropcesor lines.
 // 008 handle comments at the end of strings.
 // 012 exclude predefined macros from identifiers.
 // 014 normalize "//" processing to be in the two token section.
@@ -457,25 +457,26 @@ struct CppToken {
     bitwise_not,        // 0x7E : ~
     symbols_end,
     // two char tokens alphabetically arranged
-    not_eq,
-    ass_mod,
-    logical_and,
-    ass_and,
-    ass_multiplication,
-    increment,
-    ass_increment,
-    decrement,
-    ass_decrement,
-    ass_division,
-    name_scope,
-    left_shift,
-    less_or_eq,
-    eq,
-    more_or_eq,
-    right_shift,
-    ass_xor,
-    logical_or,
-    ass_or,
+    not_eq,               // !=
+    ass_mod,              // %=
+    logical_and,          // &&
+    ass_and,              // &=
+    ass_multiplication,   // *=
+    increment,            // ++
+    ass_increment,        // +=
+    decrement,            // --
+    ass_decrement,        // -=
+    line_comment,         // //
+    ass_division,         // /=
+    name_scope,           // ::
+    left_shift,           // <<
+    less_or_eq,           // <=
+    eq,                   // ==
+    more_or_eq,           // >=
+    right_shift,          // >>
+    ass_xor,              // ^=
+    logical_or,           // ||
+    ass_or,               // |=
     // three char tokens
     ass_left_shift,
     ass_right_shift,
@@ -666,9 +667,9 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
   const char* kw[] = {
     "!=", "%=", "&&", "&=", 
     "*=", "++", "+=", "--", 
-    "-=", "/=", "::", "<<", 
-    "<=", "==", ">=", ">>", 
-    "^=", "||", "|=" 
+    "-=", "//", "/=", "::", 
+    "<<", "<=", "==", ">=",
+    ">>", "^=", "||", "|=" 
   };
   if (first.range.End() != second.range.Start())
     return CppToken::unknown;
@@ -901,16 +902,6 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
       switch (it->type) {
-        case CppToken::fwd_slash : {
-          if (IsCppTokenNextTo(it, CppToken::fwd_slash)) {
-            // Start of single line comment.
-            auto it2 = it + 1;
-            while (it2->line == it->line) { ++it2; }
-            CoaleseToken(it, it2 -1, CppToken::comment);
-            tokens.erase(it + 1, it2);
-          }
-        }
-        break;
         case CppToken::double_quote : {
           // Handle coalesing all tokens inside a string.
           auto it2 = it + 1;
@@ -992,14 +983,22 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           if (tt_type != CppToken::unknown) {
             CoaleseToken(it, it + 1, tt_type);
             tokens.erase(it + 1);
-            // Here we handle the two three-char cases: >>= and <<=.
-            if (IsCppTokenNextTo(it, CppToken::eq)) {
-              if (it->type == CppToken::left_shift) {
-                CoaleseToken(it, it + 1, CppToken::ass_left_shift);
-                tokens.erase(it + 1);
-              } else if (it->type == CppToken::right_shift) {
-                CoaleseToken(it, it + 1, CppToken::ass_right_shift);
-                tokens.erase(it + 1);
+
+            if (tt_type == CppToken::line_comment) {
+              auto it2 = it + 1;
+              while (it2->line == it->line) { ++it2; }
+              CoaleseToken(it, it2 -1, CppToken::comment);
+              tokens.erase(it + 1, it2);
+            } else {
+              // Here we handle the two three-char cases: >>= and <<=.
+              if (IsCppTokenNextTo(it, CppToken::eq)) {
+                if (it->type == CppToken::left_shift) {
+                  CoaleseToken(it, it + 1, CppToken::ass_left_shift);
+                  tokens.erase(it + 1);
+                } else if (it->type == CppToken::right_shift) {
+                  CoaleseToken(it, it + 1, CppToken::ass_right_shift);
+                  tokens.erase(it + 1);
+                }
               }
             }
           }
