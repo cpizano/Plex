@@ -7,6 +7,7 @@ const char line_feed = '\n';
 const char name[] = "fooo bar";
 const wchar_t the_surname[] = L"soft \"masato";
 const double dable = .33335671e-12;
+const char x[] = "one"; // two "yes"
 
 #if defined(plex)
 #pragma plex_test token_count 1 1
@@ -17,6 +18,7 @@ const double dable = .33335671e-12;
 #pragma plex_test token_count 7 8
 #pragma plex_test token_count 8 8
 #pragma plex_test token_count 9 6
-#pragma plex_test token_count 10 0
-#pragma plex_test name_count 6
+#pragma plex_test token_count 10 9
+#pragma plex_test token_count 11 0
+#pragma plex_test name_count 7
 #endif

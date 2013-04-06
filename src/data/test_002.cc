@@ -8,7 +8,7 @@ class Foo {
   float two() const { return 22.01; }
 };
 #endif
-}  // namespace
+}  // namespace "what if?"
 
 #if defined(plex)
 #pragma plex_test token_count 3 3

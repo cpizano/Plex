@@ -16,10 +16,8 @@
 // 001 coalese strings "aaa""bb""cc" even in different lines.
 // 002 learn to ignore #if 0.
 // 006 make 7 test files that run in the harness.
-// 007 handle comments at the end of prepropcesor lines.
-// 008 handle comments at the end of strings.
+// 007 handle comments at the end of preprocessor lines.
 // 012 exclude predefined macros from identifiers.
-// 014 normalize "//" processing to be in the two token section.
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
 //
