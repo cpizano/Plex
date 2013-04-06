@@ -17,7 +17,6 @@
 // 002 learn to ignore #if 0.
 // 006 make 7 test files that run in the harness.
 // 007 handle comments at the end of preprocessor lines.
-// 012 exclude predefined macros from identifiers.
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
 //
@@ -409,6 +408,7 @@ struct CppToken {
     sos,                // start of token stream.
     eos,                // end of token stream.                 
     string,             // unclasiffied bundle of characters.
+    predef_macro,       // a standard or VS predifined macro. 
     identifier,         // c++ identifer.
     const_number,       // c++ numeric constant.
     comment,            // a c++ style comment
@@ -659,6 +659,18 @@ CppToken::Type GetCppPreprocessorKeyword(const MemRange<char>& r) {
   return (off == -1) ?
       CppToken::unknown :
       static_cast<CppToken::Type>(CppToken::prep_start + off + 1);
+}
+
+bool IsPredefinedMacro(const MemRange<char>& r) {
+  const char* kw[] = {
+    "_ATL_VER", "_CPPRTTI", "_CPPUNWIND", "_DEBUG", "_DLL",
+    "_MSC_VER", "_MT", "_M_IX86", "_M_X64", "_WIN32", "_WIN64",
+    "__COUNTER__", "__DATE__", "__FILE__",
+    "__FUNCDNAME__", "__FUNCSIG__", "__FUNCTION__",
+    "__LINE__", "__STDC__", "__TIME__", "__TIMESTAMP__",
+  };
+
+  return FindToken(kw, r) != -1;
 }
 
 CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
@@ -1069,19 +1081,24 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
           }
 
         } else if (::isalpha(c) || (c == '_')) {
-          // identifier.
-          it->type = CppToken::identifier;
+          if (IsPredefinedMacro(it->range)) {
+            it->type = CppToken::predef_macro;
 
-          // handle the case of a qualified name, first the global scope.
-          if ((it - 1)->type == CppToken::name_scope) {
-            it = it - 1;
-            CoaleseToken(it, it + 1, CppToken::identifier);
-            tokens.erase(it + 1);
-            // and secondly the fully qualified case.
-            if ((it - 1)->type == CppToken::identifier) {
+          } else {
+            // identifier.
+            it->type = CppToken::identifier;
+
+            // handle the case of a qualified name, first the global scope.
+            if ((it - 1)->type == CppToken::name_scope) {
               it = it - 1;
               CoaleseToken(it, it + 1, CppToken::identifier);
               tokens.erase(it + 1);
+              // and secondly the fully qualified case.
+              if ((it - 1)->type == CppToken::identifier) {
+                it = it - 1;
+                CoaleseToken(it, it + 1, CppToken::identifier);
+                tokens.erase(it + 1);
+              }
             }
           }
 
