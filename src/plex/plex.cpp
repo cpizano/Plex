@@ -19,6 +19,8 @@
 // 007 handle comments at the end of preprocessor lines.
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
+// 017 find definitions
+// 018 remove definition names
 //
 // Longer term
 // ---------------------------
@@ -830,7 +832,7 @@ void CoaleseToken(CppTokenVector::iterator first,
 }
 
 
-
+#pragma region testing
 
 struct TestResults {
   size_t tokens;
@@ -906,6 +908,8 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
   }
   return true;
 }
+
+#pragma endregion
 
 bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
   auto it = tokens.begin();
@@ -1118,6 +1122,19 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
   }
 
   throw TokenizerException(__LINE__, 0);
+}
+
+// Here we prune the names that are part of a definition.
+CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
+
+    CppTokenVector names;
+    for(auto it = begin(tv); it != end(tv); ++it) {
+      if (it->type != CppToken::identifier)
+        continue;
+
+
+    };
+    return names;
 }
 
 int wmain(int argc, wchar_t* argv[]) {
