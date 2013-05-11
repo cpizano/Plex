@@ -21,6 +21,8 @@
 // 016 have a test with printfs.
 // 017 find definitions
 // 018 remove definition names
+// 019 coalease templated types in the name like Moo<int> moo;
+// 020 handle namespace alias 'namespace foo = bar::doo'
 //
 // Longer term
 // ---------------------------
@@ -40,6 +42,11 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+
+#pragma region constants
+const char* anonymous_namespace_mk = "<[anonymous]>";
+const char* pending_namespace_mk = "<[pending]>";
+#pragma endregion
 
 #pragma region exceptions
 
@@ -1127,14 +1134,118 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
 // Here we prune the names that are part of a definition.
 CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
 
-    CppTokenVector names;
-    for(auto it = begin(tv); it != end(tv); ++it) {
+    auto IsBuiltIn = [](int t) -> bool {
+      return (
+        t == CppToken::kw_int ||
+        t == CppToken::kw_long ||
+        t == CppToken::kw_char ||
+        t == CppToken::kw_bool ||
+        t == CppToken::kw_float ||
+        t == CppToken::kw_const ||
+        t == CppToken::kw_signed ||
+        t == CppToken::kw_unsigned ||
+        t == CppToken::kw_double);
+    };
+
+    auto IsAgregateIntroducer = [](int t) -> bool {
+      return (
+        t == CppToken::kw_class ||
+        t == CppToken::kw_struct ||
+        t == CppToken::kw_union);
+    };
+
+
+    auto IsInVector = [](const CppTokenVector& v,
+                         const char* start) -> bool {
+      for (auto it = begin(v); it != end(v); ++it) {
+        if (it->range.Start() == start)
+          return true;
+      }
+      return false;
+    };
+
+    // Here we assume that the code file consists of a series
+    // of statement that can be definitions or declarations.
+    // Inside definitions we can have more definitions or 
+    // expression statements.
+
+    CppTokenVector vars;
+    // Local definitions.
+    CppTokenVector ldefs;
+    // Local references, they don't have a visible definition.
+    CppTokenVector xrefs;
+
+    std::vector<const char*> enclosing_namespace;
+    std::vector<const char*> enclosing_definition;
+
+    for(auto it = ++begin(tv); it != end(tv); ++it) {
+      auto prev = *(it - 1);
+      auto next = *(it + 1);
+
+      if (it->type == CppToken::comment)
+        continue;
+
+      // Process namespaces as we go along.
+      if (it->type == CppToken::kw_namespace) {
+        if (next.type == CppToken::open_cur_bracket) {
+          enclosing_namespace.push_back(anonymous_namespace_mk);
+          ++it;
+        } else if (next.type == CppToken::identifier) {
+          enclosing_namespace.push_back(next.range.Start());
+          it +=2;
+          if (it->type != CppToken::open_cur_bracket)
+            __debugbreak();
+          
+        } else {
+          __debugbreak();
+        }
+        continue;
+      }
+
+      if (it->type == CppToken::close_cur_bracket) {
+        if (!enclosing_definition.empty()) {
+          enclosing_definition.pop_back();
+          if (next.type != CppToken::semicolon)
+            __debugbreak();
+        } else if (!enclosing_namespace.empty()) {
+          enclosing_namespace.pop_back();
+          if (next.type != CppToken::semicolon)
+            __debugbreak();
+        } else {
+          __debugbreak();
+        }
+      }
+
       if (it->type != CppToken::identifier)
         continue;
 
+      if (IsInVector(xrefs, it->range.Start()))
+        continue;
+      if (IsInVector(vars, it->range.Start()))
+        continue;
+      if (IsInVector(ldefs, it->range.Start()))
+        continue;
 
-    };
-    return names;
+      if (IsBuiltIn(prev.type)) {
+        vars.push_back(*it);
+        continue;
+      }
+
+      if (IsAgregateIntroducer(prev.type)) {
+        // We ignore fwd declarations because they are only admitted
+        // if they are later defined in this translation unit.
+        if (next.type == CppToken::semicolon)
+          continue;
+
+        // Found definition.
+        enclosing_definition.push_back(it->range.Start());
+        ldefs.push_back(*it);
+        continue;
+      }
+      
+    }
+
+    return xrefs;
 }
 
 int wmain(int argc, wchar_t* argv[]) {
@@ -1163,6 +1274,8 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector tv = TokenizeCpp(view);
     TestResults results(argv[2]);
     LexCppTokens(tv, results);
+    GetExternalDefinitions(tv);
+
     results.tokens = tv.size();
 
     if (results.failures) {
