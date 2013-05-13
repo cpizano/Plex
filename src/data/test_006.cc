@@ -3,6 +3,8 @@
 namespace XX {
 namespace YY {
 
+class Reman;
+
 class Fooman {
   int m;
   int n;
@@ -20,6 +22,10 @@ public:
   }
 
   void Method() const;
+
+  int InilineMethod() {
+    return (m + n);
+  }
 
 };
 

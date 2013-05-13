@@ -1154,11 +1154,26 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
         t == CppToken::kw_union);
     };
 
+    auto IsModifier = [](int t) -> bool {
+      return (
+        t == CppToken::asterisc ||
+        t == CppToken::ampersand ||
+        t == CppToken::kw_const ||
+        t == CppToken::kw_volatile);
+    };
+
+    auto IsVariableEnd = [](int t) -> bool {
+      return (
+        t == CppToken::semicolon ||
+        t == CppToken::equal ||
+        t == CppToken::open_paren);
+    };
+
 
     auto IsInVector = [](const CppTokenVector& v,
                          const char* start) -> bool {
       for (auto it = begin(v); it != end(v); ++it) {
-        if (it->range.Start() == start)
+        if (EqualToStr(*it, start))
           return true;
       }
       return false;
@@ -1169,8 +1184,6 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
     // Inside definitions we can have more definitions or 
     // expression statements.
 
-    CppTokenVector vars;
-    // Local definitions.
     CppTokenVector ldefs;
     // Local references, they don't have a visible definition.
     CppTokenVector xrefs;
@@ -1178,13 +1191,74 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
     std::vector<const char*> enclosing_namespace;
     std::vector<const char*> enclosing_definition;
 
-    for(auto it = ++begin(tv); it != end(tv); ++it) {
+    auto last = begin(tv);
+
+    for(auto it = ++last; it != end(tv); ++it) {
       auto prev = *(it - 1);
       auto next = *(it + 1);
 
       if (it->type == CppToken::comment)
         continue;
 
+      if (it->type == CppToken::open_cur_bracket) {
+        if (prev.type == CppToken::kw_namespace) {
+          enclosing_namespace.push_back(anonymous_namespace_mk);
+        } else if (enclosing_namespace.empty() &&
+                   enclosing_definition.empty()) {
+          __debugbreak();
+        }
+        continue;
+
+      } else if (it->type == CppToken::close_cur_bracket) {
+
+        if (!enclosing_definition.empty()) {
+          enclosing_definition.pop_back();
+          if (next.type != CppToken::semicolon)
+            __debugbreak();
+        } else if (!enclosing_namespace.empty()) {
+          enclosing_namespace.pop_back();
+          if (next.type != CppToken::semicolon)
+            __debugbreak();
+        } else {
+          __debugbreak();
+        }
+        continue;
+      
+      } else if (it->type == CppToken::identifier) {
+        if (prev.type == CppToken::kw_namespace) {
+          if (next.type != CppToken::open_cur_bracket)
+            __debugbreak();
+          enclosing_namespace.push_back(it->range.Start());
+          continue;
+
+        } else if (IsAgregateIntroducer(prev.type)) {
+          if (next.type == CppToken::semicolon) {
+            if (IsInVector(ldefs, it->range.Start()))
+              __debugbreak();
+            ldefs.push_back(*it);
+            continue;
+          }
+          enclosing_definition.push_back(it->range.Start());
+          ldefs.push_back(*it);
+          continue;
+
+        }
+
+        if (!IsInVector(ldefs, it->range.Start()) &&
+            !IsInVector(xrefs, it->range.Start())) {
+          // could be variable declaration. We need to travel backwards
+          // to either a to ldef or xref before hitting an ';'.
+           
+        }
+
+
+        xrefs.push_back(*it);
+        continue;
+ 
+      }
+
+
+#if 0
       // Process namespaces as we go along.
       if (it->type == CppToken::kw_namespace) {
         if (next.type == CppToken::open_cur_bracket) {
@@ -1242,6 +1316,7 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
         ldefs.push_back(*it);
         continue;
       }
+#endif
       
     }
 
