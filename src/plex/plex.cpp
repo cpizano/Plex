@@ -1162,14 +1162,6 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
         t == CppToken::kw_volatile);
     };
 
-    auto IsVariableEnd = [](int t) -> bool {
-      return (
-        t == CppToken::semicolon ||
-        t == CppToken::equal ||
-        t == CppToken::open_paren);
-    };
-
-
     auto IsInVector = [](const CppTokenVector& v,
                          const char* start) -> bool {
       for (auto it = begin(v); it != end(v); ++it) {
@@ -1235,88 +1227,44 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
           if (next.type == CppToken::semicolon) {
             if (IsInVector(ldefs, it->range.Start()))
               __debugbreak();
+            // forward declaration.
             ldefs.push_back(*it);
             continue;
           }
+          // local definition.
           enclosing_definition.push_back(it->range.Start());
           ldefs.push_back(*it);
           continue;
-
         }
 
         if (!IsInVector(ldefs, it->range.Start()) &&
             !IsInVector(xrefs, it->range.Start())) {
-          // could be variable declaration. We need to travel backwards
-          // to either a to ldef or xref before hitting an ';'.
-           
-        }
+          if (prev.type == CppToken::period)
+            continue;
 
-
-        xrefs.push_back(*it);
-        continue;
- 
-      }
-
-
-#if 0
-      // Process namespaces as we go along.
-      if (it->type == CppToken::kw_namespace) {
-        if (next.type == CppToken::open_cur_bracket) {
-          enclosing_namespace.push_back(anonymous_namespace_mk);
-          ++it;
-        } else if (next.type == CppToken::identifier) {
-          enclosing_namespace.push_back(next.range.Start());
-          it +=2;
-          if (it->type != CppToken::open_cur_bracket)
+          // could be primitive variable declaration. Scan backwards.
+          bool is_var_decl = false;
+          auto rit = it;
+          while(--rit != begin(tv)) {
+            if (IsBuiltIn(rit->type)) {
+              is_var_decl = true;
+              break;
+            }
+            if (IsModifier(rit->type))
+              continue;
+            if (rit->type == CppToken::semicolon)
+              break;
             __debugbreak();
-          
-        } else {
-          __debugbreak();
-        }
-        continue;
-      }
+          }
 
-      if (it->type == CppToken::close_cur_bracket) {
-        if (!enclosing_definition.empty()) {
-          enclosing_definition.pop_back();
-          if (next.type != CppToken::semicolon)
-            __debugbreak();
-        } else if (!enclosing_namespace.empty()) {
-          enclosing_namespace.pop_back();
-          if (next.type != CppToken::semicolon)
-            __debugbreak();
-        } else {
-          __debugbreak();
-        }
-      }
+          if (is_var_decl)
+            continue;
 
-      if (it->type != CppToken::identifier)
-        continue;
+          // possible external reference, need to check in db.
+          xrefs.push_back(*it);
+        }  // not seen before.
 
-      if (IsInVector(xrefs, it->range.Start()))
-        continue;
-      if (IsInVector(vars, it->range.Start()))
-        continue;
-      if (IsInVector(ldefs, it->range.Start()))
-        continue;
-
-      if (IsBuiltIn(prev.type)) {
-        vars.push_back(*it);
-        continue;
-      }
-
-      if (IsAgregateIntroducer(prev.type)) {
-        // We ignore fwd declarations because they are only admitted
-        // if they are later defined in this translation unit.
-        if (next.type == CppToken::semicolon)
-          continue;
-
-        // Found definition.
-        enclosing_definition.push_back(it->range.Start());
-        ldefs.push_back(*it);
-        continue;
-      }
-#endif
+      }  // identifier.
       
     }
 
