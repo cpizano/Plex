@@ -42,6 +42,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <memory>
 
 #pragma region constants
 const char* anonymous_namespace_mk = "<[anonymous]>";
@@ -148,24 +149,12 @@ public:
     return *this;
   }
 
-  bool ScanFwdTarget(T target, const T*& pos) const {
-    while(pos != end_) {
-      if (*pos == target) {
-        return true;
-      }
-      ++pos;
-    }
-    return false;
-  }
-
-  bool ScanFwdNoTarget(T target, const T*& pos) const {
-    while(pos != end_) {
-      if (*pos != target) {
-        return true;
-      }
-      ++pos;
-    }
-    return false;
+  bool Equal(const MemRange<T>& rhs) {
+    if (Size() != rhs.Size())
+      return false;
+    if (!Size())
+      return true;
+    return (memcmp(start_, rhs.start_, Size()) == 0);
   }
 };
 
@@ -839,6 +828,24 @@ void CoaleseToken(CppTokenVector::iterator first,
 }
 
 
+struct XternDef {
+  enum Type {
+    kNone,
+    kStruct,
+    kClass,
+    kUnion,
+    kTypedef
+  };
+
+  Type type;
+  const char* name;
+
+  XternDef() : type(kNone), name(nullptr) {}
+};
+
+typedef std::unordered_map<std::string, XternDef> XternDefs;
+
+
 #pragma region testing
 
 struct TestResults {
@@ -863,6 +870,7 @@ void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tok
 
 bool ProcessTestPragma(CppTokenVector::iterator it,
                        const CppTokenVector& tokens,
+                       XternDefs& xdefs,
                        TestResults& results) {
 
   std::istringstream ss((it + 1)->range.Start());
@@ -912,13 +920,40 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
     }
     TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
 
+  } else if (EqualToStr(*it, "xdef")) {
+    std::string type;
+    std::string name;
+    ss >> type;
+    if (!ss)
+      throw TokenizerException(__LINE__, it->line);
+    ss >> name;
+    if (!ss)
+      throw TokenizerException(__LINE__, it->line);
+
+    if (xdefs.find(name) != xdefs.cend())
+      throw TokenizerException(__LINE__, it->line);
+
+    XternDef xd;
+    xd.name = _strdup(name.c_str());    // $$ leaking string.
+    if (type =="class")
+      xd.type = XternDef::kClass;
+    else if (type == "struct")
+      xd.type = XternDef::kStruct;
+    else if (type == "union")
+      xd.type = XternDef::kUnion;
+    else
+      __debugbreak();
+
+    xdefs[name] = xd;
   }
+
+
   return true;
 }
 
 #pragma endregion
 
-bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
+bool LexCppTokens(CppTokenVector& tokens, XternDefs& xdefs, TestResults& results) {
   auto it = tokens.begin();
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -988,7 +1023,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
             if (count > 2) {
               if (EqualToStr(*(it+2), "plex_test")) {
                 // Handle testing specific pragmas.
-                if (!ProcessTestPragma(it + 3, tokens, results))
+                if (!ProcessTestPragma(it + 3, tokens, xdefs, results))
                   return false;
                 pp_type = CppToken::plex_test_pragma;
               }
@@ -1132,7 +1167,7 @@ bool LexCppTokens(CppTokenVector& tokens, TestResults& results) {
 }
 
 // Here we prune the names that are part of a definition.
-CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
+CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs) {
 
     auto IsBuiltIn = [](int t) -> bool {
       return (
@@ -1179,6 +1214,10 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
     CppTokenVector ldefs;
     // Local references, they don't have a visible definition.
     CppTokenVector xrefs;
+    // Local variables, they reset at each scope.
+    std::vector<CppTokenVector> lvars;
+    // adding the global scope.
+    lvars.push_back(CppTokenVector());
 
     std::vector<const char*> enclosing_namespace;
     std::vector<const char*> enclosing_definition;
@@ -1193,6 +1232,8 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
         continue;
 
       if (it->type == CppToken::open_cur_bracket) {
+        lvars.push_back(CppTokenVector());
+
         if (prev.type == CppToken::kw_namespace) {
           enclosing_namespace.push_back(anonymous_namespace_mk);
         } else if (enclosing_namespace.empty() &&
@@ -1202,6 +1243,7 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
         continue;
 
       } else if (it->type == CppToken::close_cur_bracket) {
+        lvars.pop_back();
 
         if (!enclosing_definition.empty()) {
           enclosing_definition.pop_back();
@@ -1242,7 +1284,7 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
           if (prev.type == CppToken::period)
             continue;
 
-          // could be primitive variable declaration. Scan backwards.
+          // could be variable declaration. Scan backwards.
           bool is_var_decl = false;
           auto rit = it;
           while(--rit != begin(tv)) {
@@ -1250,18 +1292,37 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv) {
               is_var_decl = true;
               break;
             }
-            if (IsModifier(rit->type))
-              continue;
-            if (rit->type == CppToken::semicolon)
+            if (rit->type == CppToken::identifier) {
+              is_var_decl = true;
               break;
-            __debugbreak();
+            }
+            if (!IsModifier(rit->type))
+              break;
           }
 
-          if (is_var_decl)
+          if (is_var_decl) {
+            lvars.back().push_back(*it);
             continue;
+          } else {
+            // check in our stack of local vars.
+            bool is_var_use = false;
+            for (auto ix = begin(lvars); ix != end(lvars); ++ix) {
+              for (auto iy = begin(*ix); iy != end(*ix); ++iy) {
+                if (it->range.Equal(iy->range)) {
+                  is_var_use = true;
+                  break;
+                }  
+              }
+            }
+            if (is_var_use)
+              continue;
+          }
 
           // possible external reference, need to check in db.
-          xrefs.push_back(*it);
+          if (xdefs.find(ToString(*it)) != xdefs.end()) {
+            xrefs.push_back(*it);
+          }
+
         }  // not seen before.
 
       }  // identifier.
@@ -1296,8 +1357,10 @@ int wmain(int argc, wchar_t* argv[]) {
 
     CppTokenVector tv = TokenizeCpp(view);
     TestResults results(argv[2]);
-    LexCppTokens(tv, results);
-    GetExternalDefinitions(tv);
+    XternDefs xdefs;
+
+    LexCppTokens(tv, xdefs, results);
+    CppTokenVector xr = GetExternalDefinitions(tv, xdefs);
 
     results.tokens = tv.size();
 

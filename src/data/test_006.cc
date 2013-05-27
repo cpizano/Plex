@@ -1,7 +1,11 @@
 // test_006, part of the plex test suite.
 
-namespace XX {
-namespace YY {
+#if defined(pex)
+#pragma plex_test xdef class laa::External
+#endif
+
+namespace xx {
+namespace yy {
 
 class Reman;
 
@@ -9,7 +13,7 @@ class Fooman {
   int m;
   int n;
   Reman* r;
-  External e;
+  laa::External e;
 
 public:
   Fooman(const Reman& rr) 
