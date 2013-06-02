@@ -2,6 +2,7 @@
 
 #if defined(pex)
 #pragma plex_test xdef class laa::External
+#pragma plex_test xdef function Roar
 #endif
 
 namespace xx {
@@ -20,15 +21,16 @@ public:
       : m(0), n(1), r(new Reman(rr)), e(0) {
   }
 
-  Fooman(External& x) 
+  Fooman(laa::External& x) 
       : m(1), n(0), r(nullptr), e(x) {
     Roar(&m, &n);
+    m = InilineMethod();
   }
 
   void Method() const;
 
   int InilineMethod() {
-    return (m + n);
+    return (m + n) * r->Now();
   }
 
 };
@@ -38,6 +40,12 @@ void Fooman::Method() const {
 }
 
 class Reman {
+public:
+  long Now() const {
+    return ++bar;
+  }
+
+private:
   long bar;
 };
 

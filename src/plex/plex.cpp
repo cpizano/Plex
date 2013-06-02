@@ -46,7 +46,7 @@
 
 #pragma region constants
 const char* anonymous_namespace_mk = "<[anonymous]>";
-const char* pending_namespace_mk = "<[pending]>";
+const char* scope_namespace_mk = "<[scope]>";
 #pragma endregion
 
 #pragma region exceptions
@@ -834,7 +834,10 @@ struct XternDef {
     kStruct,
     kClass,
     kUnion,
-    kTypedef
+    kEnum,
+    kFunction,
+    kTypedef,
+    kConstant,
   };
 
   Type type;
@@ -941,6 +944,12 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
       xd.type = XternDef::kStruct;
     else if (type == "union")
       xd.type = XternDef::kUnion;
+    else if (type == "function")
+      xd.type = XternDef::kFunction;
+    else if (type == "enum")
+      xd.type = XternDef::kEnum;
+    else if (type == "constant")
+      xd.type = XternDef::kConstant;
     else
       __debugbreak();
 
@@ -1171,6 +1180,7 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
 
     auto IsBuiltIn = [](int t) -> bool {
       return (
+        t == CppToken::kw_void ||
         t == CppToken::kw_int ||
         t == CppToken::kw_long ||
         t == CppToken::kw_char ||
@@ -1221,24 +1231,29 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
 
     std::vector<const char*> enclosing_namespace;
     std::vector<const char*> enclosing_definition;
+    bool in_local_definition = false;
 
     auto last = begin(tv);
 
-    for(auto it = ++last; it != end(tv); ++it) {
+    for(auto it = ++last; it->type != CppToken::eos; ++it) {
       auto prev = *(it - 1);
       auto next = *(it + 1);
 
       if (it->type == CppToken::comment)
         continue;
 
+      int ln = it->line;
+
       if (it->type == CppToken::open_cur_bracket) {
         lvars.push_back(CppTokenVector());
 
         if (prev.type == CppToken::kw_namespace) {
           enclosing_namespace.push_back(anonymous_namespace_mk);
-        } else if (enclosing_namespace.empty() &&
-                   enclosing_definition.empty()) {
-          __debugbreak();
+        } else {
+          if (in_local_definition)
+            in_local_definition = false;
+          else 
+            enclosing_definition.push_back(scope_namespace_mk);
         }
         continue;
 
@@ -1247,12 +1262,8 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
 
         if (!enclosing_definition.empty()) {
           enclosing_definition.pop_back();
-          if (next.type != CppToken::semicolon)
-            __debugbreak();
         } else if (!enclosing_namespace.empty()) {
           enclosing_namespace.pop_back();
-          if (next.type != CppToken::semicolon)
-            __debugbreak();
         } else {
           __debugbreak();
         }
@@ -1263,6 +1274,8 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
           if (next.type != CppToken::open_cur_bracket)
             __debugbreak();
           enclosing_namespace.push_back(it->range.Start());
+          lvars.push_back(CppTokenVector());
+          ++it;
           continue;
 
         } else if (IsAgregateIntroducer(prev.type)) {
@@ -1276,11 +1289,17 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
           // local definition.
           enclosing_definition.push_back(it->range.Start());
           ldefs.push_back(*it);
+          in_local_definition = true;
           continue;
         }
 
-        if (!IsInVector(ldefs, it->range.Start()) &&
-            !IsInVector(xrefs, it->range.Start())) {
+        if (!IsInVector(ldefs, it->range.Start())) {
+
+          if(IsInVector(xrefs, it->range.Start())) {
+            xrefs.push_back(*it);
+            continue;
+          }
+
           if (prev.type == CppToken::period)
             continue;
 
@@ -1321,13 +1340,24 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
           // possible external reference, need to check in db.
           if (xdefs.find(ToString(*it)) != xdefs.end()) {
             xrefs.push_back(*it);
+            continue;
           }
+
+          // it could be:
+          // 1- A method invocation of this aggregate.
+          // 2- A metohd definition on this aggregate.
+
 
         }  // not seen before.
 
       }  // identifier.
       
     }
+
+    if (!enclosing_namespace.empty())
+      __debugbreak();
+    if (!enclosing_definition.empty())
+      __debugbreak();
 
     return xrefs;
 }
