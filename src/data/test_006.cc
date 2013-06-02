@@ -32,7 +32,6 @@ public:
   int InilineMethod() {
     return (m + n) * r->Now();
   }
-
 };
 
 void Fooman::Method() const {
@@ -51,3 +50,8 @@ private:
 
 }  // namespace YY
 }  // namespace XX
+
+#if defined(pex)
+#pragma plex_test fixup 17 class laa::External
+#pragma plex_test fixup 26 function Roar
+#endif

@@ -842,6 +842,7 @@ struct XternDef {
 
   Type type;
   const char* name;
+  std::vector<size_t> src_pos;
 
   XternDef() : type(kNone), name(nullptr) {}
 };
@@ -1176,7 +1177,7 @@ bool LexCppTokens(CppTokenVector& tokens, XternDefs& xdefs, TestResults& results
 }
 
 // Here we prune the names that are part of a definition.
-CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs) {
+CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 
     auto IsBuiltIn = [](int t) -> bool {
       return (
@@ -1221,11 +1222,14 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
     // Inside definitions we can have more definitions or 
     // expression statements.
 
+    // Local definitions.
     CppTokenVector ldefs;
     // Local references, they don't have a visible definition.
     CppTokenVector xrefs;
-    // Local variables, they reset at each scope.
+    // Local variables, they reset at each scope. Note that other
+    // things can end up here, for example function definitions.
     std::vector<CppTokenVector> lvars;
+
     // adding the global scope.
     lvars.push_back(CppTokenVector());
 
@@ -1338,15 +1342,15 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
           }
 
           // possible external reference, need to check in db.
-          if (xdefs.find(ToString(*it)) != xdefs.end()) {
+          auto xdit = xdefs.find(ToString(*it));
+          if ( xdit!= xdefs.end()) {
+            xdit->second.src_pos.push_back(it - tv.begin());
             xrefs.push_back(*it);
             continue;
           }
 
-          // it could be:
-          // 1- A method invocation of this aggregate.
-          // 2- A metohd definition on this aggregate.
-
+          // Many things can end up here for example method invocations
+          // on the enclosing aggregate.
 
         }  // not seen before.
 
@@ -1357,6 +1361,8 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, const XternDefs& xdefs
     if (!enclosing_namespace.empty())
       __debugbreak();
     if (!enclosing_definition.empty())
+      __debugbreak();
+    if (lvars.size() != 1)
       __debugbreak();
 
     return xrefs;
