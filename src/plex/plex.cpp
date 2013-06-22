@@ -847,6 +847,26 @@ struct XternDef {
   XternDef() : type(kNone), name(nullptr) {}
 };
 
+XternDef MakeXDef(const std::string& type, const char* name) {
+  XternDef xd;
+  if (type =="class")
+    xd.type = XternDef::kClass;
+  else if (type == "struct")
+    xd.type = XternDef::kStruct;
+  else if (type == "union")
+    xd.type = XternDef::kUnion;
+  else if (type == "function")
+    xd.type = XternDef::kFunction;
+  else if (type == "enum")
+    xd.type = XternDef::kEnum;
+  else if (type == "constant")
+    xd.type = XternDef::kConstant;
+  else
+    __debugbreak();
+  xd.name = name;
+  return xd;
+}
+
 typedef std::unordered_map<std::string, XternDef> XternDefs;
 
 
@@ -869,6 +889,12 @@ void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tok
   for (auto& tok : tokens) {
     wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
   }
+  wprintf(L"\n");
+}
+
+void TestErrorDump(int line, const XternDef& xd) {
+  wprintf(L"[FAIL] test of line %d : : for external def %s (%d) \n",
+      line, xd.name, xd.type);
   wprintf(L"\n");
 }
 
@@ -925,38 +951,37 @@ bool ProcessTestPragma(CppTokenVector::iterator it,
     TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
 
   } else if (EqualToStr(*it, "xdef")) {
-    std::string type;
-    std::string name;
-    ss >> type;
+    std::string xd_type;
+    std::string xd_name;
+    ss >> xd_type >> xd_name;
     if (!ss)
       throw TokenizerException(__LINE__, it->line);
-    ss >> name;
+    if (xdefs.find(xd_name) != xdefs.cend())
+      throw TokenizerException(__LINE__, it->line);
+
+    xdefs[xd_name] = MakeXDef(xd_type, _strdup(xd_name.c_str()));
+
+  } else if (EqualToStr(*it, "fixup")) {
+    long fix_line;
+    std:: string fix_type;
+    std:: string fix_name;
+    ss >> fix_line >> fix_type >> fix_name;
     if (!ss)
       throw TokenizerException(__LINE__, it->line);
 
-    if (xdefs.find(name) != xdefs.cend())
-      throw TokenizerException(__LINE__, it->line);
+    auto xit = xdefs.find(fix_name);
+    if (xit != xdefs.end()) {
+      const auto& fixups = xit->second.src_pos;
+      if (std::find(begin(fixups), end(fixups), fix_line) != fixups.end())
+        return true;
+    }
 
-    XternDef xd;
-    xd.name = _strdup(name.c_str());    // $$ leaking string.
-    if (type =="class")
-      xd.type = XternDef::kClass;
-    else if (type == "struct")
-      xd.type = XternDef::kStruct;
-    else if (type == "union")
-      xd.type = XternDef::kUnion;
-    else if (type == "function")
-      xd.type = XternDef::kFunction;
-    else if (type == "enum")
-      xd.type = XternDef::kEnum;
-    else if (type == "constant")
-      xd.type = XternDef::kConstant;
-    else
-      __debugbreak();
+    TestErrorDump(it->line, MakeXDef(fix_type, fix_name.c_str()));
 
-    xdefs[name] = xd;
+  } else {
+    // Unknown test pragma.
+    throw TokenizerException(__LINE__, it->line);
   }
-
 
   return true;
 }
