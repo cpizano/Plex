@@ -1304,6 +1304,14 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
                         XternDefs& xdefs,
                         TestResults& results) {
   
+  // It is very likely we are going to need this so we compute just once.
+  CppTokenVector name_tokens;
+  std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
+    if (tok.type == CppToken::identifier)
+      name_tokens.push_back(tok);
+  });
+
+
   for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
     if (it->type != CppToken::plex_test_pragma)
       continue;
@@ -1343,14 +1351,16 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       if (!ss)
         throw TokenizerException(__LINE__, it->line);
 
-      CppTokenVector name_tokens;
-      std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
-        if (tok.type == CppToken::identifier)
-          name_tokens.push_back(tok);
+      int count = 0;
+      int line = it->line;
+      std::for_each(begin(name_tokens), end(name_tokens), 
+          [line, &count] (const CppToken& tok) {
+      if (tok.line < line)
+        ++count;
       });
 
       ++results.tests;
-      if (name_tokens.size() == expected_count)
+      if (count == expected_count)
         return true;
 
       ++results.failures;
