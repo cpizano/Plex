@@ -827,168 +827,7 @@ void CoaleseToken(CppTokenVector::iterator first,
                                 last->range.End());
 }
 
-
-struct XternDef {
-  enum Type {
-    kNone,
-    kStruct,
-    kClass,
-    kUnion,
-    kEnum,
-    kFunction,
-    kTypedef,
-    kConstant,
-  };
-
-  Type type;
-  const char* name;
-  std::vector<size_t> src_pos;
-
-  XternDef() : type(kNone), name(nullptr) {}
-};
-
-XternDef MakeXDef(const std::string& type, const char* name) {
-  XternDef xd;
-  if (type =="class")
-    xd.type = XternDef::kClass;
-  else if (type == "struct")
-    xd.type = XternDef::kStruct;
-  else if (type == "union")
-    xd.type = XternDef::kUnion;
-  else if (type == "function")
-    xd.type = XternDef::kFunction;
-  else if (type == "enum")
-    xd.type = XternDef::kEnum;
-  else if (type == "constant")
-    xd.type = XternDef::kConstant;
-  else
-    __debugbreak();
-  xd.name = name;
-  return xd;
-}
-
-typedef std::unordered_map<std::string, XternDef> XternDefs;
-
-
-#pragma region testing
-
-struct TestResults {
-  size_t tokens;
-  int tests;
-  int failures;
-  const wchar_t* file;
-
-  TestResults(const wchar_t* file)
-     : tokens(0), tests(0), failures(0), file(file) {
-  }
-};
-
-void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tokens) {
-  wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
-      line, actual, expected);
-  for (auto& tok : tokens) {
-    wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
-  }
-  wprintf(L"\n");
-}
-
-void TestErrorDump(int line, const XternDef& xd) {
-  wprintf(L"[FAIL] test of line %d : : for external def %s (%d) \n",
-      line, xd.name, xd.type);
-  wprintf(L"\n");
-}
-
-bool ProcessTestPragma(CppTokenVector::iterator it,
-                       const CppTokenVector& tokens,
-                       XternDefs& xdefs,
-                       TestResults& results) {
-
-  std::istringstream ss((it + 1)->range.Start());
-  if (EqualToStr(*it, "token_count")) {
-    // token count format is: token_count line count
-    long line, expected_count;
-    ss >> line >> expected_count;
-    if (!ss)
-      throw TokenizerException(__LINE__, it->line);
-
-    CppTokenVector line_tokens;
-    std::for_each(begin(tokens), end(tokens), [line, &line_tokens] (const CppToken& tok) {
-      if (tok.line == line)
-        line_tokens.push_back(tok);
-    });
-
-    ++results.tests;
-    if (line_tokens.size() == expected_count)
-      return true;
-
-    ++results.failures;
-    if (results.failures == 1) {
-      wprintf(L"file [%s]\n",  results.file);
-    }
-    TestErrorDump(it->line, line_tokens.size(), expected_count, line_tokens);
-
-  } else if (EqualToStr(*it, "name_count")) {
-    // name count format is: name_count count
-    long expected_count;
-    ss >> expected_count;
-    if (!ss)
-      throw TokenizerException(__LINE__, it->line);
-
-    CppTokenVector name_tokens;
-    std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
-      if (tok.type == CppToken::identifier)
-        name_tokens.push_back(tok);
-    });
-
-    ++results.tests;
-    if (name_tokens.size() == expected_count)
-      return true;
-
-    ++results.failures;
-    if (results.failures == 1) {
-      wprintf(L"file [%s]\n",  results.file);
-    }
-    TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
-
-  } else if (EqualToStr(*it, "xdef")) {
-    std::string xd_type;
-    std::string xd_name;
-    ss >> xd_type >> xd_name;
-    if (!ss)
-      throw TokenizerException(__LINE__, it->line);
-    if (xdefs.find(xd_name) != xdefs.cend())
-      throw TokenizerException(__LINE__, it->line);
-
-    xdefs[xd_name] = MakeXDef(xd_type, _strdup(xd_name.c_str()));
-
-  } else if (EqualToStr(*it, "fixup")) {
-    long fix_line;
-    std:: string fix_type;
-    std:: string fix_name;
-    ss >> fix_line >> fix_type >> fix_name;
-    if (!ss)
-      throw TokenizerException(__LINE__, it->line);
-
-    auto xit = xdefs.find(fix_name);
-    if (xit != xdefs.end()) {
-      const auto& fixups = xit->second.src_pos;
-      if (std::find(begin(fixups), end(fixups), fix_line) != fixups.end())
-        return true;
-    }
-
-    TestErrorDump(it->line, MakeXDef(fix_type, fix_name.c_str()));
-
-  } else {
-    // Unknown test pragma.
-    throw TokenizerException(__LINE__, it->line);
-  }
-
-  return true;
-}
-
-#pragma endregion
-
-bool LexCppTokens(CppTokenVector& tokens, XternDefs& xdefs, TestResults& results) {
+bool LexCppTokens(CppTokenVector& tokens) {
   auto it = tokens.begin();
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -1056,10 +895,7 @@ bool LexCppTokens(CppTokenVector& tokens, XternDefs& xdefs, TestResults& results
           // $$$ need to handle the 'null directive' which is a # in a single line.         
           if (pp_type == CppToken::prep_pragma) {
             if (count > 2) {
-              if (EqualToStr(*(it+2), "plex_test")) {
-                // Handle testing specific pragmas.
-                if (!ProcessTestPragma(it + 3, tokens, xdefs, results))
-                  return false;
+              if (EqualToStr(*(it+2), "plex_test")) {                
                 pp_type = CppToken::plex_test_pragma;
               }
             }
@@ -1200,6 +1036,47 @@ bool LexCppTokens(CppTokenVector& tokens, XternDefs& xdefs, TestResults& results
 
   throw TokenizerException(__LINE__, 0);
 }
+
+struct XternDef {
+  enum Type {
+    kNone,
+    kStruct,
+    kClass,
+    kUnion,
+    kEnum,
+    kFunction,
+    kTypedef,
+    kConstant,
+  };
+
+  Type type;
+  const char* name;
+  std::vector<size_t> src_pos;
+
+  XternDef() : type(kNone), name(nullptr) {}
+};
+
+XternDef MakeXDef(const std::string& type, const char* name) {
+  XternDef xd;
+  if (type =="class")
+    xd.type = XternDef::kClass;
+  else if (type == "struct")
+    xd.type = XternDef::kStruct;
+  else if (type == "union")
+    xd.type = XternDef::kUnion;
+  else if (type == "function")
+    xd.type = XternDef::kFunction;
+  else if (type == "enum")
+    xd.type = XternDef::kEnum;
+  else if (type == "constant")
+    xd.type = XternDef::kConstant;
+  else
+    __debugbreak();
+  xd.name = name;
+  return xd;
+}
+
+typedef std::unordered_map<std::string, XternDef> XternDefs;
 
 // Here we prune the names that are part of a definition.
 CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
@@ -1383,15 +1260,145 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
       
     }
 
+#if 0
     if (!enclosing_namespace.empty())
       __debugbreak();
     if (!enclosing_definition.empty())
       __debugbreak();
     if (lvars.size() != 1)
       __debugbreak();
+#endif
 
     return xrefs;
 }
+
+#pragma region testing
+
+struct TestResults {
+  size_t tokens;
+  int tests;
+  int failures;
+  const wchar_t* file;
+
+  TestResults(const wchar_t* file)
+     : tokens(0), tests(0), failures(0), file(file) {
+  }
+};
+
+void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tokens) {
+  wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
+      line, actual, expected);
+  for (auto& tok : tokens) {
+    wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
+  }
+  wprintf(L"\n");
+}
+
+void TestErrorDump(int line, const XternDef& xd) {
+  wprintf(L"[FAIL] test of line %d : : for external def %s (%d) \n",
+      line, xd.name, xd.type);
+  wprintf(L"\n");
+}
+
+bool ProcessTestPragmas(const CppTokenVector& tokens,
+                        XternDefs& xdefs,
+                        TestResults& results) {
+  
+  for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
+    if (it->type != CppToken::plex_test_pragma)
+      continue;
+
+    std::istringstream ss(it->range.Start());
+    ss.ignore(17);   // size of '#pragma plex_test'  $$ make this better.
+    std::string test_name;
+    ss >> test_name;
+
+    if (test_name == "token_count") {
+      // token count format is: token_count line count
+      long line, expected_count;
+      ss >> line >> expected_count;
+      if (!ss)
+        throw TokenizerException(__LINE__, it->line);
+
+      CppTokenVector line_tokens;
+      std::for_each(begin(tokens), end(tokens), [line, &line_tokens] (const CppToken& tok) {
+        if (tok.line == line)
+          line_tokens.push_back(tok);
+      });
+
+      ++results.tests;
+      if (line_tokens.size() == expected_count)
+        return true;
+
+      ++results.failures;
+      if (results.failures == 1) {
+        wprintf(L"file [%s]\n",  results.file);
+      }
+      TestErrorDump(it->line, line_tokens.size(), expected_count, line_tokens);
+
+    } else if (test_name == "name_count") {
+      // name count format is: name_count count
+      long expected_count;
+      ss >> expected_count;
+      if (!ss)
+        throw TokenizerException(__LINE__, it->line);
+
+      CppTokenVector name_tokens;
+      std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
+        if (tok.type == CppToken::identifier)
+          name_tokens.push_back(tok);
+      });
+
+      ++results.tests;
+      if (name_tokens.size() == expected_count)
+        return true;
+
+      ++results.failures;
+      if (results.failures == 1) {
+        wprintf(L"file [%s]\n",  results.file);
+      }
+      TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
+
+    } else if (test_name == "xdef") {
+      std::string xd_type;
+      std::string xd_name;
+      ss >> xd_type >> xd_name;
+      if (!ss)
+        throw TokenizerException(__LINE__, it->line);
+      if (xdefs.find(xd_name) != xdefs.cend())
+        throw TokenizerException(__LINE__, it->line);
+
+      xdefs[xd_name] = MakeXDef(xd_type, _strdup(xd_name.c_str()));
+
+    } else if (test_name == "fixup") {
+      long fix_line;
+      std:: string fix_type;
+      std:: string fix_name;
+      ss >> fix_line >> fix_type >> fix_name;
+      if (!ss)
+        throw TokenizerException(__LINE__, it->line);
+
+      auto xit = xdefs.find(fix_name);
+      if (xit != xdefs.end()) {
+        const auto& fixups = xit->second.src_pos;
+        if (std::find(begin(fixups), end(fixups), fix_line) != fixups.end())
+          return true;
+      }
+
+      TestErrorDump(it->line, MakeXDef(fix_type, fix_name.c_str()));
+
+    } else {
+      // Unknown test pragma.
+      throw TokenizerException(__LINE__, it->line);
+    }
+
+  }
+
+  return true;
+}
+
+#pragma endregion
+
 
 int wmain(int argc, wchar_t* argv[]) {
 
@@ -1415,15 +1422,14 @@ int wmain(int argc, wchar_t* argv[]) {
     }
 
     FileView view = FileView::Create(file, 0ULL, 0ULL, nullptr);
-
     CppTokenVector tv = TokenizeCpp(view);
-    TestResults results(argv[2]);
+    LexCppTokens(tv);
     XternDefs xdefs;
-
-    LexCppTokens(tv, xdefs, results);
     CppTokenVector xr = GetExternalDefinitions(tv, xdefs);
 
+    TestResults results(argv[2]);
     results.tokens = tv.size();
+    ProcessTestPragmas(tv, xdefs, results);
 
     if (results.failures) {
       wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
