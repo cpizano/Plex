@@ -1,10 +1,5 @@
 // test_006, part of the plex test suite.
 
-#if defined(pex)
-#pragma plex_test xdef class laa::External
-#pragma plex_test xdef function Roar
-#endif
-
 namespace xx {
 namespace yy {
 

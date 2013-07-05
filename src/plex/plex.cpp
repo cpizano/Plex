@@ -1294,10 +1294,8 @@ void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tok
   wprintf(L"\n");
 }
 
-void TestErrorDump(int line, const XternDef& xd) {
-  wprintf(L"[FAIL] test of line %d : : for external def %s (%d) \n",
-      line, xd.name, xd.type);
-  wprintf(L"\n");
+void TestErrorDump(int line, const char* name) {
+  wprintf(L"[FAIL] test of line %d : : for external def %S\n\n", line, name);
 }
 
 bool ProcessTestPragmas(const CppTokenVector& tokens,
@@ -1369,21 +1367,10 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       }
       TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
 
-    } else if (test_name == "xdef") {
-      std::string xd_type;
-      std::string xd_name;
-      ss >> xd_type >> xd_name;
-      if (!ss)
-        throw TokenizerException(__LINE__, it->line);
-      if (xdefs.find(xd_name) != xdefs.cend())
-        throw TokenizerException(__LINE__, it->line);
-
-      xdefs[xd_name] = MakeXDef(xd_type, _strdup(xd_name.c_str()));
-
     } else if (test_name == "fixup") {
       long fix_line;
-      std:: string fix_type;
-      std:: string fix_name;
+      std::string fix_type;
+      std::string fix_name;
       ss >> fix_line >> fix_type >> fix_name;
       if (!ss)
         throw TokenizerException(__LINE__, it->line);
@@ -1395,7 +1382,7 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
           return true;
       }
 
-      TestErrorDump(it->line, MakeXDef(fix_type, fix_name.c_str()));
+      TestErrorDump(it->line, fix_name.c_str());
 
     } else {
       // Unknown test pragma.
