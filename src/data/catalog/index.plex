@@ -1,5 +1,7 @@
-// #index.plex [index v1]
+// #index.plex [index v1].
 
-pxx::TestClassA c={pxx,00000000,00000020};
-pxx::TestFunA f={pxx,00000000,00000021};
-
+cen(pxx::TestClassA,
+    pc, pxx, 00000000,00000020);
+cen(pxx::TestFunA,
+    pf, pxx, 00000000,00000021};
+end();

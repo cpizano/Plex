@@ -91,6 +91,17 @@ public:
   int SourceLine() const { return source_line_; }
 };
 
+class CatalogException : public PlexException {
+  int source_line_;
+
+public:
+  CatalogException(int line, int source_line)
+      : PlexException(line, "Catalog problem"), source_line_(source_line)  {
+    PostCtor();
+  }
+  int SourceLine() const { return source_line_; }
+};
+
 #pragma endregion
 
 std::string UTF16ToAscii(const std::wstring& utf16) {
@@ -1059,6 +1070,8 @@ bool LexCppTokens(CppTokenVector& tokens) {
   throw TokenizerException(__LINE__, 0);
 }
 
+#pragma region catalog
+
 struct XternDef {
   enum Type {
     kNone,
@@ -1072,33 +1085,62 @@ struct XternDef {
   };
 
   Type type;
-  const char* name;
+  MemRange<char> name;
   std::vector<size_t> src_pos;
 
-  XternDef() : type(kNone), name(nullptr) {}
+  XternDef(const MemRange<char>& name) : type(kNone), name(name) {}
+  XternDef() : type(kNone), name(nullptr, nullptr) {}
 };
 
-XternDef MakeXDef(const std::string& type, const char* name) {
-  XternDef xd;
-  if (type =="class")
-    xd.type = XternDef::kClass;
-  else if (type == "struct")
-    xd.type = XternDef::kStruct;
-  else if (type == "union")
-    xd.type = XternDef::kUnion;
-  else if (type == "function")
-    xd.type = XternDef::kFunction;
-  else if (type == "enum")
-    xd.type = XternDef::kEnum;
-  else if (type == "constant")
-    xd.type = XternDef::kConstant;
+XternDef MakeXDef(const char* type, const MemRange<char>& name) {
+  XternDef::Type xdt;
+  if (type[0] == 'p' && type[1] == 'c')
+    xdt = XternDef::kClass;
+  else if (type[0] == 'p' && type[1] == 's')
+    xdt = XternDef::kStruct;
+  else if (type[0] == 'r' && type[1] == 'u')
+    xdt = XternDef::kUnion;
+  else if (type[0] == 'p' && type[1] == 'f')
+    xdt = XternDef::kFunction;
+  else if (type[0] == 'p' && type[1] == 'e')
+    xdt = XternDef::kEnum;
+  else if (type[0] == 'k' && type[1] == 'c')
+    xdt = XternDef::kConstant;
   else
-    __debugbreak();
-  xd.name = name;
-  return xd;
+    throw CatalogException(0, __LINE__);
+
+  XternDef xdef(name);
+  xdef.type = xdt;
+  return xdef;
 }
 
 typedef std::unordered_map<std::string, XternDef> XternDefs;
+
+void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
+  for(auto it = begin(tv); it->type != CppToken::eos; ++it) {
+    if (it->type == CppToken::identifier) {
+      if (EqualToStr(*it, "end"))
+        break;
+      if (!EqualToStr(*it, "cen"))
+        continue;
+      ++it;
+      if (it->type != CppToken::open_paren)
+        throw CatalogException(it->line, __LINE__);
+      ++it;
+      if (it->type != CppToken::identifier)
+        throw CatalogException(it->line, __LINE__);
+      auto it2 = it + 1;
+      if (it2->type != CppToken::comma)
+        throw CatalogException(it->line, __LINE__);
+      ++it2;
+
+      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range);
+      it = ++it2;
+    }
+  }
+}
+
+#pragma endregion
 
 // Here we prune the names that are part of a definition.
 CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
@@ -1452,6 +1494,7 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector index_tv = TokenizeCpp(index_view);
     LexCppTokens(index_tv);
     XternDefs xdefs;
+    ProcessCatalog(index_tv, xdefs);
 
     FileView cc_view = FileView::Create(cc_file, 0ULL, 0ULL, nullptr);
     CppTokenVector cc_tv = TokenizeCpp(cc_view);

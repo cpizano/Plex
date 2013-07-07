@@ -47,6 +47,6 @@ private:
 }  // namespace XX
 
 #if defined(pex)
-#pragma plex_test fixup 17 class laa::External
-#pragma plex_test fixup 26 function Roar
+#pragma plex_test fixup 12 c pxx::TestClassA
+#pragma plex_test fixup 21 f pxx::TestFunA
 #endif
