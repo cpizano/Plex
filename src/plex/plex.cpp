@@ -174,12 +174,34 @@ public:
     : path_(path) {
   }
 
+  explicit FilePath(const std::wstring& path)
+    : path_(path) {
+  }
+
+  FilePath Parent() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos)
+      return FilePath();
+    return FilePath(path_.substr(0, pos));
+  }
+
+  FilePath Append(const std::wstring& name) const {
+    std::wstring full(path_);
+    full.append(1, L'\\');
+    full.append(name);
+    return FilePath(full);
+  }
+
   std::string ToAscii() const {
     return UTF16ToAscii(path_);
   }
 
   const wchar_t* Raw() { return path_.c_str(); }
+
+private:
+  FilePath() {}
 };
+
 
 class FileParams {
 private:
@@ -1410,23 +1432,35 @@ int wmain(int argc, wchar_t* argv[]) {
   }
 
   try {
+    // Input file, typically a c++ file.
     FilePath path(argv[2]);
     FileParams fparams = FileView::GetParams(FileView::read_only);
-    File file = File::Create(path, fparams, FileSecurity());
-    if (!file.IsValid()) {
+    File cc_file = File::Create(path, fparams, FileSecurity());
+    if (!cc_file.IsValid()) {
        wprintf(L"error: could not open input file\n");
        return 1;
     }
+    // The catalog index is also an implicit input.
+    FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
+    File index = File::Create(catalog, fparams, FileSecurity());
+    if (!index.IsValid()) {
+       wprintf(L"error: could not open catalog\n");
+       return 1;
+    }
 
-    FileView view = FileView::Create(file, 0ULL, 0ULL, nullptr);
-    CppTokenVector tv = TokenizeCpp(view);
-    LexCppTokens(tv);
+    FileView index_view = FileView::Create(index, 0ULL, 0ULL, nullptr);
+    CppTokenVector index_tv = TokenizeCpp(index_view);
+    LexCppTokens(index_tv);
     XternDefs xdefs;
-    CppTokenVector xr = GetExternalDefinitions(tv, xdefs);
+
+    FileView cc_view = FileView::Create(cc_file, 0ULL, 0ULL, nullptr);
+    CppTokenVector cc_tv = TokenizeCpp(cc_view);
+    LexCppTokens(cc_tv);
+    CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
     TestResults results(argv[2]);
-    results.tokens = tv.size();
-    ProcessTestPragmas(tv, xdefs, results);
+    results.tokens = cc_tv.size();
+    ProcessTestPragmas(cc_tv, xdefs, results);
 
     if (results.failures) {
       wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);

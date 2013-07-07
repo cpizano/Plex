@@ -1,0 +1,5 @@
+// #index.plex [index v1]
+
+pxx::TestClassA c={pxx,00000000,00000020};
+pxx::TestFunA f={pxx,00000000,00000021};
+

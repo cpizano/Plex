@@ -9,7 +9,7 @@ class Fooman {
   int m;
   int n;
   Reman* r;
-  laa::External e;
+  pxx::TestClassA e;
 
 public:
   Fooman(const Reman& rr) 
@@ -18,7 +18,7 @@ public:
 
   Fooman(laa::External& x) 
       : m(1), n(0), r(nullptr), e(x) {
-    Roar(&m, &n);
+    pxx::TestFunA(&m, &n);
     m = InilineMethod();
   }
 
