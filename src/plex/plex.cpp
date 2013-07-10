@@ -198,7 +198,8 @@ public:
 
   FilePath Append(const std::wstring& name) const {
     std::wstring full(path_);
-    full.append(1, L'\\');
+    if (!path_.empty())
+      full.append(1, L'\\');
     full.append(name);
     return FilePath(full);
   }
@@ -1442,8 +1443,12 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       auto xit = xdefs.find(fix_name);
       if (xit != xdefs.end()) {
         const auto& fixups = xit->second.src_pos;
-        if (std::find(begin(fixups), end(fixups), fix_line) != fixups.end())
-          return true;
+        for(auto fit = begin(fixups); fit != end(fixups); ++fit) {
+          if (tokens[*fit].type != CppToken::identifier)
+            continue;
+          if (tokens[*fit].line == fix_line)
+            return true;
+        }
       }
 
       TestErrorDump(it->line, fix_name.c_str());
