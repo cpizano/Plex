@@ -1350,17 +1350,28 @@ struct TestResults {
   }
 };
 
-void TestErrorDump(int line, size_t actual, size_t expected, CppTokenVector& tokens) {
-  wprintf(L"[FAIL] test of line %d : token_count actual : %d expected: %d \n",
-      line, actual, expected);
+void TestErrorHeader(TestResults& results, int line) {
+  ++results.failures;
+  if (results.failures == 1) {
+    wprintf(L"file [%s]\n",  results.file);
+  }
+  wprintf(L"[FAIL] test of line %d :", line); 
+}
+
+void TestErrorDump(TestResults& rs, 
+                   int line, size_t actual, size_t expected, CppTokenVector& tokens) {
+  TestErrorHeader(rs, line);
+  wprintf(L"token_count actual : %d expected: %d \n", actual, expected);
   for (auto& tok : tokens) {
     wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
   }
   wprintf(L"\n");
 }
 
-void TestErrorDump(int line, const char* name) {
-  wprintf(L"[FAIL] test of line %d : : for external def %S\n\n", line, name);
+void TestErrorDump(TestResults& rs,
+                   int line, const char* name) {
+  TestErrorHeader(rs, line);
+  wprintf(L"for external def %S\n\n", name);
 }
 
 bool ProcessTestPragmas(const CppTokenVector& tokens,
@@ -1369,11 +1380,10 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
   
   // It is very likely we are going to need this so we compute just once.
   CppTokenVector name_tokens;
-  std::for_each(begin(tokens), end(tokens), [&name_tokens] (const CppToken& tok) {
+  for (auto& tok : tokens) {
     if (tok.type == CppToken::identifier)
       name_tokens.push_back(tok);
-  });
-
+  }
 
   for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
     if (it->type != CppToken::plex_test_pragma)
@@ -1393,19 +1403,15 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
         throw TokenizerException(__LINE__, it->line);
 
       CppTokenVector line_tokens;
-      std::for_each(begin(tokens), end(tokens), [line, &line_tokens] (const CppToken& tok) {
-        if (tok.line == line)
-          line_tokens.push_back(tok);
-      });
+      for (auto& tok : tokens) {
+         if (tok.line == line)
+           line_tokens.push_back(tok);
+      }
 
       if (line_tokens.size() == expected_count)
         continue;
 
-      ++results.failures;
-      if (results.failures == 1) {
-        wprintf(L"file [%s]\n",  results.file);
-      }
-      TestErrorDump(it->line, line_tokens.size(), expected_count, line_tokens);
+      TestErrorDump(results, it->line, line_tokens.size(), expected_count, line_tokens);
 
     } else if (test_name == "name_count") {
       // name count format is: name_count count
@@ -1415,21 +1421,15 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
         throw TokenizerException(__LINE__, it->line);
 
       int count = 0;
-      int line = it->line;
-      std::for_each(begin(name_tokens), end(name_tokens), 
-          [line, &count] (const CppToken& tok) {
-      if (tok.line < line)
-        ++count;
-      });
+      for (auto& tok : name_tokens) {
+        if (tok.line < it->line)
+          ++count;
+      }
 
       if (count == expected_count)
         continue;
 
-      ++results.failures;
-      if (results.failures == 1) {
-        wprintf(L"file [%s]\n",  results.file);
-      }
-      TestErrorDump(it->line, name_tokens.size(), expected_count, name_tokens);
+      TestErrorDump(results, it->line, name_tokens.size(), expected_count, name_tokens);
 
     } else if (test_name == "fixup") {
       long fix_line;
@@ -1442,11 +1442,10 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       bool found = false;
       auto xit = xdefs.find(fix_name);
       if (xit != xdefs.end()) {
-        const auto& fixups = xit->second.src_pos;
-        for(auto fit = begin(fixups); fit != end(fixups); ++fit) {
-          if (tokens[*fit].type != CppToken::identifier)
+        for (auto& fixup : xit->second.src_pos) {
+          if (tokens[fixup].type != CppToken::identifier)
             continue;
-          if (tokens[*fit].line == fix_line) {
+          if (tokens[fixup].line == fix_line) {
             found = true;
             break;
           }
@@ -1456,7 +1455,7 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       if (found)
         continue;
 
-      TestErrorDump(it->line, fix_name.c_str());
+      TestErrorDump(results, it->line, fix_name.c_str());
 
     } else {
       // Unknown test pragma.
