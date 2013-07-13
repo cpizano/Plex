@@ -1359,11 +1359,12 @@ void TestErrorHeader(TestResults& results, int line) {
 }
 
 void TestErrorDump(TestResults& rs, 
-                   int line, size_t actual, size_t expected, CppTokenVector& tokens) {
+                   int line, size_t actual, size_t expected, const CppTokenVector& tokens) {
   TestErrorHeader(rs, line);
   wprintf(L"token_count actual : %d expected: %d \n", actual, expected);
   for (auto& tok : tokens) {
-    wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
+    if (tok.line == line)
+      wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
   }
   wprintf(L"\n");
 }
@@ -1385,6 +1386,11 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       name_tokens.push_back(tok);
   }
 
+  std::unordered_map<int, long> line_counts;
+  for (auto& tok : tokens) {
+    ++line_counts[tok.line];
+  }
+
   for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
     if (it->type != CppToken::plex_test_pragma)
       continue;
@@ -1402,16 +1408,10 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       if (!ss)
         throw TokenizerException(__LINE__, it->line);
 
-      CppTokenVector line_tokens;
-      for (auto& tok : tokens) {
-         if (tok.line == line)
-           line_tokens.push_back(tok);
-      }
-
-      if (line_tokens.size() == expected_count)
+      if (line_counts[line] == expected_count)
         continue;
 
-      TestErrorDump(results, it->line, line_tokens.size(), expected_count, line_tokens);
+      TestErrorDump(results, it->line, line_counts[line], expected_count, tokens);
 
     } else if (test_name == "name_count") {
       // name count format is: name_count count
