@@ -1379,6 +1379,7 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
     if (it->type != CppToken::plex_test_pragma)
       continue;
 
+    ++results.tests;
     std::istringstream ss(it->range.Start());
     ss.ignore(17);   // size of '#pragma plex_test'  $$ make this better.
     std::string test_name;
@@ -1397,9 +1398,8 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
           line_tokens.push_back(tok);
       });
 
-      ++results.tests;
       if (line_tokens.size() == expected_count)
-        return true;
+        continue;
 
       ++results.failures;
       if (results.failures == 1) {
@@ -1422,9 +1422,8 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
         ++count;
       });
 
-      ++results.tests;
       if (count == expected_count)
-        return true;
+        continue;
 
       ++results.failures;
       if (results.failures == 1) {
@@ -1440,16 +1439,22 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       if (!ss)
         throw TokenizerException(__LINE__, it->line);
 
+      bool found = false;
       auto xit = xdefs.find(fix_name);
       if (xit != xdefs.end()) {
         const auto& fixups = xit->second.src_pos;
         for(auto fit = begin(fixups); fit != end(fixups); ++fit) {
           if (tokens[*fit].type != CppToken::identifier)
             continue;
-          if (tokens[*fit].line == fix_line)
-            return true;
+          if (tokens[*fit].line == fix_line) {
+            found = true;
+            break;
+          }
         }
       }
+
+      if (found)
+        continue;
 
       TestErrorDump(it->line, fix_name.c_str());
 
@@ -1458,7 +1463,7 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       throw TokenizerException(__LINE__, it->line);
     }
 
-  }
+  }  // for all tokens.
 
   return true;
 }
