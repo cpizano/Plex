@@ -29,6 +29,11 @@
 // 101 define and load catalog information.
 // 102 include referenced entities directly.
 // 103 git or github integration .
+//
+// features
+//----------------------------
+// 201 automate enum to string code, see XternDef::Type
+//
 
 #include <SDKDDKVer.h>
 
@@ -1076,13 +1081,13 @@ bool LexCppTokens(CppTokenVector& tokens) {
 struct XternDef {
   enum Type {
     kNone,
-    kStruct,
-    kClass,
-    kUnion,
-    kEnum,
-    kFunction,
-    kTypedef,
-    kConstant,
+    kStruct,   // #st
+    kClass,    // #cs
+    kUnion,    // #un
+    kEnum,     // #en
+    kFunction, // #fn
+    kTypedef,  // #td
+    kConstant, // #kt
   };
 
   Type type;
@@ -1095,20 +1100,20 @@ struct XternDef {
 
 XternDef MakeXDef(const char* type, const MemRange<char>& name) {
   XternDef::Type xdt;
-  if (type[0] == 'p' && type[1] == 'c')
+  if (type[0] == 'c' && type[1] == 's')
     xdt = XternDef::kClass;
-  else if (type[0] == 'p' && type[1] == 's')
+  else if (type[0] == 's' && type[1] == 't')
     xdt = XternDef::kStruct;
-  else if (type[0] == 'r' && type[1] == 'u')
+  else if (type[0] == 'u' && type[1] == 'n')
     xdt = XternDef::kUnion;
-  else if (type[0] == 'p' && type[1] == 'f')
+  else if (type[0] == 'f' && type[1] == 'n')
     xdt = XternDef::kFunction;
-  else if (type[0] == 'p' && type[1] == 'e')
+  else if (type[0] == 'e' && type[1] == 'n')
     xdt = XternDef::kEnum;
-  else if (type[0] == 'k' && type[1] == 'c')
+  else if (type[0] == 'k' && type[1] == 't')
     xdt = XternDef::kConstant;
   else
-    throw CatalogException(0, __LINE__);
+    throw CatalogException(__LINE__, 0);
 
   XternDef xdef(name);
   xdef.type = xdt;
@@ -1126,13 +1131,13 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
         continue;
       ++it;
       if (it->type != CppToken::open_paren)
-        throw CatalogException(it->line, __LINE__);
+        throw CatalogException(__LINE__, it->line);
       ++it;
       if (it->type != CppToken::identifier)
-        throw CatalogException(it->line, __LINE__);
+        throw CatalogException(__LINE__, it->line);
       auto it2 = it + 1;
       if (it2->type != CppToken::comma)
-        throw CatalogException(it->line, __LINE__);
+        throw CatalogException(__LINE__, it->line);
       ++it2;
 
       defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range);
