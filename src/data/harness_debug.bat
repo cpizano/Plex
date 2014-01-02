@@ -7,16 +7,18 @@ if not exist %plexbin% goto error1
 set /a errcount=0
 set /a count=0
 
+setlocal ENABLEDELAYEDEXPANSION
+
 for /F %%x in ('dir /B/D *.cc') do (
   echo processing %%x
+  set /a count=count+1
   %plexbin% --tokens-test %%x
-  if errorlevel 1 set /a errcount+=1
-  set /a count+=1
+  if errorlevel 1 set /a errcount=errcount+1
 )
 
-echo %count% files processed.
+echo !count! files processed.
 
-if %errcount% NEQ 0 goto error2
+if !errcount! NEQ 0 goto error2
 echo no errors found.
 goto end
 
@@ -31,3 +33,4 @@ goto end
 
 :end
 echo == plex test harness end ==
+endlocal
