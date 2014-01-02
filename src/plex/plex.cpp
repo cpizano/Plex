@@ -153,7 +153,7 @@ public:
   }
 
   T Next(T*& curr) const {
-    if (curr > end_) {
+    if (curr + 1 >= end_) {
       curr = nullptr;
       return T(0);
     }
@@ -174,6 +174,17 @@ public:
     return (memcmp(start_, rhs.start_, Size()) == 0);
   }
 };
+
+std::wstring AsciiToUTF16(const MemRange<char>& str) {
+  auto r = str.Start();
+  std::wstring rv;
+  rv.reserve(str.Size());
+  while(r) {
+    rv.append(1, *r);
+    str.Next(r);
+  }
+  return rv;
+}
 
 int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
   return -1;
@@ -760,10 +771,6 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
         throw TokenizerException(__LINE__, line);
       }
 
-      // Insert a final token to simplify further processing.
-      tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::eos, line + 1));
-      return tv;
-
     } else if ((point == 0x09) || (point == 0x0A) || (point == 0x20)) {
       // tab (0x09) linefeed (0x0A) and space (0x20).
       if (str) {
@@ -839,8 +846,9 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
     c = range.Next(curr);
   } while (curr);
 
-  // Range needs to be null terminated.
-  throw TokenizerException(__LINE__, line);
+  // Insert a final token to simplify further processing.
+  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::eos, line + 1));
+  return tv;
 }
 
 bool IsCppTokenNextTo(CppTokenVector::iterator it) {
@@ -1093,13 +1101,25 @@ struct XternDef {
 
   Type type;
   MemRange<char> name;
+  MemRange<char> path;
+  MemRange<char> src;
   std::vector<size_t> src_pos;
 
-  XternDef(const MemRange<char>& name) : type(kNone), name(name) {}
-  XternDef() : type(kNone), name(nullptr, nullptr) {}
+  XternDef(const MemRange<char>& name, const MemRange<char>& path)
+      : type(kNone),
+        name(name), path(path),
+        src(nullptr, nullptr) {
+  }
+  XternDef()
+      : type(kNone),
+        name(nullptr, nullptr), path(nullptr, nullptr),
+        src(nullptr, nullptr) {
+  }
 };
 
-XternDef MakeXDef(const char* type, const MemRange<char>& name) {
+XternDef MakeXDef(const char* type,
+                  const MemRange<char>& name,
+                  const MemRange<char>& path) {
   XternDef::Type xdt;
   if (type[0] == 'c' && type[1] == 's')
     xdt = XternDef::kClass;
@@ -1116,7 +1136,7 @@ XternDef MakeXDef(const char* type, const MemRange<char>& name) {
   else
     throw CatalogException(__LINE__, 0);
 
-  XternDef xdef(name);
+  XternDef xdef(name, path);
   xdef.type = xdt;
   return xdef;
 }
@@ -1140,12 +1160,41 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
       if (it2->type != CppToken::comma)
         throw CatalogException(__LINE__, it->line);
       ++it2;
+      auto it3 = it2 + 1;
+      if (it3->type != CppToken::comma)
+        throw CatalogException(__LINE__, it->line);
+      ++it3;
+      auto it4 = it3;
+      for (; it4->type != CppToken::comma; ++it4) {}
+      CoaleseToken(it3, it4 - 1, CppToken::const_str);
+      tv.erase(it3 + 1, it4);
 
-      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range);
-      it = ++it2;
+      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range, it3->range);
+      it = ++it3;
     }
   }
 }
+
+bool LoadEntity(XternDef& def, const FilePath& path) {
+  FileParams fparams = FileView::GetParams(FileView::read_only);
+  FilePath fpath = path.Append(AsciiToUTF16(def.path));
+  File entity = File::Create(fpath, fparams, FileSecurity());
+  if (!entity.IsValid())
+    return false;
+
+  return true;
+}
+
+// Populates the src param for the xdefs that have src_pos not empty.
+void LoadEntities(XternDefs& defs, const FilePath& path) {
+  for (auto it = begin(defs); it != end(defs); ++it) {
+    if (it->second.src_pos.empty())
+      continue;
+    if (!LoadEntity(it->second, path))
+      throw CatalogException(__LINE__, 0);
+  }
+}
+
 
 #pragma endregion
 
@@ -1518,6 +1567,11 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector cc_tv = TokenizeCpp(cc_view);
     LexCppTokens(cc_tv);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
+
+    if (!xr.empty()) {
+      // Load the referenced entities.
+      LoadEntities(xdefs, catalog.Parent());
+    }
 
     TestResults results(argv[2]);
     results.tokens = cc_tv.size();

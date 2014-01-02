@@ -8,7 +8,7 @@
 // td : typedef
 
 cen(pxx::TestClassA,
-    cs, pxx, 00000000,00000020);
+    cs, pxx\TestClassA.cc, 00000000,00000020);
 cen(pxx::TestFunA,
-    fn, pxx, 00000000,00000021);
+    fn, pxx\TestFunA.cc, 00000000,00000021);
 end();
