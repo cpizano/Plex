@@ -175,6 +175,16 @@ public:
   }
 };
 
+class HeapCharRange : public MemRange<char> {
+private:
+  std::unique_ptr<char> zone_;
+
+public:
+  HeapCharRange(const size_t size, char* start)
+    : MemRange(start, start + size), zone_(start) {
+  }
+};
+
 std::wstring AsciiToUTF16(const MemRange<char>& str) {
   auto r = str.Start();
   std::wstring rv;
@@ -365,6 +375,16 @@ public:
     LARGE_INTEGER li = {0};
     ::GetFileSizeEx(handle_, &li);
     return li.QuadPart;
+  }
+
+  size_t Read(MemRange<char>& mem, unsigned int start) {
+    OVERLAPPED ov = {0};
+    ov.Offset = start;
+    ov.OffsetHigh = 0;
+    DWORD read = 0;
+    if (!::ReadFile(handle_, mem.Start(), static_cast<DWORD>(mem.Size()), &read, &ov))
+      return 0;
+    return read;
   }
 
 #if 0
@@ -1102,18 +1122,18 @@ struct XternDef {
   Type type;
   MemRange<char> name;
   MemRange<char> path;
-  MemRange<char> src;
+  std::shared_ptr<MemRange<char>> src;
+
   std::vector<size_t> src_pos;
 
   XternDef(const MemRange<char>& name, const MemRange<char>& path)
       : type(kNone),
-        name(name), path(path),
-        src(nullptr, nullptr) {
+        name(name), path(path) {
   }
+
   XternDef()
       : type(kNone),
-        name(nullptr, nullptr), path(nullptr, nullptr),
-        src(nullptr, nullptr) {
+        name(nullptr, nullptr), path(nullptr, nullptr) {
   }
 };
 
@@ -1181,7 +1201,13 @@ bool LoadEntity(XternDef& def, const FilePath& path) {
   File entity = File::Create(fpath, fparams, FileSecurity());
   if (!entity.IsValid())
     return false;
-
+  size_t size = entity.SizeInBytes();
+  if (!size)
+    return false;
+  std::unique_ptr<HeapCharRange> data(new HeapCharRange(size, new char[size]));
+  if (!entity.Read(*data, 0))
+    return false;
+  def.src.reset(data.release());
   return true;
 }
 
