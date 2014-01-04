@@ -1354,10 +1354,6 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
         if (!IsInVector(ldefs, it->range.Start())) {
 
           if(IsInVector(xrefs, it->range.Start())) {
-            // xrefs.push_back(*it);
-            throw __LINE__;  // The above line did not made sense
-                             // so added this break here to figure
-                             // out what the hell I meant.
             continue;
           }
 
