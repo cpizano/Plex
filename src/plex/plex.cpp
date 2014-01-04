@@ -1123,8 +1123,6 @@ struct XternDef {
   Type type;
   MemRange<char> name;
   MemRange<char> path;
-  std::shared_ptr<MemRange<char>> src;
-
   std::vector<size_t> src_pos;
 
   XternDef(const MemRange<char>& name, const MemRange<char>& path)
@@ -1136,6 +1134,19 @@ struct XternDef {
       : type(kNone),
         name(nullptr, nullptr), path(nullptr, nullptr) {
   }
+};
+
+class XEntity {
+  MemRange<char> name_;
+  XternDef::Type type_;
+  std::unique_ptr<HeapCharRange> src_;
+  std::vector<size_t> pos_;
+
+public:
+  XEntity(XternDef& def, HeapCharRange* hcr)
+    : name_(def.name), type_(def.type), src_(hcr), pos_(def.src_pos) {
+  }
+
 };
 
 XternDef MakeXDef(const char* type,
@@ -1198,23 +1209,22 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
   }
 }
 
-bool LoadEntity(XternDef& def, const FilePath& path) {
+HeapCharRange* LoadEntity(XternDef& def, const FilePath& path) {
   if (def.type == XternDef::kInclude)
-    return true;
+    return NULL;
 
   FileParams fparams = FileView::GetParams(FileView::read_only);
   FilePath fpath = path.Append(AsciiToUTF16(def.path));
   File entity = File::Create(fpath, fparams, FileSecurity());
   if (!entity.IsValid())
-    return false;
+    throw CatalogException(__LINE__, 0);
   size_t size = entity.SizeInBytes();
   if (!size)
-    return false;
+    throw CatalogException(__LINE__, 0);
   std::unique_ptr<HeapCharRange> data(new HeapCharRange(size, new char[size]));
   if (!entity.Read(*data, 0))
-    return false;
-  def.src.reset(data.release());
-  return true;
+    throw CatalogException(__LINE__, 0);
+  return data.release();
 }
 
 // Populates the src param for the xdefs that have src_pos not empty.
@@ -1222,8 +1232,8 @@ void LoadEntities(XternDefs& defs, const FilePath& path) {
   for (auto it = begin(defs); it != end(defs); ++it) {
     if (it->second.src_pos.empty())
       continue;
-    if (!LoadEntity(it->second, path))
-      throw CatalogException(__LINE__, 0);
+    HeapCharRange* hcr = LoadEntity(it->second, path);
+    new XEntity(it->second, hcr);
   }
 }
 
