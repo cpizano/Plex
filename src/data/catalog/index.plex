@@ -6,9 +6,15 @@
 // en : enum
 // kt : constant
 // td : typedef
+// in : include
 
 cen(pxx::TestClassA,
-    cs, pxx\TestClassA.cc, 00000000,00000020);
+    cs, pxx\TestClassA.cc, 1);
 cen(pxx::TestFunA,
-    fn, pxx\TestFunA.cc, 00000000,00000021);
+    fn, pxx\TestFunA.cc, 1);
+
+cen(std::string, in, <string>, 1);
+cen(std::wstring, in, <string>, 1);
+cen(std::vector, in, <vector>, 1);
+
 end();

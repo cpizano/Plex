@@ -1117,6 +1117,7 @@ struct XternDef {
     kFunction, // #fn
     kTypedef,  // #td
     kConstant, // #kt
+    kInclude,  // #in
   };
 
   Type type;
@@ -1153,6 +1154,8 @@ XternDef MakeXDef(const char* type,
     xdt = XternDef::kEnum;
   else if (type[0] == 'k' && type[1] == 't')
     xdt = XternDef::kConstant;
+  else if (type[0] == 'i' && type[1] == 'n')
+    xdt = XternDef::kInclude;
   else
     throw CatalogException(__LINE__, 0);
 
@@ -1196,6 +1199,9 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
 }
 
 bool LoadEntity(XternDef& def, const FilePath& path) {
+  if (def.type == XternDef::kInclude)
+    return true;
+
   FileParams fparams = FileView::GetParams(FileView::read_only);
   FilePath fpath = path.Append(AsciiToUTF16(def.path));
   File entity = File::Create(fpath, fparams, FileSecurity());
