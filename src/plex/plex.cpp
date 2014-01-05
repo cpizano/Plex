@@ -140,6 +140,15 @@ public:
       end_(end) {
   }
 
+  MemRange()
+    : start_(nullptr),
+      end_(nullptr) {
+  }
+
+  MemRange(size_t count) 
+    : start_(new T[count]), end_(start_ + sizeof(T)*count) {
+  }
+
   T* Start() const {
     return start_;
   }
@@ -172,16 +181,6 @@ public:
     if (!Size())
       return true;
     return (memcmp(start_, rhs.start_, Size()) == 0);
-  }
-};
-
-class HeapCharRange : public MemRange<char> {
-private:
-  std::unique_ptr<char> zone_;
-
-public:
-  HeapCharRange(const size_t size, char* start)
-    : MemRange(start, start + size), zone_(start) {
   }
 };
 
@@ -358,9 +357,12 @@ public:
     }
   }
 
-  static long long GetUniqueId(const FilePath& path) {
-    // $$$ tbd!!
-    return 5;
+  long long GetUniqueId() {
+    BY_HANDLE_FILE_INFORMATION bhfi;
+    if (!::GetFileInformationByHandle(handle_, &bhfi))
+      return 0;
+    LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
+    return li.QuadPart;
   }
 
   unsigned int Status() const {
@@ -466,6 +468,35 @@ public:
     }
   }
 };
+
+// Loads an entire file into memory, keeping only one copy. Memory is kept
+// until program ends.
+MemRange<char> LoadFileOnce(const FilePath& path) {
+  static std::unordered_map<long long, MemRange<char>> map;
+
+  FileParams fp(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, 0, 0, 0);
+  File file = File::Create(path, fp, FileSecurity());
+  if (!file.IsValid())
+    throw __LINE__;
+  long long id = file.GetUniqueId();
+  if (!id)
+    throw __LINE__;
+  auto it = map.find(id);
+  if (it != map.end())
+    return it->second;
+
+  size_t size = file.SizeInBytes();
+  if (size > (1024 * 1024 * 16))
+    throw __LINE__;
+
+  MemRange<char> range(size);
+  size = file.Read(range, 0);
+  if (size != range.Size())
+    throw __LINE__;
+
+  map[id] = range;
+  return range;
+}
 
 #pragma endregion
 
@@ -1131,22 +1162,8 @@ struct XternDef {
   }
 
   XternDef()
-      : type(kNone),
-        name(nullptr, nullptr), path(nullptr, nullptr) {
+      : type(kNone) {
   }
-};
-
-class XEntity {
-  MemRange<char> name_;
-  XternDef::Type type_;
-  std::unique_ptr<HeapCharRange> src_;
-  std::vector<size_t> pos_;
-
-public:
-  XEntity(XternDef& def, HeapCharRange* hcr)
-    : name_(def.name), type_(def.type), src_(hcr), pos_(def.src_pos) {
-  }
-
 };
 
 XternDef MakeXDef(const char* type,
@@ -1209,22 +1226,24 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
   }
 }
 
-HeapCharRange* LoadEntity(XternDef& def, const FilePath& path) {
-  if (def.type == XternDef::kInclude)
-    return NULL;
+class XEntity {
+  MemRange<char> name_;
+  XternDef::Type type_;
+  MemRange<char> src_;
+  std::vector<size_t> pos_;
 
-  FileParams fparams = FileView::GetParams(FileView::read_only);
+public:
+  XEntity(XternDef& def, MemRange<char> src)
+    : name_(def.name), type_(def.type), src_(src), pos_(def.src_pos) {
+  }
+
+};
+
+MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
+  if (def.type == XternDef::kInclude)
+    return MemRange<char>();
   FilePath fpath = path.Append(AsciiToUTF16(def.path));
-  File entity = File::Create(fpath, fparams, FileSecurity());
-  if (!entity.IsValid())
-    throw CatalogException(__LINE__, 0);
-  size_t size = entity.SizeInBytes();
-  if (!size)
-    throw CatalogException(__LINE__, 0);
-  std::unique_ptr<HeapCharRange> data(new HeapCharRange(size, new char[size]));
-  if (!entity.Read(*data, 0))
-    throw CatalogException(__LINE__, 0);
-  return data.release();
+  return LoadFileOnce(fpath);
 }
 
 // Populates the src param for the xdefs that have src_pos not empty.
@@ -1232,11 +1251,9 @@ void LoadEntities(XternDefs& defs, const FilePath& path) {
   for (auto it = begin(defs); it != end(defs); ++it) {
     if (it->second.src_pos.empty())
       continue;
-    HeapCharRange* hcr = LoadEntity(it->second, path);
-    new XEntity(it->second, hcr);
+    new XEntity(it->second, LoadEntity(it->second, path));
   }
 }
-
 
 #pragma endregion
 
