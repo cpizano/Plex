@@ -1589,30 +1589,28 @@ int wmain(int argc, wchar_t* argv[]) {
   }
 
   try {
-    // Input file, typically a c++ file.
+    // Input file, typically a c++ file. The catalog index is also an implicit input.
     FilePath path(argv[2]);
-    FileParams fparams = FileView::GetParams(FileView::read_only);
-    File cc_file = File::Create(path, fparams, FileSecurity());
-    if (!cc_file.IsValid()) {
-       wprintf(L"error: could not open input file\n");
-       return 1;
-    }
-    // The catalog index is also an implicit input.
     FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
-    File index = File::Create(catalog, fparams, FileSecurity());
-    if (!index.IsValid()) {
-       wprintf(L"error: could not open catalog\n");
-       return 1;
+
+    MemRange<char> input_range;
+    MemRange<char> index_range;
+    try {
+      input_range = LoadFileOnce(path);
+      index_range = LoadFileOnce(catalog);
+
+    } catch (IOException& err) {
+      wprintf(L"error: can't open input file or index.plex (line %d)\n",
+              err.Line());
+      return 1;
     }
 
-    FileView index_view = FileView::Create(index, 0ULL, 0ULL, nullptr);
-    CppTokenVector index_tv = TokenizeCpp(index_view);
+    CppTokenVector index_tv = TokenizeCpp(index_range);
     LexCppTokens(index_tv);
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
-    FileView cc_view = FileView::Create(cc_file, 0ULL, 0ULL, nullptr);
-    CppTokenVector cc_tv = TokenizeCpp(cc_view);
+    CppTokenVector cc_tv = TokenizeCpp(input_range);
     LexCppTokens(cc_tv);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
