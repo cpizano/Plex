@@ -1232,6 +1232,8 @@ public:
 
 };
 
+typedef std::vector<XEntity> XEntities;
+
 MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
   if (def.type == XternDef::kInclude)
     return MemRange<char>();
@@ -1240,11 +1242,11 @@ MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
 }
 
 // Populates the src param for the xdefs that have src_pos not empty.
-void LoadEntities(XternDefs& defs, const FilePath& path) {
+void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
   for (auto it = begin(defs); it != end(defs); ++it) {
     if (it->second.src_pos.empty())
       continue;
-    new XEntity(it->second, LoadEntity(it->second, path));
+    ents.push_back(XEntity(it->second, LoadEntity(it->second, path)));
   }
 }
 
@@ -1598,7 +1600,6 @@ int wmain(int argc, wchar_t* argv[]) {
     try {
       input_range = LoadFileOnce(path);
       index_range = LoadFileOnce(catalog);
-
     } catch (IOException& err) {
       wprintf(L"error: can't open input file or index.plex (line %d)\n",
               err.Line());
@@ -1614,9 +1615,10 @@ int wmain(int argc, wchar_t* argv[]) {
     LexCppTokens(cc_tv);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
+    XEntities entities;
     if (!xr.empty()) {
       // Load the referenced entities.
-      LoadEntities(xdefs, catalog.Parent());
+      LoadEntities(xdefs, entities, catalog.Parent());
     }
 
     TestResults results(argv[2]);
