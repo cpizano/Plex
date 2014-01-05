@@ -357,10 +357,11 @@ public:
     }
   }
 
+  // $$ this ignores the volume id, so technically incorrect.
   long long GetUniqueId() {
     BY_HANDLE_FILE_INFORMATION bhfi;
     if (!::GetFileInformationByHandle(handle_, &bhfi))
-      return 0;
+      throw IOException(__LINE__);
     LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
     return li.QuadPart;
   }
@@ -388,14 +389,6 @@ public:
       return 0;
     return read;
   }
-
-#if 0
-  bool Attributes() {
-    BY_HANDLE_FILE_INFORMATION bhfi = {0};
-    ::GetFileInformationByHandle(handle_, &bhfi);
-    return true $$$??
-  }
-#endif
 };
 
 class FileView : public MemRange<char> {
@@ -470,31 +463,31 @@ public:
 };
 
 // Loads an entire file into memory, keeping only one copy. Memory is kept
-// until program ends.
+// until program ends. Harcoded limit of 256 MB for all files.
 MemRange<char> LoadFileOnce(const FilePath& path) {
   static std::unordered_map<long long, MemRange<char>> map;
+  static size_t total_size = 0;
 
   FileParams fp(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, 0, 0, 0);
   File file = File::Create(path, fp, FileSecurity());
   if (!file.IsValid())
-    throw __LINE__;
+    throw IOException(__LINE__);
   long long id = file.GetUniqueId();
-  if (!id)
-    throw __LINE__;
   auto it = map.find(id);
   if (it != map.end())
     return it->second;
 
   size_t size = file.SizeInBytes();
-  if (size > (1024 * 1024 * 16))
-    throw __LINE__;
+  if (size + total_size > (1024 * 1024 * 256))
+    throw IOException(__LINE__);
 
   MemRange<char> range(size);
   size = file.Read(range, 0);
   if (size != range.Size())
-    throw __LINE__;
+    throw IOException(__LINE__);
 
   map[id] = range;
+  total_size += size;
   return range;
 }
 
