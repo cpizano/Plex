@@ -23,6 +23,7 @@
 // 018 remove definition names
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'
+// 021 test KeyElements includes.
 //
 // Longer term
 // ---------------------------
@@ -919,7 +920,11 @@ void CoaleseToken(CppTokenVector::iterator first,
                                 last->range.End());
 }
 
-bool LexCppTokens(CppTokenVector& tokens) {
+struct KeyElements {
+  std::vector<size_t> includes;
+};
+
+bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
   auto it = tokens.begin();
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -991,7 +996,12 @@ bool LexCppTokens(CppTokenVector& tokens) {
                 pp_type = CppToken::plex_test_pragma;
               }
             }
+          } else if (pp_type == CppToken::prep_include) {
+            if (count < 4)
+              throw TokenizerException(__LINE__, it->line);
+            kelem.includes.push_back(it - tokens.begin());
           }
+
           CoaleseToken(it, it2 - 1, pp_type);
           tokens.erase(it + 1, it2);
         }
@@ -1607,12 +1617,15 @@ int wmain(int argc, wchar_t* argv[]) {
     }
 
     CppTokenVector index_tv = TokenizeCpp(index_range);
-    LexCppTokens(index_tv);
+    KeyElements key_elems_ix;
+    LexCppTokens(index_tv, key_elems_ix);
+
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
     CppTokenVector cc_tv = TokenizeCpp(input_range);
-    LexCppTokens(cc_tv);
+    KeyElements key_elems_cc;
+    LexCppTokens(cc_tv, key_elems_cc);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
