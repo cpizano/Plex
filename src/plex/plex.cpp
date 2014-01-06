@@ -1455,6 +1455,11 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     return xrefs;
 }
 
+void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
+
+}
+
+
 #pragma region testing
 
 struct TestResults {
@@ -1588,14 +1593,26 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
 #pragma endregion
 
 
+enum OpMode {
+  None,
+  TokensTest,
+  Generator,
+};
+
 int wmain(int argc, wchar_t* argv[]) {
+
+  OpMode op_mode = None;
 
   if (argc != 3) {
     wprintf(L"error: invalid # of options\n");
     return 1;
   }
 
-  if (argv[1] != std::wstring(L"--tokens-test")) {
+  if (argv[1] == std::wstring(L"--tokens-test"))
+    op_mode = TokensTest;
+  else if (argv[1] == std::wstring(L"--generator"))
+    op_mode = Generator;
+  else {
     wprintf(L"error: unrecognized option\n");
     return 1;
   }
@@ -1634,16 +1651,23 @@ int wmain(int argc, wchar_t* argv[]) {
       LoadEntities(xdefs, entities, catalog.Parent());
     }
 
-    TestResults results(argv[2]);
-    results.tokens = cc_tv.size();
-    ProcessTestPragmas(cc_tv, xdefs, results);
+    if (op_mode == Generator) {
+      // Generator mode ==================================================
+      // $$$ create output file.
+      ProcessEntities(cc_tv, entities, key_elems_cc);
+    } else {
+      // Testing mode ====================================================
+      TestResults results(argv[2]);
+      results.tokens = cc_tv.size();
+      ProcessTestPragmas(cc_tv, xdefs, results);
 
-    if (results.failures) {
-      wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
-      return 1;
-    } 
-      
-    wprintf(L"done: [%s] with %d OK tests\n", argv[2], results.tests);
+      if (results.failures) {
+        wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
+        return 1;
+      } 
+      wprintf(L"done: [%s] with %d OK tests\n", argv[2], results.tests);
+    }
+
     return 0;
 
   } catch (PlexException& ex) {
