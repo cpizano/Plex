@@ -24,6 +24,7 @@
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'
 // 021 test KeyElements includes.
+// 023 output file should not destroy previous one.
 //
 // Longer term
 // ---------------------------
@@ -34,7 +35,8 @@
 // features
 //----------------------------
 // 201 automate enum to string code, see XternDef::Type.
-// catalog index (index.plex) generation should be automated.
+// 202 writes all includes for std:: well known entities
+// 203 catalog index (index.plex) generation should be automated.
 //
 
 #include <SDKDDKVer.h>
@@ -223,6 +225,13 @@ public:
     return FilePath(path_.substr(0, pos));
   }
 
+  std::wstring Leaf() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos)
+      return std::wstring();
+    return path_.substr(pos + 1);
+  }
+
   FilePath Append(const std::wstring& name) const {
     std::wstring full(path_);
     if (!path_.empty())
@@ -401,10 +410,6 @@ private:
            char* end)
     : MemRange(start, end),
       map_(map) {
-  }
-
-  bool plex_check_init() const {
-    // $$$ map is valid.
   }
 
 public:
@@ -1599,6 +1604,15 @@ enum OpMode {
   Generator,
 };
 
+File MakeOutputCodeFile(const FilePath& path) {
+  FilePath output_path = path.Parent().Append(L"g_" + path.Leaf());
+  FileParams fp = FileParams(GENERIC_READ | GENERIC_WRITE,
+                             FILE_SHARE_READ, CREATE_ALWAYS, 0, 0, 0);
+  File output = File::Create(output_path, fp, FileSecurity());
+  //output.Write
+  return output;
+}
+
 int wmain(int argc, wchar_t* argv[]) {
 
   OpMode op_mode = None;
@@ -1651,9 +1665,10 @@ int wmain(int argc, wchar_t* argv[]) {
       LoadEntities(xdefs, entities, catalog.Parent());
     }
 
+    
     if (op_mode == Generator) {
       // Generator mode ==================================================
-      // $$$ create output file.
+      File output_cc = MakeOutputCodeFile(path);
       ProcessEntities(cc_tv, entities, key_elems_cc);
     } else {
       // Testing mode ====================================================
