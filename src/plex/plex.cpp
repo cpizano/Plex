@@ -178,7 +178,7 @@ public:
     return *this;
   }
 
-  bool Equal(const MemRange<T>& rhs) {
+  bool Equal(const MemRange<T>& rhs) const {
     if (Size() != rhs.Size())
       return false;
     if (!Size())
@@ -1245,6 +1245,27 @@ public:
     : name_(def.name), type_(def.type), src_(src), pos_(def.src_pos) {
   }
 
+  void Process(CppTokenVector& in_src, KeyElements& kel) {
+    if (type_ == XternDef::kInclude)
+      HandleInclude(in_src, kel); 
+  }
+
+private:
+  void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
+    if (kel.includes.empty())
+      return;
+  }
+
+  bool IsInVector(const MemRange<char>& what,
+                  const CppTokenVector& src, const std::vector<size_t>& items) {
+    for (auto it = begin(items); it != end(items); ++it) {
+      const MemRange<char>& rhs = src[*it].range;
+      if (what.Equal(rhs))
+        return true;
+    }
+    return false;
+  }
+
 };
 
 typedef std::vector<XEntity> XEntities;
@@ -1461,7 +1482,9 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 }
 
 void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
-
+  for (auto it = begin(ent); it != end(ent); ++it) {
+    it->Process(src, kel);
+  }
 }
 
 
