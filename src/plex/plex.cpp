@@ -53,6 +53,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <functional>
 
 #pragma region constants
 const char* anonymous_namespace_mk = "<[anonymous]>";
@@ -185,6 +186,30 @@ public:
     if (!Size())
       return true;
     return (memcmp(start_, rhs.start_, Size()) == 0);
+  }
+
+  struct SliceToEnd {};
+  struct SliceFromStart{};
+
+  MemRange<T> Find(T what, const SliceToEnd&) const {
+    for (auto it = start_; it != end_; ++it) {
+      if (what == *it) return MemRange<T>(it, end_);
+    }
+    return MemRange<T>();
+  }
+
+  MemRange<T> Find(T what, const SliceFromStart&) const {
+    for (auto it = start_; it != end_; ++it) {
+      if (what == *it) return MemRange<T>(start_, it + 1);
+    }
+    return MemRange<T>();
+  }
+
+  MemRange<char> Find(T first, T last) const {
+    auto r = Find(first, SliceToEnd());
+    if (!r.Size())
+      return r;
+    return r.Find(last, SliceFromStart());
   }
 };
 
@@ -722,6 +747,17 @@ std::string ToString(const CppToken& tok) {
 bool EqualToStr(const CppToken& tok, const char* str) {
   return (::strncmp(str,  tok.range.Start(), tok.range.Size()) == 0);
 }
+
+// Returns a function that can iterate over the |tv| locations defined in |pos|.
+std::function<MemRange<char> (size_t)> TV_Generator(std::vector<CppToken>& tv, 
+                                                     std::vector<size_t>& pos) {
+  return [&](size_t it) {
+    if (it == pos.size())
+      return MemRange<char>();
+    else 
+      return tv[pos[it]].range;
+  };
+};
 
 template<typename T, size_t count>
 size_t FindToken(T (&kw)[count], const MemRange<char>& r) {
@@ -1275,27 +1311,22 @@ public:
 
 private:
   void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
-    if (kel.includes.empty())
-      return;
-  }
-
-  bool IsInVector(const MemRange<char>& what,
-                  const CppTokenVector& src, const std::vector<size_t>& items) {
-    for (auto it = begin(items); it != end(items); ++it) {
-      const MemRange<char>& rhs = src[*it].range;
-      if (what.Equal(rhs))
-        return true;
+    auto gen = TV_Generator(in_src, kel.includes);
+    size_t it = 0;
+    for (MemRange<char> r = gen(it); r.Size() != 0; r = gen(++it)) {
+      MemRange<char> s = r.Find('<', '>');
+      if (s.Equal(src_))
+        return;
     }
-    return false;
+    // Include not found in source.
   }
-
 };
 
 typedef std::vector<XEntity> XEntities;
 
 MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
   if (def.type == XternDef::kInclude)
-    return MemRange<char>();
+    return def.path;
   FilePath fpath = path.Append(AsciiToUTF16(def.path));
   return LoadFileOnce(fpath);
 }
