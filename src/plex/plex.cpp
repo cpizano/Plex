@@ -25,6 +25,7 @@
 // 020 handle namespace alias 'namespace foo = bar::doo'
 // 021 test KeyElements includes.
 // 023 output file should not destroy previous one.
+// 024 output file in its own directory.
 //
 // Longer term
 // ---------------------------
@@ -309,32 +310,39 @@ public:
 };
 
 class File {
-private:
   HANDLE handle_;
   unsigned int  status_;
   friend class FileView;
 
+private:
   File(HANDLE handle,
        unsigned int status)
     : handle_(handle),
       status_(status) {
   }
 
-protected:
-  File()
-    : handle_(INVALID_HANDLE_VALUE),
-      status_(0) {
-  }
+  File();
+  File(const File&);
+  File& operator=(const File&);
 
 public:
   enum Status {
-    existing        = 1,
-    delete_on_close = 2,
-    directory       = 4,   // $$$ just use backup semantics?
-    exclusive       = 8,
-    readonly        = 16,
-    information     = 32,
+    none              = 0,
+    brandnew          = 1,   // 
+    existing          = 2,
+    delete_on_close   = 4,
+    directory         = 8,   // $$$ just use backup semantics?
+    exclusive         = 16,
+    readonly          = 32,
+    information       = 64,
   };
+
+  File(File&& file) 
+    : handle_(INVALID_HANDLE_VALUE),
+      status_(none) {
+    std::swap(file.handle_, handle_);
+    std::swap(file.status_, status_);
+  }
 
   static File Create(const FilePath& path,
                      const FileParams& params,
@@ -347,14 +355,29 @@ public:
                                 params.attributes_ | params.flags_ | params.sqos_,
                                 0);
     DWORD gle = ::GetLastError();
-    unsigned int status = 0;
+    unsigned int status = none;
 
-    if (gle == ERROR_FILE_EXISTS) status |= existing;
-    if (params.flags_ == FILE_FLAG_BACKUP_SEMANTICS) status |= directory;
-    if (params.flags_ & FILE_FLAG_DELETE_ON_CLOSE) status |= delete_on_close;
-    if (params.sharing_ == 0) status |= exclusive;
-    if (params.access_ == 0) status |= information;
-    if (params.access_ == GENERIC_READ) status |= readonly;
+    if (file != INVALID_HANDLE_VALUE) {
+
+      switch (params.disposition_) {
+        case OPEN_EXISTING:
+        case TRUNCATE_EXISTING:
+          status |= existing; break;
+        case CREATE_NEW:
+          status |= (gle == ERROR_FILE_EXISTS) ? existing : brandnew; break;
+        case CREATE_ALWAYS:
+        case OPEN_ALWAYS:
+          status |= (gle == ERROR_ALREADY_EXISTS) ? existing : brandnew; break;
+        default:
+          __debugbreak();
+      };
+
+      if (params.flags_ == FILE_FLAG_BACKUP_SEMANTICS) status |= directory;
+      if (params.flags_ & FILE_FLAG_DELETE_ON_CLOSE) status |= delete_on_close;
+      if (params.sharing_ == 0) status |= exclusive;
+      if (params.access_ == 0) status |= information;
+      if (params.access_ == GENERIC_READ) status |= readonly;
+    }
 
     return File(file, status);
   }
@@ -1631,13 +1654,12 @@ File MakeOutputCodeFile(const FilePath& path) {
   FilePath output_path = path.Parent().Append(L"g_" + path.Leaf());
   FileParams fp = FileParams(GENERIC_READ | GENERIC_WRITE,
                              FILE_SHARE_READ, CREATE_ALWAYS, 0, 0, 0);
-  File output = File::Create(output_path, fp, FileSecurity());
-  //output.Write
-  return output;
+  File file = File::Create(output_path, fp, FileSecurity());
+  // $$ write some header here.
+  return file;
 }
 
 int wmain(int argc, wchar_t* argv[]) {
-
   OpMode op_mode = None;
 
   if (argc != 3) {
