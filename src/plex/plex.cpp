@@ -150,8 +150,14 @@ public:
       end_(nullptr) {
   }
 
-  MemRange(size_t count) 
-    : start_(new T[count]), end_(start_ + sizeof(T)*count) {
+  // Watch out, it does not de-alloc on destruction.
+  explicit MemRange(size_t alloc_count) 
+    : start_(new T[alloc_count]), end_(start_ + sizeof(T)*alloc_count) {
+  }
+
+  template <int count>
+  MemRange(const T (&str)[count])
+     : start_(str), end_(&str[count - 1]) {
   }
 
   T* Start() const {
@@ -441,11 +447,21 @@ public:
   size_t Read(MemRange<char>& mem, unsigned int start) {
     OVERLAPPED ov = {0};
     ov.Offset = start;
-    ov.OffsetHigh = 0;
     DWORD read = 0;
-    if (!::ReadFile(handle_, mem.Start(), static_cast<DWORD>(mem.Size()), &read, &ov))
+    if (!::ReadFile(handle_, mem.Start(), static_cast<DWORD>(mem.Size()),
+                    &read, &ov))
       return 0;
     return read;
+  }
+
+  size_t Write(const MemRange<const char>& mem, int start = -1) {
+    OVERLAPPED ov = {0};
+    ov.Offset = start;
+    DWORD written = 0;
+    if (!::WriteFile(handle_, mem.Start(), static_cast<DWORD>(mem.Size()),
+                     &written, (start < 0) ? nullptr : &ov))
+      return 0;
+    return written;
   }
 };
 
@@ -750,7 +766,7 @@ bool EqualToStr(const CppToken& tok, const char* str) {
 
 // Returns a function that can iterate over the |tv| locations defined in |pos|.
 std::function<MemRange<char> (size_t)> TV_Generator(std::vector<CppToken>& tv, 
-                                                     std::vector<size_t>& pos) {
+                                                    std::vector<size_t>& pos) {
   return [&](size_t it) {
     if (it == pos.size())
       return MemRange<char>();
@@ -1686,7 +1702,8 @@ File MakeOutputCodeFile(const FilePath& path) {
   FileParams fp = FileParams(GENERIC_READ | GENERIC_WRITE,
                              FILE_SHARE_READ, CREATE_ALWAYS, 0, 0, 0);
   File file = File::Create(output_path, fp, FileSecurity());
-  // $$ write some header here.
+  MemRange<const char> r("//-- Plex 2014 generated --\n");
+  file.Write(r);
   return file;
 }
 
