@@ -303,7 +303,7 @@ public:
     : access_(0),
       sharing_(kShareAll),
       disposition_(OPEN_EXISTING),
-      attributes_(0),  
+      attributes_(FILE_ATTRIBUTE_NORMAL),  
       flags_(0),  
       sqos_(0) {
   }
@@ -320,7 +320,24 @@ public:
       attributes_(attributes),
       flags_(flags),
       sqos_(sqos) {
+  }
 
+  static FileParams AppendSharedRead() {
+    return FileParams(FILE_APPEND_DATA, FILE_SHARE_READ,
+                      OPEN_ALWAYS,
+                      FILE_ATTRIBUTE_NORMAL, 0, 0);
+  }
+
+  static FileParams ReadSharedRead() {
+    return FileParams(GENERIC_READ, FILE_SHARE_READ,
+                      OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL, 0, 0);
+  }
+
+  static FileParams ReadWriteSharedRead(DWORD disposition) {
+    return FileParams(GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ,
+                      disposition,
+                      FILE_ATTRIBUTE_NORMAL, 0, 0);
   }
 
   bool plex_check_init() const {
@@ -484,8 +501,7 @@ public:
 
   static FileParams GetParams(FileView::Mode mode) {
     return (mode == read_only) ? 
-      FileParams(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, 0, 0, 0) : 
-      FileParams(GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ, OPEN_ALWAYS, 0, 0, 0);
+      FileParams::ReadSharedRead() : FileParams::ReadWriteSharedRead(OPEN_ALWAYS);
   }
 
   static FileView Create(const File& file,
@@ -538,8 +554,7 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
   static std::unordered_map<long long, MemRange<char>> map;
   static size_t total_size = 0;
 
-  FileParams fp(GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, 0, 0, 0);
-  File file = File::Create(path, fp, FileSecurity());
+  File file = File::Create(path, FileParams::ReadSharedRead(), FileSecurity());
   if (!file.IsValid())
     throw IOException(__LINE__);
   long long id = file.GetUniqueId();
@@ -561,8 +576,24 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
   return range;
 }
 
+class Logger {
+  File file_;
+
+public:
+  Logger(FilePath& path) : file_(Create(path)) {
+    file_.Write("@ Plex genlog [0.1]\n\n");
+  }
+
+private:
+  static File Create(FilePath path) {
+    return File::Create(path, FileParams::AppendSharedRead(), FileSecurity());
+  }
+
+};
+
 #pragma endregion
 
+#pragma region cpptoken
 
 struct CppToken {
   enum Type {
@@ -863,6 +894,8 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
       CppToken::unknown :
       static_cast<CppToken::Type>(CppToken::symbols_end + off + 1);
 }
+
+#pragma endregion
 
 typedef std::vector<CppToken> CppTokenVector;
 
@@ -1697,15 +1730,16 @@ enum OpMode {
   Generator,
 };
 
-File MakeOutputCodeFile(const FilePath& path) {
-  FilePath output_path = path.Parent().Append(L"g_" + path.Leaf());
-  FileParams fp = FileParams(GENERIC_READ | GENERIC_WRITE,
-                             FILE_SHARE_READ, CREATE_ALWAYS, 0, 0, 0);
-  File file = File::Create(output_path, fp, FileSecurity());
-  MemRange<const char> r("//-- Plex 2014 generated --\n");
-  file.Write(r);
-  return file;
+File MakeOutputCodeFile(const FilePath& cc_path) {
+  FilePath output_path = cc_path.Parent().Append(L"g_" + cc_path.Leaf());
+  return File::Create(output_path,
+                      FileParams::ReadWriteSharedRead(CREATE_ALWAYS),
+                      FileSecurity());
 }
+
+// ################################################################################################
+// #   main() entrypoint                                                                          #
+// ################################################################################################
 
 int wmain(int argc, wchar_t* argv[]) {
   OpMode op_mode = None;
