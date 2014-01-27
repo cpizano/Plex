@@ -223,6 +223,10 @@ MemRange<const char> FromString(const std::string& txt) {
   return MemRange<const char>(&txt[0], &txt[txt.size()]);
 }
 
+std::string ToString(const MemRange<char>& r) {
+  return std::string(r.Start(), r.Size());
+}
+
 std::wstring AsciiToUTF16(const MemRange<char>& str) {
   auto r = str.Start();
   std::wstring rv;
@@ -569,7 +573,7 @@ public:
     if (!file_.IsValid()) {
       throw IOException(__LINE__);
     }
-    file_.Write("@ Plex genlog [0.2] "__DATE__"\n");
+    file_.Write("@ Plex genlog [0.3] "__DATE__"\n");
     instance = this;
   }
 
@@ -578,7 +582,7 @@ public:
   }
 
   void AddFileInfoStart(const FilePath& file) {
-    auto text = std::string("processing file [") + file.ToAscii() + "]\n";
+    auto text = std::string("file [") + file.ToAscii() + "]\n";
     file_.Write(FromString(text));
   }
 
@@ -587,9 +591,26 @@ public:
     file_.Write(FromString(text));
   }
 
+  void AddExternDef(const MemRange<char>& def, int line_no) {
+    auto text = std::string("adding xdef [") + ToString(def) + "] " + LineNumber(line_no);
+    text.append(1, '\n');
+    file_.Write(FromString(text));
+  }
+
+  void ProcessInclude(const MemRange<char>& include) {
+    auto text = std::string("include target [") + ToString(include) + "]\n";
+    file_.Write(FromString(text));
+  }
+
 private:
   static File Create(FilePath path) {
     return File::Create(path, FileParams::AppendSharedRead(), FileSecurity());
+  }
+
+  const char* LineNumber(int line_no) {
+    static char buf[] = "ln 123456789012";
+    _itoa_s(line_no, &buf[3], 12, 10);
+    return buf;
   }
 };
 
@@ -823,7 +844,7 @@ struct CppToken {
 };
 
 std::string ToString(const CppToken& tok) {
-  return std::string(tok.range.Start(), tok.range.Size());
+  return ToString(tok.range); //std::string(tok.range.Start(), tok.range.Size());
 }
 
 bool EqualToStr(const CppToken& tok, const char* str) {
@@ -1395,6 +1416,7 @@ public:
 
 private:
   void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
+    Logger::Get().ProcessInclude(src_);
     auto gen = TV_Generator(in_src, kel.includes);
     size_t it = 0;
     for (MemRange<char> r = gen(it); r.Size() != 0; r = gen(++it)) {
@@ -1595,6 +1617,7 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
           if ( xdit!= xdefs.end()) {
             xdit->second.src_pos.push_back(it - tv.begin());
             xrefs.push_back(*it);
+            Logger::Get().AddExternDef(xdit->second.name, it->line);
             continue;
           }
 
