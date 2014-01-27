@@ -211,13 +211,17 @@ public:
     return MemRange<T>();
   }
 
-  MemRange<char> Find(T first, T last) const {
+  MemRange<T> Find(T first, T last) const {
     auto r = Find(first, SliceToEnd());
     if (!r.Size())
       return r;
     return r.Find(last, SliceFromStart());
   }
 };
+
+MemRange<const char> FromString(const std::string& txt) {
+  return MemRange<const char>(&txt[0], &txt[txt.size()]);
+}
 
 std::wstring AsciiToUTF16(const MemRange<char>& str) {
   auto r = str.Start();
@@ -548,6 +552,49 @@ public:
   }
 };
 
+class Logger {
+  File file_;
+  static Logger* instance;
+
+public:
+  static Logger& Get() {
+    return *instance;
+  }
+
+  static bool HasLogger() {
+    return (instance != nullptr);
+  }
+
+  Logger(FilePath& path) : file_(Create(path)) {
+    if (!file_.IsValid()) {
+      throw IOException(__LINE__);
+    }
+    file_.Write("@ Plex genlog [0.2] "__DATE__"\n");
+    instance = this;
+  }
+
+  ~Logger() {
+    file_.Write("@ Session end\n");
+  }
+
+  void AddFileInfoStart(const FilePath& file) {
+    auto text = std::string("processing file [") + file.ToAscii() + "]\n";
+    file_.Write(FromString(text));
+  }
+
+  void ReportException(PlexException& ex) {
+    auto text = std::string("exception type=plex [") + ex.Message() + "]\n";
+    file_.Write(FromString(text));
+  }
+
+private:
+  static File Create(FilePath path) {
+    return File::Create(path, FileParams::AppendSharedRead(), FileSecurity());
+  }
+};
+
+Logger* Logger::instance = nullptr;
+
 // Loads an entire file into memory, keeping only one copy. Memory is kept
 // until program ends. Harcoded limit of 256 MB for all files.
 MemRange<char> LoadFileOnce(const FilePath& path) {
@@ -566,6 +613,8 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
   if (size + total_size > (1024 * 1024 * 256))
     throw IOException(__LINE__);
 
+  Logger::Get().AddFileInfoStart(path);
+
   MemRange<char> range(size);
   size = file.Read(range, 0);
   if (size != range.Size())
@@ -576,20 +625,6 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
   return range;
 }
 
-class Logger {
-  File file_;
-
-public:
-  Logger(FilePath& path) : file_(Create(path)) {
-    file_.Write("@ Plex genlog [0.1]\n\n");
-  }
-
-private:
-  static File Create(FilePath path) {
-    return File::Create(path, FileParams::AppendSharedRead(), FileSecurity());
-  }
-
-};
 
 #pragma endregion
 
@@ -1763,6 +1798,8 @@ int wmain(int argc, wchar_t* argv[]) {
     FilePath path(argv[2]);
     FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
 
+    Logger logger(path.Parent().Append(L"plex_log.txt"));
+
     MemRange<char> input_range;
     MemRange<char> index_range;
     try {
@@ -1816,6 +1853,10 @@ int wmain(int argc, wchar_t* argv[]) {
     wprintf(L"\nerror: [%s] fatal exception [%S]\n"
             L"in program line %d, version (%S)\n",
             argv[2], ex.Message(), ex.Line(), __DATE__);
+
+    if (Logger::HasLogger())
+      Logger::Get().ReportException(ex);
+
   } catch (int line) {
     wprintf(L"\nerror: [%s] fatal exception [unknown]\n"
             L"in program line %d, version (%S)\n",
