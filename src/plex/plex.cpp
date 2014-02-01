@@ -223,6 +223,11 @@ MemRange<const char> FromString(const std::string& txt) {
   return MemRange<const char>(&txt[0], &txt[txt.size()]);
 }
 
+MemRange<char> FromString(std::string& txt) {
+  return MemRange<char>(&txt[0], &txt[txt.size()]);
+}
+
+
 std::string ToString(const MemRange<char>& r) {
   return std::string(r.Start(), r.Size());
 }
@@ -582,23 +587,23 @@ public:
   }
 
   void AddFileInfoStart(const FilePath& file) {
-    auto text = std::string("file [") + file.ToAscii() + "]\n";
+    const auto text = std::string("file [") + file.ToAscii() + "]\n";
     file_.Write(FromString(text));
   }
 
   void ReportException(PlexException& ex) {
-    auto text = std::string("exception type=plex [") + ex.Message() + "]\n";
+    const auto text = std::string("exception type=plex [") + ex.Message() + "]\n";
     file_.Write(FromString(text));
   }
 
   void AddExternDef(const MemRange<char>& def, int line_no) {
     auto text = std::string("adding xdef [") + ToString(def) + "] " + LineNumber(line_no);
     text.append(1, '\n');
-    file_.Write(FromString(text));
+    file_.Write(FromString(static_cast<const std::string&>(text)));
   }
 
   void ProcessInclude(const MemRange<char>& include) {
-    auto text = std::string("include target [") + ToString(include) + "]\n";
+    const auto text = std::string("include target [") + ToString(include) + "]\n";
     file_.Write(FromString(text));
   }
 
@@ -1403,6 +1408,7 @@ class XEntity {
   XternDef::Type type_;
   MemRange<char> src_;
   std::vector<size_t> pos_;
+  std::string insert_;
 
 public:
   XEntity(XternDef& def, MemRange<char> src)
@@ -1425,6 +1431,10 @@ private:
         return;
     }
     // Include not found in source.
+    auto pos = kel.includes.empty() ? 1 : kel.includes[0] - 1;
+    insert_ = std::string("#include ") + ToString(src_) + "\n";
+    CppToken newtoken(FromString(insert_), CppToken::prep_include, static_cast<int>(pos));
+    in_src.insert(in_src.begin() + pos, newtoken);
   }
 };
 
