@@ -1,15 +1,28 @@
-// plex.cpp : This is the plex lexer. It implements a funky c++ parser designed
-// to be halfway between a c preprocessor and a real c++ lexer. Its output is a
-// array of tokens of the form {type, line, range} where range is two pointers
+// plex.cpp : This is the plex.exe tool. It implements a funky c++ parser designed
+// to be halfway between a c preprocessor and a real c++ lexer. Its core is a
+// array of tokens of the form {type, line, column, range} where range refers
 // to the start and end of the token in the source file.
+//
 // Unlike a c preprocessor, nor macro or includes are processed, and tokens are
-// tailored for source code transformation rather than code generation. For example
-// a c++ comment '// blah blah' is represented as a single token and so are the
-// following:   1) L"nikita is alive" 2) .999e+3 3) #if defined FOO
+// tailored for source code transformation rather than code generation.
 //
 // The purpose behind it is to relieve the average programer from tedious tasks
 // like #includes and to allow expressing code that today requires bespoke tools
 // and auxiliary files in json or xml.
+//
+// There are 3 main phases of operation:
+// 1- tokenization: basically generate a vector of CppTokens that
+//    represent string runs, numbers, parens and such
+// 2- lexical lift: a second pass on the vector of step 1 converts the
+//    tokens in place into c++ elements, like pragmas and c++ reserved
+//    words, c++ literals, etc.
+// 3- transformation: aided by a database the vector of tokens is transformed.
+//    For example by adding lines with new c++ and the result written back as
+//    a c++ file with prefix g_.
+//
+// For example of phase 2:
+// a c++ comment '// blah blah' is represented as a single token and so are the
+// following:   1) L"nikita is alive" 2) .999e+3 3) #if defined FOO
 //
 // BUGS to be fixed short term
 // ---------------------------
