@@ -156,7 +156,7 @@ public:
   }
 
   template <int count>
-  MemRange(const T (&str)[count])
+  MemRange(T (&str)[count])
      : start_(str), end_(&str[count - 1]) {
   }
 
@@ -485,10 +485,18 @@ public:
   }
 
   size_t Write(const MemRange<const char>& mem, int start = -1) {
+    return Write(mem.Start(), mem.Size(), start);
+  }
+
+  size_t Write(const MemRange<char>& mem, int start = -1) {
+    return Write(mem.Start(), mem.Size(), start);
+  }
+
+  size_t Write(const char* buf, size_t len, int start) {
     OVERLAPPED ov = {0};
     ov.Offset = start;
     DWORD written = 0;
-    if (!::WriteFile(handle_, mem.Start(), static_cast<DWORD>(mem.Size()),
+    if (!::WriteFile(handle_, buf, static_cast<DWORD>(len),
                      &written, (start < 0) ? nullptr : &ov))
       return 0;
     return written;
@@ -587,23 +595,23 @@ public:
   }
 
   void AddFileInfoStart(const FilePath& file) {
-    const auto text = std::string("file [") + file.ToAscii() + "]\n";
+    auto text = std::string("file [") + file.ToAscii() + "]\n";
     file_.Write(FromString(text));
   }
 
   void ReportException(PlexException& ex) {
-    const auto text = std::string("exception type=plex [") + ex.Message() + "]\n";
+    auto text = std::string("exception type=plex [") + ex.Message() + "]\n";
     file_.Write(FromString(text));
   }
 
   void AddExternDef(const MemRange<char>& def, int line_no) {
     auto text = std::string("adding xdef [") + ToString(def) + "] " + LineNumber(line_no);
     text.append(1, '\n');
-    file_.Write(FromString(static_cast<const std::string&>(text)));
+    file_.Write(FromString(text));
   }
 
   void ProcessInclude(const MemRange<char>& include) {
-    const auto text = std::string("include target [") + ToString(include) + "]\n";
+    auto text = std::string("include target [") + ToString(include) + "]\n";
     file_.Write(FromString(text));
   }
 
@@ -843,9 +851,10 @@ struct CppToken {
   MemRange<char> range;
   Type type;
   int line;
+  int col;
 
-  CppToken(const MemRange<char>& range, CppToken::Type type, int line)
-    : range(range), type(type), line(line) { }
+  CppToken(const MemRange<char>& range, CppToken::Type type, int line, int col)
+    : range(range), type(type), line(line), col(col) { }
 };
 
 std::string ToString(const CppToken& tok) {
@@ -969,9 +978,10 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   char c = *curr;
 
   // The first token is always (s)tart-(o)f-(s)stream.
-  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::sos, 0));
+  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::sos, 0, 0));
     
   int line = 1;
+  int column = 1;
 
   do {
     int point = (c < 0x80) ? c :  DecodeUTF8Point(curr, range);
@@ -993,12 +1003,15 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
     } else if ((point == 0x09) || (point == 0x0A) || (point == 0x20)) {
       // tab (0x09) linefeed (0x0A) and space (0x20).
       if (str) {
-        tv.push_back(CppToken(MemRange<char>(str, curr), CppToken::string, line));
+        auto r = MemRange<char>(str, curr);
+        int scol = column - static_cast<int>(r.Size());
+        tv.push_back(CppToken(r, CppToken::string, line, scol));
         str = nullptr;
       }
 
       if (point == 0x0A) {
         ++line;
+        column = 0;
       }
 
     } else if ((point <  0x20) || (point == 0x7F)) {
@@ -1053,20 +1066,23 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
             str = curr;
       } else {
         if (str) {
-          tv.push_back(CppToken(MemRange<char>(str, curr), CppToken::string, line));
+          auto r = MemRange<char>(str, curr);
+          int scol = column - static_cast<int>(r.Size());
+          tv.push_back(CppToken(r, CppToken::string, line, scol));
           str = nullptr;
         }
         tv.push_back(CppToken(MemRange<char>(curr, curr + 1), 
                               static_cast<CppToken::Type>(symbol_type),
-                              line));
+                              line, column));
       }
     }
 
     c = range.Next(curr);
+    ++column;
   } while (curr);
 
   // Insert a final token to simplify further processing.
-  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::eos, line + 1));
+  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::eos, line + 1, 0));
   return tv;
 }
 
@@ -1148,12 +1164,11 @@ bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
         break;
         case CppToken::hash : {
           // Handle coalesing all tokens in a preprocessor or pragma line.
-          if (it != tokens.begin()) {
-            if ((it - 1)->line == it->line) {
-              // can't have tokens before a # in the same line.
-              throw TokenizerException(__LINE__, it->line);
-            }
+          if ((it - 1)->line == it->line) {
+            // can't have tokens before a # in the same line.
+            throw TokenizerException(__LINE__, it->line);
           }
+          
           // Next token is the kind.
           auto it2 = it + 1;
           auto pp_type = GetCppPreprocessorKeyword(it2->range);
@@ -1433,7 +1448,7 @@ private:
     // Include not found in source.
     auto pos = kel.includes.empty() ? 1 : kel.includes[0] - 1;
     insert_ = std::string("#include ") + ToString(src_) + "\n";
-    CppToken newtoken(FromString(insert_), CppToken::prep_include, static_cast<int>(pos));
+    CppToken newtoken(FromString(insert_), CppToken::prep_include, static_cast<int>(pos), 1);
     in_src.insert(in_src.begin() + pos, newtoken);
   }
 };
@@ -1658,6 +1673,28 @@ void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
   }
 }
 
+void WriteOutputFile(File& file, CppTokenVector& src) {
+  int line = 1;
+  size_t column = 1;
+
+  for (auto it = begin(src); it != end(src); ++it) {
+    if (!it->col)
+      continue;
+
+    std::string out;
+    int ldiff = it->line - line;
+    size_t cdiff =  ldiff ? it->col - 1 : it->col - column;
+
+    out.append(ldiff, '\n');
+    out.append(cdiff, ' ');
+    out.append(ToString(it->range));
+
+    file.Write(FromString(out));
+    line = it->line;
+    column = it->col + it->range.Size();
+  }
+  file.Write("\n");
+}
 
 #pragma region testing
 
@@ -1844,6 +1881,7 @@ int wmain(int argc, wchar_t* argv[]) {
       return 1;
     }
 
+    CppTokenVector cc_tv = TokenizeCpp(input_range);
     CppTokenVector index_tv = TokenizeCpp(index_range);
     KeyElements key_elems_ix;
     LexCppTokens(index_tv, key_elems_ix);
@@ -1851,7 +1889,6 @@ int wmain(int argc, wchar_t* argv[]) {
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
-    CppTokenVector cc_tv = TokenizeCpp(input_range);
     KeyElements key_elems_cc;
     LexCppTokens(cc_tv, key_elems_cc);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
@@ -1867,6 +1904,7 @@ int wmain(int argc, wchar_t* argv[]) {
       // Generator mode ==================================================
       File output_cc = MakeOutputCodeFile(path);
       ProcessEntities(cc_tv, entities, key_elems_cc);
+      WriteOutputFile(output_cc, cc_tv);
     } else {
       // Testing mode ====================================================
       TestResults results(argv[2]);
@@ -1882,6 +1920,11 @@ int wmain(int argc, wchar_t* argv[]) {
 
     return 0;
 
+  } catch (TokenizerException& ex) {
+    wprintf(L"\nerror: [%s] Tokenizer error\n"
+            L"in program line %d, source line %d, version (%S)\n",
+            argv[2], ex.Line(), ex.SourceLine(), __DATE__);
+  
   } catch (PlexException& ex) {
     wprintf(L"\nerror: [%s] fatal exception [%S]\n"
             L"in program line %d, version (%S)\n",
