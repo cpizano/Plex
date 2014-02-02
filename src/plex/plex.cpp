@@ -63,6 +63,7 @@
 #include <algorithm>
 #include <sstream>
 #include <string>
+#include <iomanip>
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -286,7 +287,7 @@ public:
   std::wstring Leaf() const {
     auto pos = path_.find_last_of(L'\\');
     if (pos == std::string::npos)
-      return std::wstring();
+      return path_;
     return path_.substr(pos + 1);
   }
 
@@ -871,7 +872,7 @@ struct CppToken {
 };
 
 std::string ToString(const CppToken& tok) {
-  return ToString(tok.range); //std::string(tok.range.Start(), tok.range.Size());
+  return ToString(tok.range);
 }
 
 bool EqualToStr(const CppToken& tok, const char* str) {
@@ -1243,7 +1244,7 @@ bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
         const char c = *it->range.Start();
         if ((c >= '0') && (c <= '9')) {
           // possible numeric constant. Being it relatively rare we can use iostream.
-          std::string number(it->range.Start(), it->range.Size());
+          std::string number(ToString(*it));
           std::istringstream ss(number);
           long long value;
           ss >> value;
@@ -1839,6 +1840,31 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
   return true;
 }
 
+void DumpToken(const CppToken& tok, std::ostream& oss) {
+  oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} "
+      << std::string(tok.col - 1, '_') << " "
+      << (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"));
+}
+
+void GenerateDump(File& file, CppTokenVector& src) {
+  std::ostringstream oss;
+  oss << "Plex Dump Version 001" << std::endl;
+  int count = 0;
+  oss << "token count: " << src.size() << std::endl;
+  for (auto it = begin(src); it != end(src); ++it, ++count) {
+    oss << std::setw(4) << count << ":";
+    if (it->type == CppToken::sos)
+      oss << "[SOS]";
+    else if (it->type == CppToken::eos)
+      oss << "[EOS]";
+    else
+      DumpToken(*it, oss);
+    oss << std::endl;
+  }
+  oss << std::endl;
+  file.Write(FromString(oss.str()));
+}
+
 #pragma endregion
 
 
@@ -1850,6 +1876,13 @@ enum OpMode {
 
 File MakeOutputCodeFile(const FilePath& cc_path) {
   FilePath output_path = cc_path.Parent().Append(L"g_" + cc_path.Leaf());
+  return File::Create(output_path,
+                      FileParams::ReadWriteSharedRead(CREATE_ALWAYS),
+                      FileSecurity());
+}
+
+File MakeTestDumpFile(const FilePath& cc_path) {
+  FilePath output_path = cc_path.Parent().Append(cc_path.Leaf()+L".dmp");
   return File::Create(output_path,
                       FileParams::ReadWriteSharedRead(CREATE_ALWAYS),
                       FileSecurity());
@@ -1911,7 +1944,6 @@ int wmain(int argc, wchar_t* argv[]) {
       // Load the referenced entities.
       LoadEntities(xdefs, entities, catalog.Parent());
     }
-
     
     if (op_mode == Generator) {
       // Generator mode ==================================================
@@ -1920,9 +1952,14 @@ int wmain(int argc, wchar_t* argv[]) {
       WriteOutputFile(output_cc, cc_tv);
     } else {
       // Testing mode ====================================================
+      
+      File test_dump = MakeTestDumpFile(path);
+      GenerateDump(test_dump, cc_tv);
+
       TestResults results(argv[2]);
       results.tokens = cc_tv.size();
       ProcessTestPragmas(cc_tv, xdefs, results);
+      
 
       if (results.failures) {
         wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
