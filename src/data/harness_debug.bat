@@ -6,7 +6,6 @@ if not exist %plexbin% goto error1
 
 set /a errcount=0
 set /a count=0
-
 setlocal ENABLEDELAYEDEXPANSION
 
 for /F %%x in ('dir /B/D *.cc') do (
@@ -15,10 +14,23 @@ for /F %%x in ('dir /B/D *.cc') do (
   %plexbin% --tokens-test %%x
   if errorlevel 1 set /a errcount=errcount+1
 )
-
+echo .
 echo !count! files processed.
-
+echo .
 if !errcount! NEQ 0 goto error2
+
+set /a errcount=0
+set /a count=0
+
+for /F %%y in ('dir /B/D *.dmp') do (
+  set /a count=count+1
+  FC reference\%%y  %%y
+  if errorlevel 1 set /a errcount=errcount+1
+)
+echo !count! files compared.
+echo .
+if !errcount! NEQ 0 goto error2
+
 echo no errors found.
 goto end
 
