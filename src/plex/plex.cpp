@@ -987,7 +987,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
     int point = (c < 0x80) ? c :  DecodeUTF8Point(curr, range);
 
     if (point < 0) {
-      throw point;
+      throw TokenizerException(__LINE__, line);
     }
 
     if (point == 0) {
@@ -1924,6 +1924,9 @@ int wmain(int argc, wchar_t* argv[]) {
     wprintf(L"\nerror: [%s] Tokenizer error\n"
             L"in program line %d, source line %d, version (%S)\n",
             argv[2], ex.Line(), ex.SourceLine(), __DATE__);
+
+    if (Logger::HasLogger())
+      Logger::Get().ReportException(ex);
   
   } catch (PlexException& ex) {
     wprintf(L"\nerror: [%s] fatal exception [%S]\n"
@@ -1932,11 +1935,6 @@ int wmain(int argc, wchar_t* argv[]) {
 
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
-
-  } catch (int line) {
-    wprintf(L"\nerror: [%s] fatal exception [unknown]\n"
-            L"in program line %d, version (%S)\n",
-            argv[2], line, __DATE__);
   }
 
   return 2;
