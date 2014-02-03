@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 121
+token count: 101
    0:[SOS]
    1:   1 {  8}  // test_004, part of the plex test suite.
    2:   3 { 77}  bool
@@ -100,25 +100,5 @@ token count: 121
   97:  22 {  7} ____________________ 2
   98:  22 { 30} _____________________ ;
   99:  23 {159}  #endif
- 100:  25 {161}  #if defined(plex)
- 101:  26 {169}  #pragma plex_test token_count 3 6
- 102:  27 {169}  #pragma plex_test token_count 4 5
- 103:  28 {169}  #pragma plex_test token_count 5 1
- 104:  29 {169}  #pragma plex_test token_count 6 1
- 105:  30 {169}  #pragma plex_test token_count 7 16  // note: -> is two tokens.
- 106:  31 {169}  #pragma plex_test token_count 8 11
- 107:  32 {169}  #pragma plex_test token_count 9 5
- 108:  33 {169}  #pragma plex_test token_count 10 6
- 109:  34 {169}  #pragma plex_test token_count 11 6
- 110:  35 {169}  #pragma plex_test token_count 12 4
- 111:  36 {169}  #pragma plex_test token_count 13 11
- 112:  37 {169}  #pragma plex_test token_count 14 1
- 113:  38 {169}  #pragma plex_test token_count 15 11
- 114:  39 {169}  #pragma plex_test token_count 16 1
- 115:  40 {169}  #pragma plex_test token_count 18 6
- 116:  41 {169}  #pragma plex_test token_count 19 0
- 117:  42 {169}  #pragma plex_test token_count 20 1
- 118:  43 {169}  #pragma plex_test name_count 27
- 119:  44 {159}  #endif
- 120:[EOS]
+ 100:[EOS]
 

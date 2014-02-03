@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 100
+token count: 84
    0:[SOS]
    1:   1 {  8}  // test_005, part of the plex test suite.
    2:   3 {164}  #include <stdio.h>
@@ -83,21 +83,5 @@ token count: 100
   80:  15 {  6} _________ result
   81:  15 { 30} _______________ ;
   82:  16 { 43}  }
-  83:  18 {161}  #if defined(plex)
-  84:  19 {169}  #pragma plex_test token_count 3 1
-  85:  20 {169}  #pragma plex_test token_count 4 1
-  86:  21 {169}  #pragma plex_test token_count 5 1
-  87:  22 {169}  #pragma plex_test token_count 7 9
-  88:  23 {169}  #pragma plex_test token_count 8 3
-  89:  24 {169}  #pragma plex_test token_count 9 11
-  90:  25 {169}  #pragma plex_test token_count 10 23
-  91:  26 {169}  #pragma plex_test token_count 11 10
-  92:  27 {169}  #pragma plex_test token_count 12 16
-  93:  28 {169}  #pragma plex_test token_count 13 1
-  94:  29 {169}  #pragma plex_test token_count 14 1
-  95:  30 {169}  #pragma plex_test token_count 15 3
-  96:  31 {169}  #pragma plex_test token_count 16 1
-  97:  32 {169}  #pragma plex_test name_count 22
-  98:  33 {159}  #endif
-  99:[EOS]
+  83:[EOS]
 

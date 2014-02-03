@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 49
+token count: 37
    0:[SOS]
    1:   1 {  8}  // test_002, part of the plex test suite.
    2:   3 {112}  namespace
@@ -36,17 +36,5 @@ token count: 49
   33:  10 {159}  #endif
   34:  11 { 43}  }
   35:  11 {  8} ___ // namespace "what if?"
-  36:  13 {161}  #if defined(plex)
-  37:  14 {169}  #pragma plex_test token_count 3 3
-  38:  15 {169}  #pragma plex_test token_count 4 1
-  39:  16 {169}  #pragma plex_test token_count 5 3
-  40:  17 {169}  #pragma plex_test token_count 6 2
-  41:  18 {169}  #pragma plex_test token_count 7 10
-  42:  19 {169}  #pragma plex_test token_count 8 10
-  43:  20 {169}  #pragma plex_test token_count 9 2
-  44:  21 {169}  #pragma plex_test token_count 10 1
-  45:  22 {169}  #pragma plex_test token_count 11 2
-  46:  23 {169}  #pragma plex_test name_count 4
-  47:  24 {159}  #endif
-  48:[EOS]
+  36:[EOS]
 

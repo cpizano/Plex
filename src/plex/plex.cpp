@@ -1731,39 +1731,9 @@ void TestErrorHeader(TestResults& results, int line) {
   wprintf(L"[FAIL] test of line %d :", line); 
 }
 
-void TestErrorDump(TestResults& rs, 
-                   int line, size_t actual, size_t expected, const CppTokenVector& tokens) {
-  TestErrorHeader(rs, line);
-  wprintf(L"token_count actual : %d expected: %d \n", actual, expected);
-  for (auto& tok : tokens) {
-    if (tok.line == line)
-      wprintf(L"%d- %S\n", tok.type, ToString(tok).c_str());
-  }
-  wprintf(L"\n");
-}
-
-void TestErrorDump(TestResults& rs,
-                   int line, const char* name) {
-  TestErrorHeader(rs, line);
-  wprintf(L"for external def %S\n\n", name);
-}
-
 bool ProcessTestPragmas(const CppTokenVector& tokens,
                         XternDefs& xdefs,
                         TestResults& results) {
-  
-  // It is very likely we are going to need this so we compute just once.
-  CppTokenVector name_tokens;
-  for (auto& tok : tokens) {
-    if (tok.type == CppToken::identifier)
-      name_tokens.push_back(tok);
-  }
-
-  std::unordered_map<int, long> line_counts;
-  for (auto& tok : tokens) {
-    ++line_counts[tok.line];
-  }
-
   for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
     if (it->type != CppToken::plex_test_pragma)
       continue;
@@ -1774,37 +1744,7 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
     std::string test_name;
     ss >> test_name;
 
-    if (test_name == "token_count") {
-      // token count format is: token_count line count
-      long line, expected_count;
-      ss >> line >> expected_count;
-      if (!ss)
-        throw TokenizerException(__LINE__, it->line);
-
-      if (line_counts[line] == expected_count)
-        continue;
-
-      TestErrorDump(results, it->line, line_counts[line], expected_count, tokens);
-
-    } else if (test_name == "name_count") {
-      // name count format is: name_count count
-      long expected_count;
-      ss >> expected_count;
-      if (!ss)
-        throw TokenizerException(__LINE__, it->line);
-
-      int count = 0;
-      for (auto& tok : name_tokens) {
-        if (tok.line < it->line)
-          ++count;
-      }
-
-      if (count == expected_count)
-        continue;
-
-      TestErrorDump(results, it->line, name_tokens.size(), expected_count, name_tokens);
-
-    } else if (test_name == "fixup") {
+    if (test_name == "fixup") {
       long fix_line;
       std::string fix_type;
       std::string fix_name;
@@ -1828,7 +1768,9 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
       if (found)
         continue;
 
-      TestErrorDump(results, it->line, fix_name.c_str());
+      // Print error.
+      TestErrorHeader(results, it->line);
+      wprintf(L"for external def %S\n\n", fix_name.c_str());
 
     } else {
       // Unknown test pragma.

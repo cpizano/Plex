@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 63
+token count: 50
    0:[SOS]
    1:   1 {  8}  // test_001, part of the plex test suite.
    2:   3 {110}  long
@@ -49,18 +49,5 @@ token count: 63
   46:  10 {  9} _________________ "one"
   47:  10 { 30} ______________________ ;
   48:  10 {  8} ________________________ // two "yes"
-  49:  12 {161}  #if defined(plex)
-  50:  13 {169}  #pragma plex_test token_count 1 1
-  51:  14 {169}  #pragma plex_test token_count 3 5
-  52:  15 {169}  #pragma plex_test token_count 4 5
-  53:  16 {169}  #pragma plex_test token_count 5 0
-  54:  17 {169}  #pragma plex_test token_count 6 6
-  55:  18 {169}  #pragma plex_test token_count 7 8
-  56:  19 {169}  #pragma plex_test token_count 8 8
-  57:  20 {169}  #pragma plex_test token_count 9 6
-  58:  21 {169}  #pragma plex_test token_count 10 9
-  59:  22 {169}  #pragma plex_test token_count 11 0
-  60:  23 {169}  #pragma plex_test name_count 7
-  61:  24 {159}  #endif
-  62:[EOS]
+  49:[EOS]
 

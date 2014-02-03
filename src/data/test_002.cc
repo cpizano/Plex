@@ -10,15 +10,3 @@ class Foo {
 #endif
 }  // namespace "what if?"
 
-#if defined(plex)
-#pragma plex_test token_count 3 3
-#pragma plex_test token_count 4 1
-#pragma plex_test token_count 5 3
-#pragma plex_test token_count 6 2
-#pragma plex_test token_count 7 10
-#pragma plex_test token_count 8 10
-#pragma plex_test token_count 9 2
-#pragma plex_test token_count 10 1
-#pragma plex_test token_count 11 2
-#pragma plex_test name_count 4
-#endif
