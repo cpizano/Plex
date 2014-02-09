@@ -1,33 +1,875 @@
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Plex genlog [0.3] Feb  2 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [.\\catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [g_test_005.cc]
+file [.\\catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [.\\catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [.\\catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [.\\catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [.\\catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [.\\catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [.\\catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [.\\catalog\pxx\TestClassA.cc]
+file [.\\catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
 file [example.cc]
 file [catalog\index.plex]
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [g_test_005.cc]
 file [catalog\index.plex]
+adding xdef [std::string] ln 7
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [test_001.cc]
 file [catalog\index.plex]
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [test_002.cc]
 file [catalog\index.plex]
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [test_003.cc]
 file [catalog\index.plex]
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [test_004.cc]
 file [catalog\index.plex]
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
 file [test_005.cc]
 file [catalog\index.plex]
 adding xdef [std::string] ln 7
 @ Session end
-@ Plex genlog [0.3] Jan 26 2014
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  2 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  8 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  8 2014
+file [..\data\test_005.cc]
+file [..\data\catalog\index.plex]
+adding xdef [std::string] ln 7
+include target [<string>]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [g_test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 8
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_006.cc]
+file [catalog\index.plex]
+adding xdef [pxx::TestClassA] ln 12
+adding xdef [pxx::TestFunA] ln 21
+adding xdef [std::string] ln 44
+file [catalog\pxx\TestClassA.cc]
+file [catalog\pxx\TestFunA.cc]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [example.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [g_test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 8
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_001.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_002.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_003.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_004.cc]
+file [catalog\index.plex]
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
+file [test_005.cc]
+file [catalog\index.plex]
+adding xdef [std::string] ln 7
+@ Session end
+@ Plex genlog [0.3] Feb  9 2014
 file [test_006.cc]
 file [catalog\index.plex]
 adding xdef [pxx::TestClassA] ln 12
