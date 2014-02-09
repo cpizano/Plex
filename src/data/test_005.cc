@@ -2,7 +2,7 @@
 
 #include <stdio.h>
 #include <tchar.h>
-#include <string>
+
 
 std::string UTF16ToAscii(const std::wstring& utf16) {
   std::string result;

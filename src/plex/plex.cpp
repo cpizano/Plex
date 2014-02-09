@@ -678,6 +678,8 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
 
 #pragma region cpptoken
 
+struct Insert;
+
 struct CppToken {
   enum Type {
     none,
@@ -867,8 +869,24 @@ struct CppToken {
   int line;
   int col;
 
+  Insert* insert;
+
   CppToken(const MemRange<char>& range, CppToken::Type type, int line, int col)
-    : range(range), type(type), line(line), col(col) { }
+    : range(range), type(type), line(line), col(col), insert(nullptr) { }
+};
+
+struct Insert {
+  enum Kind {
+    delete_original,
+    keep_original,
+  };
+
+  Kind kind;
+  std::vector<CppToken> tv;
+
+  Insert(Kind kind, const CppToken& tok) : kind(kind) {
+    tv.push_back(tok);
+  }
 };
 
 std::string ToString(const CppToken& tok) {
@@ -1460,10 +1478,10 @@ private:
         return;
     }
     // Include not found in source.
-    auto pos = kel.includes.empty() ? 1 : kel.includes[0] - 1;
-    insert_ = std::string("#include ") + ToString(src_) + "\n";
-    CppToken newtoken(FromString(insert_), CppToken::prep_include, static_cast<int>(pos), 1);
-    in_src.insert(in_src.begin() + pos, newtoken);
+    auto pos = kel.includes.empty() ? 1 : kel.includes[0];
+    insert_ = std::string("#include ") + ToString(src_);
+    CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
+    in_src[pos].insert = new Insert(Insert::keep_original, newtoken);
   }
 };
 
@@ -1687,7 +1705,7 @@ void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
   }
 }
 
-void WriteOutputFile(File& file, CppTokenVector& src) {
+void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
   int line = 1;
   size_t column = 1;
 
@@ -1703,11 +1721,22 @@ void WriteOutputFile(File& file, CppTokenVector& src) {
     out.append(cdiff, ' ');
     out.append(ToString(it->range));
 
-    file.Write(FromString(out));
+    if (it->insert) {
+      if (it->insert->kind == Insert::keep_original) {
+        out.append(1, '\n');
+        file.Write(FromString(out));
+      }
+      WriteOutputFile(file, it->insert->tv, false);
+    }
+    else {
+      file.Write(FromString(out));
+    }
+
     line = it->line;
     column = it->col + it->range.Size();
   }
-  file.Write("\n");
+  if (top)
+    file.Write("\n");
 }
 
 #pragma region testing
@@ -1782,27 +1811,49 @@ bool ProcessTestPragmas(const CppTokenVector& tokens,
   return true;
 }
 
+void DumpTokens(const CppTokenVector& src, std::ostream& oss);
+
 void DumpToken(const CppToken& tok, std::ostream& oss) {
   oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} "
       << std::string(tok.col - 1, '_') << " "
       << (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"));
 }
 
-void GenerateDump(File& file, CppTokenVector& src) {
-  std::ostringstream oss;
-  oss << "Plex Dump Version 001" << std::endl;
-  int count = 0;
+void DumpInsert(const CppToken& tok, std::ostream& oss) {
+  Insert& ins = *tok.insert;
+  if (ins.kind == Insert::delete_original)
+    oss << "<deleted>\n";
+  DumpToken(tok, oss);
+  if (ins.tv.empty())
+    return;
+  oss << "<insert>{" << ins.tv.size() << "}\n";
+  DumpTokens(ins.tv, oss);
+  oss << "<insert end>\n";
+}
+
+void DumpTokens(const CppTokenVector& src, std::ostream& oss) {
+  int item_no = 0;
   oss << "token count: " << src.size() << std::endl;
-  for (auto it = begin(src); it != end(src); ++it, ++count) {
-    oss << std::setw(4) << count << ":";
+  for (auto it = begin(src); it != end(src); ++it, ++item_no) {
+    oss << std::setw(4) << item_no << ":";
     if (it->type == CppToken::sos)
       oss << "[SOS]";
     else if (it->type == CppToken::eos)
       oss << "[EOS]";
-    else
-      DumpToken(*it, oss);
+    else {
+      if (it->insert)
+        DumpInsert(*it, oss);
+      else
+        DumpToken(*it, oss);
+    }
     oss << std::endl;
   }
+}
+
+void GenerateDump(File& file, CppTokenVector& src) {
+  std::ostringstream oss;
+  oss << "Plex Dump Version 001" << std::endl;
+  DumpTokens(src, oss);
   oss << std::endl;
   file.Write(FromString(oss.str()));
 }
