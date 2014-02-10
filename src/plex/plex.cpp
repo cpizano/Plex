@@ -68,6 +68,7 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include <utility>
 
 #pragma region constants
 const char* anonymous_namespace_mk = "<[anonymous]>";
@@ -260,6 +261,74 @@ std::wstring AsciiToUTF16(const MemRange<char>& str) {
 int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
   return -1;
 }
+
+#pragma region cmdline
+
+class CmdLine {
+  std::unordered_map<std::string, std::string> opts_;
+  std::vector<std::wstring> extra_;
+  std::string program_;
+
+public:
+  CmdLine(int argc, wchar_t* argv[]) {
+    if (!argc)
+      return;
+    program_ = UTF16ToAscii(argv[0]);
+    if (!IsProgram(program_))
+      throw PlexException(__LINE__, "missing program in argv[0]");
+
+    for (int ix = 1; ix != argc; ++ix) {
+      if (IsOption(argv[ix]))
+        opts_.insert(NameValue(UTF16ToAscii(&(argv[ix][2]))));
+      else
+        extra_.push_back(argv[ix]);
+    }
+  }
+
+  const bool HasSwitch(const std::string& name) const {
+    auto pos = opts_.find(name);
+    return (pos != end(opts_));
+  }
+
+  std::string Value(const std::string& name) const {
+    auto pos = opts_.find(name);
+    if (pos == end(opts_))
+      return std::string();
+    return pos->second;
+  }
+
+  std::wstring Extra(size_t index) const {
+    if (index >= extra_.size())
+      return std::wstring();
+    return extra_[index];
+  }
+
+private:
+  bool IsOption(const std::wstring& s) {
+    if (s.size() < 3)
+      return false;
+    return ((s[0] == '-') && (s[1] == '-') && (s[2] != '-') && (s[2] != '='));
+  }
+
+  std::pair<std::string, std::string> NameValue(const std::string& s) {
+    auto pos = s.find_first_of('=');
+    if (pos == std::string::npos)
+      return std::make_pair(s, std::string());
+    return std::make_pair(s.substr(0, pos), s.substr(pos + 1, std::string::npos));
+  }
+
+  bool IsProgram(const std::string& s) const {
+    auto pos = s.find(".exe");
+    if (pos == std::string::npos)
+      return false;
+    return (s.size() > 4);
+  }
+
+};
+
+
+#pragma endregion
+
 
 #pragma region file_io
 
@@ -1745,9 +1814,9 @@ struct TestResults {
   size_t tokens;
   int tests;
   int failures;
-  const wchar_t* file;
+  const std::wstring file;
 
-  TestResults(const wchar_t* file)
+  TestResults(const std::wstring& file)
      : tokens(0), tests(0), failures(0), file(file) {
   }
 };
@@ -1883,19 +1952,16 @@ File MakeTestDumpFile(const FilePath& cc_path) {
 
 // ################################################################################################
 // #   main() entrypoint                                                                          #
+// #   plex.exe [options] cpp_file                                                                #
 // ################################################################################################
 
 int wmain(int argc, wchar_t* argv[]) {
-  OpMode op_mode = None;
+  CmdLine cmdline(argc, argv);
 
-  if (argc != 3) {
-    wprintf(L"error: invalid # of options\n");
-    return 1;
-  }
-
-  if (argv[1] == std::wstring(L"--tokens-test"))
+  OpMode op_mode;
+  if (cmdline.HasSwitch("tokens-test"))
     op_mode = TokensTest;
-  else if (argv[1] == std::wstring(L"--generator"))
+  else if (cmdline.HasSwitch("generator"))
     op_mode = Generator;
   else {
     wprintf(L"error: unrecognized option\n");
@@ -1904,7 +1970,7 @@ int wmain(int argc, wchar_t* argv[]) {
 
   try {
     // Input file, typically a c++ file. The catalog index is also an implicit input.
-    FilePath path(argv[2]);
+    FilePath path(cmdline.Extra(0));
     FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
 
     Logger logger(path.Parent().Append(L"plex_log.txt"));
@@ -1949,16 +2015,15 @@ int wmain(int argc, wchar_t* argv[]) {
       File test_dump = MakeTestDumpFile(path);
       GenerateDump(test_dump, cc_tv);
 
-      TestResults results(argv[2]);
+      TestResults results(cmdline.Extra(0));
       results.tokens = cc_tv.size();
       ProcessTestPragmas(cc_tv, xdefs, results);
       
-
       if (results.failures) {
-        wprintf(L"done: [%s] got %d failures\n", argv[2], results.failures);
+        wprintf(L"done: [%s] got %d failures\n", cmdline.Extra(0).c_str(), results.failures);
         return 1;
       } 
-      wprintf(L"done: [%s] with %d OK tests\n", argv[2], results.tests);
+      wprintf(L"done: [%s] with %d OK tests\n", cmdline.Extra(0).c_str(), results.tests);
     }
 
     return 0;
@@ -1966,7 +2031,7 @@ int wmain(int argc, wchar_t* argv[]) {
   } catch (TokenizerException& ex) {
     wprintf(L"\nerror: [%s] Tokenizer error\n"
             L"in program line %d, source line %d, version (%S)\n",
-            argv[2], ex.Line(), ex.SourceLine(), __DATE__);
+            cmdline.Extra(0).c_str(), ex.Line(), ex.SourceLine(), __DATE__);
 
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
@@ -1974,7 +2039,7 @@ int wmain(int argc, wchar_t* argv[]) {
   } catch (PlexException& ex) {
     wprintf(L"\nerror: [%s] fatal exception [%S]\n"
             L"in program line %d, version (%S)\n",
-            argv[2], ex.Message(), ex.Line(), __DATE__);
+            cmdline.Extra(0).c_str(), ex.Message(), ex.Line(), __DATE__);
 
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
