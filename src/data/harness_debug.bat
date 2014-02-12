@@ -11,7 +11,7 @@ setlocal ENABLEDELAYEDEXPANSION
 for /F %%x in ('dir /B/D *.cc') do (
   echo processing %%x
   set /a count=count+1
-  %plexbin% --tokens-test %%x
+  %plexbin% --dump-tree %%x
   if errorlevel 1 set /a errcount=errcount+1
 )
 echo .

@@ -2,6 +2,9 @@ Plex Dump Version 001
 token count: 179
    0:[SOS]
    1:   1 {  8}  // test_006, part of the plex test suite.
+<+insert> count: 1
+   0:   1 {164}  #include <string>
+<~insert>
    2:   3 {112}  namespace
    3:   3 {  6} __________ xx
    4:   3 { 41} _____________ {
@@ -179,4 +182,3 @@ token count: 179
  176:  53 {169}  #pragma plex_test fixup 44 in std::string
  177:  54 {159}  #endif
  178:[EOS]
-

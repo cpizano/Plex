@@ -1810,82 +1810,13 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
 
 #pragma region testing
 
-struct TestResults {
-  size_t tokens;
-  int tests;
-  int failures;
-  const std::wstring file;
-
-  TestResults(const std::wstring& file)
-     : tokens(0), tests(0), failures(0), file(file) {
-  }
-};
-
-void TestErrorHeader(TestResults& results, int line) {
-  ++results.failures;
-  if (results.failures == 1) {
-    wprintf(L"file [%s]\n",  results.file);
-  }
-  wprintf(L"[FAIL] test of line %d :", line); 
-}
-
-bool ProcessTestPragmas(const CppTokenVector& tokens,
-                        XternDefs& xdefs,
-                        TestResults& results) {
-  for(auto it = begin(tokens); it->type != CppToken::eos; ++it) {
-    if (it->type != CppToken::plex_test_pragma)
-      continue;
-
-    ++results.tests;
-    std::istringstream ss(it->range.Start());
-    ss.ignore(17);   // size of '#pragma plex_test'  $$ make this better.
-    std::string test_name;
-    ss >> test_name;
-
-    if (test_name == "fixup") {
-      long fix_line;
-      std::string fix_type;
-      std::string fix_name;
-      ss >> fix_line >> fix_type >> fix_name;
-      if (!ss)
-        throw TokenizerException(__LINE__, it->line);
-
-      bool found = false;
-      auto xit = xdefs.find(fix_name);
-      if (xit != xdefs.end()) {
-        for (auto& fixup : xit->second.src_pos) {
-          if (tokens[fixup].type != CppToken::identifier)
-            continue;
-          if (tokens[fixup].line == fix_line) {
-            found = true;
-            break;
-          }
-        }
-      }
-
-      if (found)
-        continue;
-
-      // Print error.
-      TestErrorHeader(results, it->line);
-      wprintf(L"for external def %S\n\n", fix_name.c_str());
-
-    } else {
-      // Unknown test pragma.
-      throw TokenizerException(__LINE__, it->line);
-    }
-
-  }  // for all tokens.
-
-  return true;
-}
-
 void DumpTokens(const CppTokenVector& src, std::ostream& oss);
 
 void DumpToken(const CppToken& tok, std::ostream& oss) {
   oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} "
       << std::string(tok.col - 1, '_') << " "
-      << (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"));
+      << (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"))
+      << std::endl;
 }
 
 void DumpInsert(const CppToken& tok, std::ostream& oss) {
@@ -1895,35 +1826,33 @@ void DumpInsert(const CppToken& tok, std::ostream& oss) {
   DumpToken(tok, oss);
   if (ins.tv.empty())
     return;
-  oss << "<insert>{" << ins.tv.size() << "}\n";
+  oss << "<+insert> count: " << ins.tv.size() << std::endl;
   DumpTokens(ins.tv, oss);
-  oss << "<insert end>\n";
+  oss << "<~insert>\n";
 }
 
 void DumpTokens(const CppTokenVector& src, std::ostream& oss) {
   int item_no = 0;
-  oss << "token count: " << src.size() << std::endl;
   for (auto it = begin(src); it != end(src); ++it, ++item_no) {
     oss << std::setw(4) << item_no << ":";
     if (it->type == CppToken::sos)
-      oss << "[SOS]";
+      oss << "[SOS]\n";
     else if (it->type == CppToken::eos)
-      oss << "[EOS]";
+      oss << "[EOS]\n";
     else {
       if (it->insert)
         DumpInsert(*it, oss);
       else
         DumpToken(*it, oss);
     }
-    oss << std::endl;
   }
 }
 
 void GenerateDump(File& file, CppTokenVector& src) {
   std::ostringstream oss;
   oss << "Plex Dump Version 001" << std::endl;
+  oss << "token count: " << src.size() << std::endl;
   DumpTokens(src, oss);
-  oss << std::endl;
   file.Write(FromString(oss.str()));
 }
 
@@ -1931,9 +1860,9 @@ void GenerateDump(File& file, CppTokenVector& src) {
 
 
 enum OpMode {
-  None,
-  TokensTest,
-  Generator,
+  None       = 0,
+  TreeDump   = 1,
+  Generate   = 1 << 1,
 };
 
 File MakeOutputCodeFile(const FilePath& cc_path) {
@@ -1958,14 +1887,15 @@ File MakeTestDumpFile(const FilePath& cc_path) {
 int wmain(int argc, wchar_t* argv[]) {
   CmdLine cmdline(argc, argv);
 
-  OpMode op_mode;
-  if (cmdline.HasSwitch("tokens-test"))
-    op_mode = TokensTest;
-  else if (cmdline.HasSwitch("generator"))
-    op_mode = Generator;
-  else {
-    wprintf(L"error: unrecognized option\n");
-    return 1;
+  int op_mode = None;
+  if (cmdline.HasSwitch("dump-tree")) op_mode += TreeDump;
+  if (cmdline.HasSwitch("generate")) op_mode += Generate;
+
+  if (op_mode == None) {
+    printf("plex by carlos.pizano@gmail.com. Version "__DATE__"\n");
+    wprintf(L"usage: plex.exe options cc_file\n");
+    wprintf(L"options:  --dump-tree and|or --generate\n");
+    return 0;
   }
 
   try {
@@ -2002,28 +1932,17 @@ int wmain(int argc, wchar_t* argv[]) {
     if (!xr.empty()) {
       // Load the referenced entities.
       LoadEntities(xdefs, entities, catalog.Parent());
-    }
-    
-    if (op_mode == Generator) {
-      // Generator mode ==================================================
-      File output_cc = MakeOutputCodeFile(path);
       ProcessEntities(cc_tv, entities, key_elems_cc);
+    }
+
+    if (op_mode & Generate) {
+      File output_cc = MakeOutputCodeFile(path);
       WriteOutputFile(output_cc, cc_tv);
-    } else {
-      // Testing mode ====================================================
-      
+    }
+
+    if (op_mode & TreeDump) {  
       File test_dump = MakeTestDumpFile(path);
       GenerateDump(test_dump, cc_tv);
-
-      TestResults results(cmdline.Extra(0));
-      results.tokens = cc_tv.size();
-      ProcessTestPragmas(cc_tv, xdefs, results);
-      
-      if (results.failures) {
-        wprintf(L"done: [%s] got %d failures\n", cmdline.Extra(0).c_str(), results.failures);
-        return 1;
-      } 
-      wprintf(L"done: [%s] with %d OK tests\n", cmdline.Extra(0).c_str(), results.tests);
     }
 
     return 0;

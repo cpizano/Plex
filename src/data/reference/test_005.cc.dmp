@@ -3,6 +3,9 @@ token count: 83
    0:[SOS]
    1:   1 {  8}  // test_005, part of the plex test suite.
    2:   3 {164}  #include <stdio.h>
+<+insert> count: 1
+   0:   1 {164}  #include <string>
+<~insert>
    3:   4 {164}  #include <tchar.h>
    4:   7 {  6}  std::string
    5:   7 {  6} ____________ UTF16ToAscii
@@ -83,4 +86,3 @@ token count: 83
   80:  15 { 30} _______________ ;
   81:  16 { 43}  }
   82:[EOS]
-
