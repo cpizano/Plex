@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 179
+token count: 174
    0:[SOS]
    1:   1 {  8}  // test_006, part of the plex test suite.
 <+insert> count: 1
@@ -176,9 +176,4 @@ token count: 179
  170:  47 {  8} ___ // namespace YY
  171:  48 { 43}  }
  172:  48 {  8} ___ // namespace XX
- 173:  50 {161}  #if defined(pex)
- 174:  51 {169}  #pragma plex_test fixup 12 cs pxx::TestClassA
- 175:  52 {169}  #pragma plex_test fixup 21 fn pxx::TestFunA
- 176:  53 {169}  #pragma plex_test fixup 44 in std::string
- 177:  54 {159}  #endif
- 178:[EOS]
+ 173:[EOS]

@@ -47,8 +47,3 @@ private:
 }  // namespace YY
 }  // namespace XX
 
-#if defined(pex)
-#pragma plex_test fixup 12 cs pxx::TestClassA
-#pragma plex_test fixup 21 fn pxx::TestFunA
-#pragma plex_test fixup 44 in std::string
-#endif

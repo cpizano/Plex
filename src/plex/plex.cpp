@@ -929,8 +929,6 @@ struct CppToken {
     prep_pragma,
     prep_undefine,
     prep_end,
-    // Plex specific keywords in pragmas
-    plex_test_pragma
   };
 
   MemRange<char> range;
@@ -1281,11 +1279,7 @@ bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
           while (it2->line == it->line) { ++it2; ++count;}
           // $$$ need to handle the 'null directive' which is a # in a single line.         
           if (pp_type == CppToken::prep_pragma) {
-            if (count > 2) {
-              if (EqualToStr(*(it+2), "plex_test")) {                
-                pp_type = CppToken::plex_test_pragma;
-              }
-            }
+            // $$ handle pragmas.
           } else if (pp_type == CppToken::prep_include) {
             if (count < 4)
               throw TokenizerException(__LINE__, it->line);
