@@ -187,6 +187,10 @@ public:
     return end_ - start_;
   }
 
+  const T& operator[](size_t ix) const {
+    return start_[ix];
+  }
+
   T Next(T*& curr) const {
     if (curr + 1 >= end_) {
       curr = nullptr;
@@ -929,6 +933,9 @@ struct CppToken {
     prep_pragma,
     prep_undefine,
     prep_end,
+    // Plex specific tokens
+    plex_comment,
+    plex_pragma,
   };
 
   MemRange<char> range;
@@ -1216,7 +1223,12 @@ struct KeyElements {
   std::vector<size_t> includes;
 };
 
-bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
+enum LexMode {
+  PlainCPP,
+  PlexCPP,
+};
+
+bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
   auto it = tokens.begin();
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -1305,6 +1317,12 @@ bool LexCppTokens(CppTokenVector& tokens, KeyElements& kelem) {
               while (it2->line == it->line) { ++it2; }
               CoaleseToken(it, it2 -1, CppToken::comment);
               tokens.erase(it + 1, it2);
+              if (mode == LexMode::PlexCPP) {
+                if (it->range.Size() > 3) {
+                  if (it->range[3] == '#')
+                    it->type = CppToken::plex_comment;
+                }
+              }
             } else {
               // Here we handle the two three-char cases: >>= and <<=.
               if (IsCppTokenNextTo(it, CppToken::eq)) {
@@ -1556,7 +1574,7 @@ private:
   void HandleFunction(CppTokenVector& in_src) {
     CppTokenVector fn_tv = TokenizeCpp(src_);
     KeyElements kel;
-    LexCppTokens(fn_tv, kel);
+    LexCppTokens(LexMode::PlexCPP, fn_tv, kel);
     // Insert at the top.
     InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
   }
@@ -1935,13 +1953,13 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector cc_tv = TokenizeCpp(input_range);
     CppTokenVector index_tv = TokenizeCpp(index_range);
     KeyElements key_elems_ix;
-    LexCppTokens(index_tv, key_elems_ix);
+    LexCppTokens(LexMode::PlexCPP, index_tv, key_elems_ix);
 
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
     KeyElements key_elems_cc;
-    LexCppTokens(cc_tv, key_elems_cc);
+    LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
