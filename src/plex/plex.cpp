@@ -954,6 +954,9 @@ struct Insert {
   Insert(Kind kind, const CppToken& tok) : kind(kind) {
     tv.push_back(tok);
   }
+
+  Insert(Kind kind) : kind(kind) {
+  }
 };
 
 std::string ToString(const CppToken& tok) {
@@ -1528,6 +1531,8 @@ public:
   void Process(CppTokenVector& in_src, KeyElements& kel) {
     if (type_ == XternDef::kInclude)
       HandleInclude(in_src, kel); 
+    else if (type_ == XternDef::kFunction)
+      HandleFunction(in_src);
   }
 
 private:
@@ -1544,7 +1549,24 @@ private:
     auto pos = kel.includes.empty() ? 1 : kel.includes[0];
     insert_ = std::string("#include ") + ToString(src_);
     CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
-    in_src[pos].insert = new Insert(Insert::keep_original, newtoken);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(in_src[pos], Insert::keep_original, itv);
+  }
+
+  void HandleFunction(CppTokenVector& in_src) {
+    CppTokenVector fn_tv = TokenizeCpp(src_);
+    KeyElements kel;
+    LexCppTokens(fn_tv, kel);
+    // Insert at the top.
+    InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
+  }
+
+  void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
+    if (!src.insert)
+      src.insert = new Insert(kind);
+    auto bot = tv.size() == 1 ? tv.begin() : tv.begin() + 1;
+    auto eot = tv.size() == 1 ? tv.end() : tv.end() - 1;
+    src.insert->tv.insert(end(src.insert->tv), bot, eot); 
   }
 };
 
