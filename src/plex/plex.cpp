@@ -1582,9 +1582,14 @@ private:
   void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
     if (!src.insert)
       src.insert = new Insert(kind);
-    auto bot = tv.size() == 1 ? tv.begin() : tv.begin() + 1;
-    auto eot = tv.size() == 1 ? tv.end() : tv.end() - 1;
-    src.insert->tv.insert(end(src.insert->tv), bot, eot); 
+    for (auto& tok : tv) {
+      auto t = tok.type;
+      if (t == CppToken::sos ||
+          t == CppToken::eos ||
+          t == CppToken::plex_comment)
+        continue;
+      src.insert->tv.push_back(tok);
+    }
   }
 };
 
