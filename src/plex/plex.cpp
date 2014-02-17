@@ -934,8 +934,10 @@ struct CppToken {
     prep_undefine,
     prep_end,
     // Plex specific tokens
+    plex_start,
     plex_comment,
     plex_pragma,
+    plex_insert,
   };
 
   MemRange<char> range;
@@ -1449,6 +1451,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
 struct XternDef {
   enum Type {
     kNone,
+    kInclude,  // #in
     kStruct,   // #st
     kClass,    // #cs
     kUnion,    // #un
@@ -1456,7 +1459,6 @@ struct XternDef {
     kFunction, // #fn
     kTypedef,  // #td
     kConstant, // #kt
-    kInclude,  // #in
   };
 
   Type type;
@@ -1551,6 +1553,13 @@ public:
       HandleInclude(in_src, kel); 
     else if (type_ == XternDef::kFunction)
       HandleFunction(in_src);
+    else if (type_ == XternDef::kClass)
+      HandleClass(in_src);
+  }
+
+  // The processing order is the Type order.
+  bool Order(const XEntity& other) const {
+    return type_ < other.type_;
   }
 
 private:
@@ -1579,15 +1588,33 @@ private:
     InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
   }
 
+  void HandleClass(CppTokenVector& in_src) {
+    HandleFunction(in_src);
+  }
+
   void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
     if (!src.insert)
       src.insert = new Insert(kind);
+
+    auto start = tv[0].range.Start();
+    CppToken control(MemRange<char>(start, start), CppToken::plex_insert, 0, 0);
+    if (tv.size() == 1) {
+      tv.insert(begin(tv), control);
+    } else if (tv[0].type == CppToken::sos) {
+      // replace SOS for the insert token.
+      tv[0] = control;
+    } else {
+      throw PlexException(__LINE__, "Missing SOS token");
+    }
+
+    auto& exv = src.insert->tv;
+    int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
+
     for (auto& tok : tv) {
       auto t = tok.type;
-      if (t == CppToken::sos ||
-          t == CppToken::eos ||
-          t == CppToken::plex_comment)
+      if (t == CppToken::eos || t == CppToken::plex_comment)
         continue;
+      tok.line += b_line;
       src.insert->tv.push_back(tok);
     }
   }
@@ -1808,6 +1835,10 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 }
 
 void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
+  std::sort(begin(ent), end(ent), [] (const XEntity& e1, const XEntity& e2) {
+    return e1.Order(e2);
+  });
+
   for (auto it = begin(ent); it != end(ent); ++it) {
     it->Process(src, kel);
   }
@@ -1852,10 +1883,16 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
 void DumpTokens(const CppTokenVector& src, std::ostream& oss);
 
 void DumpToken(const CppToken& tok, std::ostream& oss) {
-  oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} "
-      << std::string(tok.col - 1, '_') << " "
-      << (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"))
-      << std::endl;
+  oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} ";
+  if (tok.col) {
+    oss << std::string(tok.col - 1, '_') << " "
+        << (tok.range.Size() ? ToString(tok.range) :
+                               std::string("<nullstr>"));
+  }
+  else {
+    oss << "<ctrl>";
+  }
+  oss << std::endl;
 }
 
 void DumpInsert(const CppToken& tok, std::ostream& oss) {
