@@ -141,6 +141,8 @@ std::string UTF16ToAscii(const std::wstring& utf16) {
   return result;
 }
 
+#pragma region memory
+
 template <typename T>
 class MemRange {
 private:
@@ -266,6 +268,8 @@ int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
   return -1;
 }
 
+#pragma endregion
+
 #pragma region cmdline
 
 class CmdLine {
@@ -332,7 +336,6 @@ private:
 
 
 #pragma endregion
-
 
 #pragma region file_io
 
@@ -1080,6 +1083,8 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
 
 typedef std::vector<CppToken> CppTokenVector;
 
+#pragma region tokenizer
+
 CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   CppTokenVector tv;
   tv.reserve(range.Size() / 3);
@@ -1220,6 +1225,8 @@ void CoaleseToken(CppTokenVector::iterator first,
   first->range = MemRange<char>(first->range.Start(),
                                 last->range.End());
 }
+
+#pragma endregion
 
 struct KeyElements {
   std::vector<size_t> includes;
@@ -1446,7 +1453,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
   throw TokenizerException(__LINE__, 0);
 }
 
-#pragma region catalog
+#pragma region xdef
 
 struct XternDef {
   enum Type {
@@ -1476,169 +1483,7 @@ struct XternDef {
   }
 };
 
-XternDef MakeXDef(const char* type,
-                  const MemRange<char>& name,
-                  const MemRange<char>& path) {
-  XternDef::Type xdt;
-  if (type[0] == 'c' && type[1] == 's')
-    xdt = XternDef::kClass;
-  else if (type[0] == 's' && type[1] == 't')
-    xdt = XternDef::kStruct;
-  else if (type[0] == 'u' && type[1] == 'n')
-    xdt = XternDef::kUnion;
-  else if (type[0] == 'f' && type[1] == 'n')
-    xdt = XternDef::kFunction;
-  else if (type[0] == 'e' && type[1] == 'n')
-    xdt = XternDef::kEnum;
-  else if (type[0] == 'k' && type[1] == 't')
-    xdt = XternDef::kConstant;
-  else if (type[0] == 'i' && type[1] == 'n')
-    xdt = XternDef::kInclude;
-  else
-    throw CatalogException(__LINE__, 0);
-
-  XternDef xdef(name, path);
-  xdef.type = xdt;
-  return xdef;
-}
-
 typedef std::unordered_map<std::string, XternDef> XternDefs;
-
-void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
-  for(auto it = begin(tv); it->type != CppToken::eos; ++it) {
-    if (it->type == CppToken::identifier) {
-      if (EqualToStr(*it, "end"))
-        break;
-      if (!EqualToStr(*it, "cen"))
-        continue;
-      ++it;
-      if (it->type != CppToken::open_paren)
-        throw CatalogException(__LINE__, it->line);
-      ++it;
-      if (it->type != CppToken::identifier)
-        throw CatalogException(__LINE__, it->line);
-      auto it2 = it + 1;
-      if (it2->type != CppToken::comma)
-        throw CatalogException(__LINE__, it->line);
-      ++it2;
-      auto it3 = it2 + 1;
-      if (it3->type != CppToken::comma)
-        throw CatalogException(__LINE__, it->line);
-      ++it3;
-      auto it4 = it3;
-      for (; it4->type != CppToken::comma; ++it4) {}
-      CoaleseToken(it3, it4 - 1, CppToken::const_str);
-      tv.erase(it3 + 1, it4);
-
-      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range, it3->range);
-      it = ++it3;
-    }
-  }
-}
-
-class XEntity {
-  MemRange<char> name_;
-  XternDef::Type type_;
-  MemRange<char> src_;
-  std::vector<size_t> pos_;
-  std::string insert_;
-
-public:
-  XEntity(XternDef& def, MemRange<char> src)
-    : name_(def.name), type_(def.type), src_(src), pos_(def.src_pos) {
-  }
-
-  void Process(CppTokenVector& in_src, KeyElements& kel) {
-    if (type_ == XternDef::kInclude)
-      HandleInclude(in_src, kel); 
-    else if (type_ == XternDef::kFunction)
-      HandleFunction(in_src);
-    else if (type_ == XternDef::kClass)
-      HandleClass(in_src);
-  }
-
-  // The processing order is the Type order.
-  bool Order(const XEntity& other) const {
-    return type_ < other.type_;
-  }
-
-private:
-  void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
-    Logger::Get().ProcessInclude(src_);
-    auto gen = TV_Generator(in_src, kel.includes);
-    size_t it = 0;
-    for (MemRange<char> r = gen(it); r.Size() != 0; r = gen(++it)) {
-      MemRange<char> s = r.Find('<', '>');
-      if (s.Equal(src_))
-        return;
-    }
-    // Include not found in source.
-    auto pos = kel.includes.empty() ? 1 : kel.includes[0];
-    insert_ = std::string("#include ") + ToString(src_);
-    CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
-    CppTokenVector itv = {newtoken};
-    InsertAtToken(in_src[pos], Insert::keep_original, itv);
-  }
-
-  void HandleFunction(CppTokenVector& in_src) {
-    CppTokenVector fn_tv = TokenizeCpp(src_);
-    KeyElements kel;
-    LexCppTokens(LexMode::PlexCPP, fn_tv, kel);
-    // Insert at the top.
-    InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
-  }
-
-  void HandleClass(CppTokenVector& in_src) {
-    HandleFunction(in_src);
-  }
-
-  void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
-    if (!src.insert)
-      src.insert = new Insert(kind);
-
-    auto start = tv[0].range.Start();
-    CppToken control(MemRange<char>(start, start), CppToken::plex_insert, 0, 0);
-    if (tv.size() == 1) {
-      tv.insert(begin(tv), control);
-    } else if (tv[0].type == CppToken::sos) {
-      // replace SOS for the insert token.
-      tv[0] = control;
-    } else {
-      throw PlexException(__LINE__, "Missing SOS token");
-    }
-
-    auto& exv = src.insert->tv;
-    int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
-
-    for (auto& tok : tv) {
-      auto t = tok.type;
-      if (t == CppToken::eos || t == CppToken::plex_comment)
-        continue;
-      tok.line += b_line;
-      src.insert->tv.push_back(tok);
-    }
-  }
-};
-
-typedef std::vector<XEntity> XEntities;
-
-MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
-  if (def.type == XternDef::kInclude)
-    return def.path;
-  FilePath fpath = path.Append(AsciiToUTF16(def.path));
-  return LoadFileOnce(fpath);
-}
-
-// Populates the src param for the xdefs that have src_pos not empty.
-void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
-  for (auto it = begin(defs); it != end(defs); ++it) {
-    if (it->second.src_pos.empty())
-      continue;
-    ents.push_back(XEntity(it->second, LoadEntity(it->second, path)));
-  }
-}
-
-#pragma endregion
 
 // Here we prune the names that are part of a definition.
 CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
@@ -1834,6 +1679,172 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     return xrefs;
 }
 
+#pragma endregion
+
+#pragma region catalog
+
+XternDef MakeXDef(const char* type,
+                  const MemRange<char>& name,
+                  const MemRange<char>& path) {
+  XternDef::Type xdt;
+  if (type[0] == 'c' && type[1] == 's')
+    xdt = XternDef::kClass;
+  else if (type[0] == 's' && type[1] == 't')
+    xdt = XternDef::kStruct;
+  else if (type[0] == 'u' && type[1] == 'n')
+    xdt = XternDef::kUnion;
+  else if (type[0] == 'f' && type[1] == 'n')
+    xdt = XternDef::kFunction;
+  else if (type[0] == 'e' && type[1] == 'n')
+    xdt = XternDef::kEnum;
+  else if (type[0] == 'k' && type[1] == 't')
+    xdt = XternDef::kConstant;
+  else if (type[0] == 'i' && type[1] == 'n')
+    xdt = XternDef::kInclude;
+  else
+    throw CatalogException(__LINE__, 0);
+
+  XternDef xdef(name, path);
+  xdef.type = xdt;
+  return xdef;
+}
+
+void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
+  for(auto it = begin(tv); it->type != CppToken::eos; ++it) {
+    if (it->type == CppToken::identifier) {
+      if (EqualToStr(*it, "end"))
+        break;
+      if (!EqualToStr(*it, "cen"))
+        continue;
+      ++it;
+      if (it->type != CppToken::open_paren)
+        throw CatalogException(__LINE__, it->line);
+      ++it;
+      if (it->type != CppToken::identifier)
+        throw CatalogException(__LINE__, it->line);
+      auto it2 = it + 1;
+      if (it2->type != CppToken::comma)
+        throw CatalogException(__LINE__, it->line);
+      ++it2;
+      auto it3 = it2 + 1;
+      if (it3->type != CppToken::comma)
+        throw CatalogException(__LINE__, it->line);
+      ++it3;
+      auto it4 = it3;
+      for (; it4->type != CppToken::comma; ++it4) {}
+      CoaleseToken(it3, it4 - 1, CppToken::const_str);
+      tv.erase(it3 + 1, it4);
+
+      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range, it3->range);
+      it = ++it3;
+    }
+  }
+}
+
+class XEntity {
+  MemRange<char> name_;
+  XternDef::Type type_;
+  MemRange<char> src_;
+  std::vector<size_t> pos_;
+  std::string insert_;
+
+public:
+  XEntity(XternDef& def, MemRange<char> src)
+    : name_(def.name), type_(def.type), src_(src), pos_(def.src_pos) {
+  }
+
+  void Process(CppTokenVector& in_src, KeyElements& kel) {
+    if (type_ == XternDef::kInclude)
+      HandleInclude(in_src, kel); 
+    else if (type_ == XternDef::kFunction)
+      HandleFunction(in_src);
+    else if (type_ == XternDef::kClass)
+      HandleClass(in_src);
+  }
+
+  // The processing order is the Type order.
+  bool Order(const XEntity& other) const {
+    return type_ < other.type_;
+  }
+
+private:
+  void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
+    Logger::Get().ProcessInclude(src_);
+    auto gen = TV_Generator(in_src, kel.includes);
+    size_t it = 0;
+    for (MemRange<char> r = gen(it); r.Size() != 0; r = gen(++it)) {
+      MemRange<char> s = r.Find('<', '>');
+      if (s.Equal(src_))
+        return;
+    }
+    // Include not found in source.
+    auto pos = kel.includes.empty() ? 1 : kel.includes[0];
+    insert_ = std::string("#include ") + ToString(src_);
+    CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(in_src[pos], Insert::keep_original, itv);
+  }
+
+  void HandleFunction(CppTokenVector& in_src) {
+    CppTokenVector fn_tv = TokenizeCpp(src_);
+    KeyElements kel;
+    LexCppTokens(LexMode::PlexCPP, fn_tv, kel);
+    // Insert at the top.
+    InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
+  }
+
+  void HandleClass(CppTokenVector& in_src) {
+    HandleFunction(in_src);
+  }
+
+  void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
+    if (!src.insert)
+      src.insert = new Insert(kind);
+
+    auto start = tv[0].range.Start();
+    CppToken control(MemRange<char>(start, start), CppToken::plex_insert, 0, 0);
+    if (tv.size() == 1) {
+      tv.insert(begin(tv), control);
+    } else if (tv[0].type == CppToken::sos) {
+      // replace SOS for the insert token.
+      tv[0] = control;
+    } else {
+      throw PlexException(__LINE__, "Missing SOS token");
+    }
+
+    auto& exv = src.insert->tv;
+    int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
+
+    for (auto& tok : tv) {
+      auto t = tok.type;
+      if (t == CppToken::eos || t == CppToken::plex_comment)
+        continue;
+      tok.line += b_line;
+      src.insert->tv.push_back(tok);
+    }
+  }
+};
+
+typedef std::vector<XEntity> XEntities;
+
+MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
+  if (def.type == XternDef::kInclude)
+    return def.path;
+  FilePath fpath = path.Append(AsciiToUTF16(def.path));
+  return LoadFileOnce(fpath);
+}
+
+// Populates the src param for the xdefs that have src_pos not empty.
+void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
+  for (auto it = begin(defs); it != end(defs); ++it) {
+    if (it->second.src_pos.empty())
+      continue;
+    ents.push_back(XEntity(it->second, LoadEntity(it->second, path)));
+  }
+}
+
+#pragma endregion
+
 void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
   std::sort(begin(ent), end(ent), [] (const XEntity& e1, const XEntity& e2) {
     return e1.Order(e2);
@@ -1934,7 +1945,6 @@ void GenerateDump(File& file, CppTokenVector& src) {
 
 #pragma endregion
 
-
 enum OpMode {
   None       = 0,
   TreeDump   = 1,
@@ -1992,24 +2002,24 @@ int wmain(int argc, wchar_t* argv[]) {
       return 1;
     }
 
-    CppTokenVector cc_tv = TokenizeCpp(input_range);
+    // Phase 0 : process the catalog.
     CppTokenVector index_tv = TokenizeCpp(index_range);
     KeyElements key_elems_ix;
     LexCppTokens(LexMode::PlexCPP, index_tv, key_elems_ix);
-
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
+    // Phase 1 : process the input cc.
+    CppTokenVector cc_tv = TokenizeCpp(input_range);
     KeyElements key_elems_cc;
     LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
-    if (!xr.empty()) {
-      // Load the referenced entities.
-      LoadEntities(xdefs, entities, catalog.Parent());
-      ProcessEntities(cc_tv, entities, key_elems_cc);
-    }
+    LoadEntities(xdefs, entities, catalog.Parent());
+
+
+    ProcessEntities(cc_tv, entities, key_elems_cc);
 
     if (op_mode & Generate) {
       File output_cc = MakeOutputCodeFile(path);
