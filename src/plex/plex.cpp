@@ -36,7 +36,6 @@
 // 018 remove definition names
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'
-// 021 test KeyElements includes.
 // 023 output file should not destroy previous one.
 // 024 output file in its own directory.
 //
@@ -71,8 +70,9 @@
 #include <utility>
 
 #pragma region constants
-const char* anonymous_namespace_mk = "<[anonymous]>";
-const char* scope_namespace_mk = "<[scope]>";
+const char anonymous_namespace_mk[] = "<[anonymous]>";
+const char scope_namespace_mk[] = "<[scope]>";
+char first_include_key[] = "!~";
 #pragma endregion
 
 #pragma region exceptions
@@ -248,6 +248,24 @@ MemRange<char> FromString(std::string& txt) {
   return MemRange<char>(&txt[0], &txt[txt.size()]);
 }
 
+// FNV-1a Hash.
+// Test "foobar" --> 0x85944171f73967e8ULL.
+size_t HashFNV1a(const MemRange<char>& r) {
+  auto bp = reinterpret_cast<const unsigned char*>(r.Start());
+  auto be = reinterpret_cast<const unsigned char*>(r.End());
+
+  uint64_t hval = 0xcbf29ce484222325ULL;
+  while (bp < be) {
+    // xor the bottom with the current octet.
+    hval ^= (uint64_t)*bp++;
+    // multiply by the 64 bit FNV magic prime mod 2^64. In other words
+    // hval *= FNV_64_PRIME; which is 0x100000001b3ULL;
+    hval += (hval << 1) + (hval << 4) + (hval << 5) +
+            (hval << 7) + (hval << 8) + (hval << 40);
+  }
+  // Microsoft's std::string hash has: hval ^= hval >> 32;
+  return hval;
+}
 
 std::string ToString(const MemRange<char>& r) {
   return std::string(r.Start(), r.Size());
@@ -979,17 +997,6 @@ bool EqualToStr(const CppToken& tok, const char* str) {
   return (::strncmp(str,  tok.range.Start(), tok.range.Size()) == 0);
 }
 
-// Returns a function that can iterate over the |tv| locations defined in |pos|.
-std::function<MemRange<char> (size_t)> TV_Generator(std::vector<CppToken>& tv, 
-                                                    std::vector<size_t>& pos) {
-  return [&](size_t it) {
-    if (it == pos.size())
-      return MemRange<char>();
-    else 
-      return tv[pos[it]].range;
-  };
-};
-
 template<typename T, size_t count>
 size_t FindToken(T (&kw)[count], const MemRange<char>& r) {
  auto f = std::lower_bound(&kw[0], &kw[count], r, 
@@ -1228,8 +1235,21 @@ void CoaleseToken(CppTokenVector::iterator first,
 
 #pragma endregion
 
+
+struct KeyIncludeHash {
+  std::size_t operator()(const MemRange<char>& k) const {
+    return HashFNV1a(k);
+  }
+};
+
+struct KeyIncludeEqual {
+  bool operator()(const MemRange<char>& k1, const MemRange<char>& k2) const {
+    return k1.Equal(k2);
+  }
+};
+
 struct KeyElements {
-  std::vector<size_t> includes;
+  std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
 };
 
 enum LexMode {
@@ -1300,14 +1320,23 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
             throw TokenizerException(__LINE__, it->line);
           }
           int count = 0;
-          while (it2->line == it->line) { ++it2; ++count;}
+          while (it2->line == it->line) {
+            ++it2; ++count;
+          }
           // $$$ need to handle the 'null directive' which is a # in a single line.         
           if (pp_type == CppToken::prep_pragma) {
             // $$ handle pragmas.
           } else if (pp_type == CppToken::prep_include) {
             if (count < 4)
               throw TokenizerException(__LINE__, it->line);
-            kelem.includes.push_back(it - tokens.begin());
+            //Includes go into a special map.
+            MemRange<char> irange((it + 2)->range.Start(), (it2 - 1)->range.End());
+            if ((irange[0] != '"') && (irange[0] != '<'))
+              throw TokenizerException(__LINE__, it->line);
+            auto item_pos = it - tokens.begin();
+            if (kelem.includes.empty())
+              kelem.includes[MemRange<char>(first_include_key)] = item_pos;
+            kelem.includes[irange] = item_pos;
           }
 
           CoaleseToken(it, it2 - 1, pp_type);
@@ -1770,15 +1799,13 @@ public:
 private:
   void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
     Logger::Get().ProcessInclude(src_);
-    auto gen = TV_Generator(in_src, kel.includes);
-    size_t it = 0;
-    for (MemRange<char> r = gen(it); r.Size() != 0; r = gen(++it)) {
-      MemRange<char> s = r.Find('<', '>');
-      if (s.Equal(src_))
-        return;
-    }
-    // Include not found in source.
-    auto pos = kel.includes.empty() ? 1 : kel.includes[0];
+    auto it = kel.includes.find(src_);
+    if (it != end(kel.includes))
+      return;
+
+    // Include not found in source. We currently insert after the first include.
+    auto pos = kel.includes.empty() ? 1 : kel.includes[MemRange<char>(first_include_key)];
+
     insert_ = std::string("#include ") + ToString(src_);
     CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
