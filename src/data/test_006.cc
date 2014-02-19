@@ -1,4 +1,5 @@
 // test_006, part of the plex test suite.
+#pragma comment(user, "plex.arch=AMDx64")
 
 namespace xx {
 namespace yy {

@@ -1250,6 +1250,7 @@ struct KeyIncludeEqual {
 
 struct KeyElements {
   std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
+  std::unordered_map<std::string, std::string> properties;
 };
 
 enum LexMode {
@@ -1325,7 +1326,26 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
           }
           // $$$ need to handle the 'null directive' which is a # in a single line.         
           if (pp_type == CppToken::prep_pragma) {
-            // $$ handle pragmas.
+            auto pit = it + 2;
+            if (EqualToStr(*pit, "comment")) {
+              do {
+                // Try to parse "comment(user, "x.y=z")". This creates a map[y] = z
+                // entry in KeyElements for global plex properties (directives).
+                if ((++pit)->type != CppToken::open_paren) break;
+                if (!EqualToStr(*(++pit), "user")) break;
+                if ((++pit)->type != CppToken::comma) break;
+                if ((++pit)->type != CppToken::double_quote) break;
+                if (!EqualToStr(*(++pit), "plex")) break;
+                if ((++pit)->type != CppToken::period) break;
+                if ((++pit)->type != CppToken::string) break;
+                std::string key(ToString(*pit));
+                if ((++pit)->type != CppToken::equal) break;
+                if ((++pit)->type != CppToken::string) break;
+                kelem.properties[key] = ToString(*pit);
+                if ((++pit)->type != CppToken::double_quote)
+                  throw TokenizerException(__LINE__, it->line);
+              } while (false);
+            }
           } else if (pp_type == CppToken::prep_include) {
             if (count < 4)
               throw TokenizerException(__LINE__, it->line);
@@ -1962,11 +1982,20 @@ void DumpTokens(const CppTokenVector& src, std::ostream& oss) {
   }
 }
 
-void GenerateDump(File& file, CppTokenVector& src) {
+void DumpKeyElements(const KeyElements& kel, std::ostream& oss) {
+  if (kel.properties.size())
+    oss << "properties: " << kel.properties.size() << std::endl;
+  for (auto e : kel.properties) {
+    oss << e.first << " = " << e.second << std::endl;
+  }
+}
+
+void GenerateDump(File& file, CppTokenVector& src, KeyElements& kel) {
   std::ostringstream oss;
   oss << "Plex Dump Version 001" << std::endl;
   oss << "token count: " << src.size() << std::endl;
   DumpTokens(src, oss);
+  DumpKeyElements(kel, oss);
   file.Write(FromString(oss.str()));
 }
 
@@ -2040,11 +2069,11 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector cc_tv = TokenizeCpp(input_range);
     KeyElements key_elems_cc;
     LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
+
     CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
     LoadEntities(xdefs, entities, catalog.Parent());
-
 
     ProcessEntities(cc_tv, entities, key_elems_cc);
 
@@ -2055,7 +2084,7 @@ int wmain(int argc, wchar_t* argv[]) {
 
     if (op_mode & TreeDump) {  
       File test_dump = MakeTestDumpFile(path);
-      GenerateDump(test_dump, cc_tv);
+      GenerateDump(test_dump, cc_tv, key_elems_cc);
     }
 
     return 0;
