@@ -1836,8 +1836,6 @@ private:
   }
 
   void HandleFunction(CppTokenVector& in_src) {
-    KeyElements kel;
-    LexCppTokens(LexMode::PlexCPP, *tv_, kel);
     // Insert at the top.
     InsertAtToken(in_src[1], Insert::keep_original, *tv_);
   }
@@ -1890,6 +1888,8 @@ void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
       continue;
     auto mr = LoadEntity(it->second, path);
     auto tok = new CppTokenVector(TokenizeCpp(mr));
+    KeyElements kel;
+    LexCppTokens(LexMode::PlexCPP, *tok, kel);
     ents.push_back(XEntity(it->second, mr, tok));
   }
 }
