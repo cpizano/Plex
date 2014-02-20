@@ -1535,7 +1535,7 @@ struct XternDef {
 typedef std::unordered_map<std::string, XternDef> XternDefs;
 
 // Here we prune the names that are part of a definition.
-CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
+void GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 
     auto IsBuiltIn = [](int t) -> bool {
       return (
@@ -1724,8 +1724,6 @@ CppTokenVector GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     if (lvars.size() != 1)
       __debugbreak();
 #endif
-
-    return xrefs;
 }
 
 #pragma endregion
@@ -2070,7 +2068,7 @@ int wmain(int argc, wchar_t* argv[]) {
     KeyElements key_elems_cc;
     LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
 
-    CppTokenVector xr = GetExternalDefinitions(cc_tv, xdefs);
+    GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
     LoadEntities(xdefs, entities, catalog.Parent());
