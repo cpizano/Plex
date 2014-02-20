@@ -1794,10 +1794,15 @@ class XEntity {
   MemRange<char> src_;
   std::vector<size_t> pos_;
   std::string insert_;
+  CppTokenVector* tv_;
 
 public:
-  XEntity(XternDef& def, MemRange<char> src)
-    : name_(def.name), type_(def.type), src_(src), pos_(def.src_pos) {
+  XEntity(XternDef& def, MemRange<char> src, CppTokenVector* tv)
+    : name_(def.name),
+      type_(def.type),
+      src_(src),
+      pos_(def.src_pos),
+      tv_(tv) {
   }
 
   void Process(CppTokenVector& in_src, KeyElements& kel) {
@@ -1831,11 +1836,10 @@ private:
   }
 
   void HandleFunction(CppTokenVector& in_src) {
-    CppTokenVector fn_tv = TokenizeCpp(src_);
     KeyElements kel;
-    LexCppTokens(LexMode::PlexCPP, fn_tv, kel);
+    LexCppTokens(LexMode::PlexCPP, *tv_, kel);
     // Insert at the top.
-    InsertAtToken(in_src[1], Insert::keep_original, fn_tv);
+    InsertAtToken(in_src[1], Insert::keep_original, *tv_);
   }
 
   void HandleClass(CppTokenVector& in_src) {
@@ -1879,12 +1883,14 @@ MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
   return LoadFileOnce(fpath);
 }
 
-// Populates the src param for the xdefs that have src_pos not empty.
+// Loads and tokenizes for the xdefs that have src_pos not empty.
 void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
   for (auto it = begin(defs); it != end(defs); ++it) {
     if (it->second.src_pos.empty())
       continue;
-    ents.push_back(XEntity(it->second, LoadEntity(it->second, path)));
+    auto mr = LoadEntity(it->second, path);
+    auto tok = new CppTokenVector(TokenizeCpp(mr));
+    ents.push_back(XEntity(it->second, mr, tok));
   }
 }
 
@@ -2067,7 +2073,6 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector cc_tv = TokenizeCpp(input_range);
     KeyElements key_elems_cc;
     LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
-
     GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities;
