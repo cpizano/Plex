@@ -1882,15 +1882,28 @@ MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
 }
 
 // Loads and tokenizes for the xdefs that have src_pos not empty.
-void LoadEntities(XternDefs& defs, XEntities& ents, const FilePath& path) {
-  for (auto it = begin(defs); it != end(defs); ++it) {
+void LoadEntities(XternDefs& xdefs, XEntities& ents, const FilePath& path) {
+  for (auto it = begin(xdefs); it != end(xdefs); ++it) {
     if (it->second.src_pos.empty())
       continue;
+    // Load, tokenize and lex.
     auto mr = LoadEntity(it->second, path);
     auto tok = new CppTokenVector(TokenizeCpp(mr));
     KeyElements kel;
     LexCppTokens(LexMode::PlexCPP, *tok, kel);
+    // Get external definitions and create/insert the new xentity.
+    XternDefs inner_xdefs;
+    GetExternalDefinitions(*tok, inner_xdefs);
     ents.push_back(XEntity(it->second, mr, tok));
+    // Prune the inner xdefs that also exist in xdefs.
+    for (auto& x : xdefs) {
+      auto xi = inner_xdefs.find(x.first);
+      if (xi != end(inner_xdefs))
+        inner_xdefs.erase(xi);
+    }
+    // Recurse on the remaining external definitions.
+    XEntities inner_ents;
+    LoadEntities(inner_xdefs, inner_ents, path);
   }
 }
 
