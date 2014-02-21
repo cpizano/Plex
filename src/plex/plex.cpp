@@ -1261,8 +1261,13 @@ enum LexMode {
   PlexCPP,
 };
 
-bool LexCppTokens(LexMode mode, CppTokenVector& tokens, KeyElements& kelem) {
+bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
   auto it = tokens.begin();
+  if ((it->kelems != nullptr) || (it->type != CppToken::sos))
+    throw PlexException(__LINE__, "SOS in bad state");
+  it->kelems = new KeyElements;
+  KeyElements& kelem = *(it->kelems);
+
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
       switch (it->type) {
@@ -1892,8 +1897,7 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     // Load, tokenize and lex.
     auto mr = LoadEntity(it->second, path);
     auto tok = new CppTokenVector(TokenizeCpp(mr));
-    KeyElements kel;
-    LexCppTokens(LexMode::PlexCPP, *tok, kel);
+    LexCppTokens(LexMode::PlexCPP, *tok);
     // Get external definitions and create/insert the new xentity.
     XternDefs inner_xdefs;
     GetExternalDefinitions(*tok, inner_xdefs);
@@ -1915,13 +1919,13 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
 
 #pragma endregion
 
-void ProcessEntities(CppTokenVector& src, XEntities& ent, KeyElements& kel) {
+void ProcessEntities(CppTokenVector& src, XEntities& ent) {
   std::sort(begin(ent), end(ent), [] (const XEntity& e1, const XEntity& e2) {
     return e1.Order(e2);
   });
 
   for (auto it = begin(ent); it != end(ent); ++it) {
-    it->Process(src, kel);
+    it->Process(src, *src[0].kelems);
   }
 }
 
@@ -2013,12 +2017,12 @@ void DumpKeyElements(const KeyElements& kel, std::ostream& oss) {
   }
 }
 
-void GenerateDump(File& file, CppTokenVector& src, KeyElements& kel) {
+void GenerateDump(File& file, CppTokenVector& src) {
   std::ostringstream oss;
   oss << "Plex Dump Version 001" << std::endl;
   oss << "token count: " << src.size() << std::endl;
   DumpTokens(src, oss);
-  DumpKeyElements(kel, oss);
+  DumpKeyElements(*src[0].kelems, oss);
   file.Write(FromString(oss.str()));
 }
 
@@ -2083,21 +2087,19 @@ int wmain(int argc, wchar_t* argv[]) {
 
     // Phase 0 : process the catalog.
     CppTokenVector index_tv = TokenizeCpp(index_range);
-    KeyElements key_elems_ix;
-    LexCppTokens(LexMode::PlexCPP, index_tv, key_elems_ix);
+    LexCppTokens(LexMode::PlexCPP, index_tv);
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
     // Phase 1 : process the input cc.
     CppTokenVector cc_tv = TokenizeCpp(input_range);
-    KeyElements key_elems_cc;
-    LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
+    LexCppTokens(LexMode::PlainCPP, cc_tv);
     GetExternalDefinitions(cc_tv, xdefs);
 
     XEntities entities = 
         LoadEntities(xdefs, catalog.Parent());
 
-    ProcessEntities(cc_tv, entities, key_elems_cc);
+    ProcessEntities(cc_tv, entities);
 
     if (op_mode & Generate) {
       File output_cc = MakeOutputCodeFile(path);
@@ -2106,7 +2108,7 @@ int wmain(int argc, wchar_t* argv[]) {
 
     if (op_mode & TreeDump) {  
       File test_dump = MakeTestDumpFile(path);
-      GenerateDump(test_dump, cc_tv, key_elems_cc);
+      GenerateDump(test_dump, cc_tv);
     }
 
     return 0;
