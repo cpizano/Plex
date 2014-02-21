@@ -774,6 +774,24 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
 
 struct Insert;
 
+struct KeyIncludeHash {
+  std::size_t operator()(const MemRange<char>& k) const {
+    return HashFNV1a(k);
+  }
+};
+
+struct KeyIncludeEqual {
+  bool operator()(const MemRange<char>& k1, const MemRange<char>& k2) const {
+    return k1.Equal(k2);
+  }
+};
+
+struct KeyElements {
+  std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
+  std::unordered_map<std::string, std::string> properties;
+};
+
+
 struct CppToken {
   enum Type {
     none,
@@ -966,7 +984,10 @@ struct CppToken {
   int line;
   int col;
 
-  Insert* insert;
+  union {
+    Insert* insert;
+    KeyElements* kelems;  // Only applies for SOS token.
+  };
 
   CppToken(const MemRange<char>& range, CppToken::Type type, int line, int col)
     : range(range), type(type), line(line), col(col), insert(nullptr) { }
@@ -1234,24 +1255,6 @@ void CoaleseToken(CppTokenVector::iterator first,
 }
 
 #pragma endregion
-
-
-struct KeyIncludeHash {
-  std::size_t operator()(const MemRange<char>& k) const {
-    return HashFNV1a(k);
-  }
-};
-
-struct KeyIncludeEqual {
-  bool operator()(const MemRange<char>& k1, const MemRange<char>& k2) const {
-    return k1.Equal(k2);
-  }
-};
-
-struct KeyElements {
-  std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
-  std::unordered_map<std::string, std::string> properties;
-};
 
 enum LexMode {
   PlainCPP,
@@ -1881,8 +1884,8 @@ MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
   return LoadFileOnce(fpath);
 }
 
-// Loads and tokenizes for the xdefs that have src_pos not empty.
-void LoadEntities(XternDefs& xdefs, XEntities& ents, const FilePath& path) {
+XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
+  XEntities ents;
   for (auto it = begin(xdefs); it != end(xdefs); ++it) {
     if (it->second.src_pos.empty())
       continue;
@@ -1901,10 +1904,13 @@ void LoadEntities(XternDefs& xdefs, XEntities& ents, const FilePath& path) {
       if (xi != end(inner_xdefs))
         inner_xdefs.erase(xi);
     }
-    // Recurse on the remaining external definitions.
-    XEntities inner_ents;
-    LoadEntities(inner_xdefs, inner_ents, path);
+    if (!inner_xdefs.empty()) {
+      auto inner_ents = LoadEntities(inner_xdefs, path);
+      ents.insert(ents.end(), begin(inner_ents), end(inner_ents));
+    }
   }
+
+  return ents;
 }
 
 #pragma endregion
@@ -2088,8 +2094,8 @@ int wmain(int argc, wchar_t* argv[]) {
     LexCppTokens(LexMode::PlainCPP, cc_tv, key_elems_cc);
     GetExternalDefinitions(cc_tv, xdefs);
 
-    XEntities entities;
-    LoadEntities(xdefs, entities, catalog.Parent());
+    XEntities entities = 
+        LoadEntities(xdefs, catalog.Parent());
 
     ProcessEntities(cc_tv, entities, key_elems_cc);
 
