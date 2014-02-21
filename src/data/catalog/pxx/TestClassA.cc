@@ -8,7 +8,7 @@ public:
   TestClassA(int d) : d_(d) {
   }
   void Method1(const char* x) {
-    if (x) throw _d;
+    if (x) throw d_;
   }
   int Method2(int y) {
     return (42 * y) + d;
