@@ -1542,187 +1542,187 @@ struct XternDef {
 
 typedef std::unordered_map<std::string, XternDef> XternDefs;
 
-// Here we prune the names that are part of a definition.
-void GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
+int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 
-    auto IsBuiltIn = [](int t) -> bool {
-      return (
-        t == CppToken::kw_void ||
-        t == CppToken::kw_int ||
-        t == CppToken::kw_long ||
-        t == CppToken::kw_char ||
-        t == CppToken::kw_bool ||
-        t == CppToken::kw_float ||
-        t == CppToken::kw_const ||
-        t == CppToken::kw_signed ||
-        t == CppToken::kw_unsigned ||
-        t == CppToken::kw_double);
-    };
+  auto IsBuiltIn = [](int t) -> bool {
+    return (
+      t == CppToken::kw_void ||
+      t == CppToken::kw_int ||
+      t == CppToken::kw_long ||
+      t == CppToken::kw_char ||
+      t == CppToken::kw_bool ||
+      t == CppToken::kw_float ||
+      t == CppToken::kw_wchar_t ||
+      t == CppToken::kw_signed ||
+      t == CppToken::kw_unsigned ||
+      t == CppToken::kw_double);
+  };
 
-    auto IsAgregateIntroducer = [](int t) -> bool {
-      return (
-        t == CppToken::kw_class ||
-        t == CppToken::kw_struct ||
-        t == CppToken::kw_union);
-    };
+  auto IsAgregateIntroducer = [](int t) -> bool {
+    return (
+      t == CppToken::kw_class ||
+      t == CppToken::kw_struct ||
+      t == CppToken::kw_union);
+  };
 
-    auto IsModifier = [](int t) -> bool {
-      return (
-        t == CppToken::asterisc ||
-        t == CppToken::ampersand ||
-        t == CppToken::kw_const ||
-        t == CppToken::kw_volatile);
-    };
+  auto IsModifier = [](int t) -> bool {
+    return (
+      t == CppToken::asterisc ||
+      t == CppToken::ampersand ||
+      t == CppToken::kw_const ||
+      t == CppToken::kw_signed ||
+      t == CppToken::kw_unsigned ||
+      t == CppToken::kw_volatile);
+  };
 
-    auto IsInVector = [](const CppTokenVector& v,
-                         const char* start) -> bool {
-      for (auto it = begin(v); it != end(v); ++it) {
-        if (EqualToStr(*it, start))
-          return true;
-      }
-      return false;
-    };
-
-    // Here we assume that the code file consists of a series
-    // of statement that can be definitions or declarations.
-    // Inside definitions we can have more definitions or 
-    // expression statements.
-
-    // Local definitions.
-    CppTokenVector ldefs;
-    // Local references, they don't have a visible definition.
-    CppTokenVector xrefs;
-    // Local variables, they reset at each scope. Note that other
-    // things can end up here, for example function definitions.
-    std::vector<CppTokenVector> lvars;
-
-    // adding the global scope.
-    lvars.push_back(CppTokenVector());
-
-    std::vector<const char*> enclosing_namespace;
-    std::vector<const char*> enclosing_definition;
-    bool in_local_definition = false;
-
-    auto last = begin(tv);
-
-    for(auto it = ++last; it->type != CppToken::eos; ++it) {
-      auto prev = *(it - 1);
-      auto next = *(it + 1);
-
-      if (it->type == CppToken::comment)
-        continue;
-
-      int ln = it->line;
-
-      if (it->type == CppToken::open_cur_bracket) {
-        lvars.push_back(CppTokenVector());
-
-        if (prev.type == CppToken::kw_namespace) {
-          enclosing_namespace.push_back(anonymous_namespace_mk);
-        } else {
-          if (in_local_definition)
-            in_local_definition = false;
-          else 
-            enclosing_definition.push_back(scope_namespace_mk);
-        }
-        continue;
-
-      } else if (it->type == CppToken::close_cur_bracket) {
-        lvars.pop_back();
-
-        if (!enclosing_definition.empty()) {
-          enclosing_definition.pop_back();
-        } else if (!enclosing_namespace.empty()) {
-          enclosing_namespace.pop_back();
-        } else {
-          __debugbreak();
-        }
-        continue;
-      
-      } else if (it->type == CppToken::identifier) {
-        if (prev.type == CppToken::kw_namespace) {
-          if (next.type != CppToken::open_cur_bracket)
-            __debugbreak();
-          enclosing_namespace.push_back(it->range.Start());
-          lvars.push_back(CppTokenVector());
-          ++it;
-          continue;
-
-        } else if (IsAgregateIntroducer(prev.type)) {
-          if (next.type == CppToken::semicolon) {
-            if (IsInVector(ldefs, it->range.Start()))
-              __debugbreak();
-            // forward declaration.
-            ldefs.push_back(*it);
-            continue;
-          }
-          // local definition.
-          enclosing_definition.push_back(it->range.Start());
-          ldefs.push_back(*it);
-          in_local_definition = true;
-          continue;
-        }
-
-        if (!IsInVector(ldefs, it->range.Start())) {
-
-          if(IsInVector(xrefs, it->range.Start())) {
-            continue;
-          }
-
-          if (prev.type == CppToken::period)
-            continue;
-
-          // could be variable declaration. Scan backwards.
-          bool is_var_decl = false;
-          auto rit = it;
-          while(--rit != begin(tv)) {
-            if (IsBuiltIn(rit->type)) {
-              is_var_decl = true;
-              break;
-            }
-            if (rit->type == CppToken::identifier) {
-              is_var_decl = true;
-              break;
-            }
-            if (!IsModifier(rit->type))
-              break;
-          }
-
-          if (is_var_decl) {
-            lvars.back().push_back(*it);
-            continue;
-          } else {
-            // check in our stack of local vars.
-            bool is_var_use = false;
-            for (auto ix = begin(lvars); ix != end(lvars); ++ix) {
-              for (auto iy = begin(*ix); iy != end(*ix); ++iy) {
-                if (it->range.Equal(iy->range)) {
-                  is_var_use = true;
-                  break;
-                }  
-              }
-            }
-            if (is_var_use)
-              continue;
-          }
-
-          // possible external reference, need to check in db.
-          auto xdit = xdefs.find(ToString(*it));
-          if ( xdit!= xdefs.end()) {
-            xdit->second.src_pos.push_back(it - tv.begin());
-            xrefs.push_back(*it);
-            Logger::Get().AddExternDef(xdit->second.name, it->line);
-            continue;
-          }
-
-          // Many things can end up here for example method invocations
-          // on the enclosing aggregate.
-
-        }  // not seen before.
-
-      }  // identifier.
-      
+  auto IsInVector = [](const CppTokenVector& v,
+                       const char* start) -> bool {
+    for (auto it = begin(v); it != end(v); ++it) {
+      if (EqualToStr(*it, start))
+        return true;
     }
+    return false;
+  };
+
+  // Here we assume that the code file consists of a series
+  // of statement that can be definitions or declarations.
+  // Inside definitions we can have more definitions or 
+  // expression statements.
+
+  // Local definitions.
+  CppTokenVector ldefs;
+  // Local references, they don't have a visible definition.
+  CppTokenVector xrefs;
+  // Local variables, they reset at each scope. Note that other
+  // things can end up here, for example function definitions.
+  std::vector<CppTokenVector> lvars;
+
+  // adding the global scope.
+  lvars.push_back(CppTokenVector());
+
+  std::vector<const char*> enclosing_namespace;
+  std::vector<const char*> enclosing_definition;
+  bool in_local_definition = false;
+
+  // Skip over SOS token.
+  auto last = ++begin(tv);
+
+  for(auto it = last; it->type != CppToken::eos; ++it) {
+    auto prev = *(it - 1);
+    auto next = *(it + 1);
+
+    if (it->type == CppToken::comment)
+      continue;
+
+    if (it->type == CppToken::open_cur_bracket) {
+      lvars.push_back(CppTokenVector());
+
+      if (prev.type == CppToken::kw_namespace) {
+        enclosing_namespace.push_back(anonymous_namespace_mk);
+      } else {
+        if (in_local_definition)
+          in_local_definition = false;
+        else 
+          enclosing_definition.push_back(scope_namespace_mk);
+      }
+      continue;
+
+    } else if (it->type == CppToken::close_cur_bracket) {
+      lvars.pop_back();
+
+      if (!enclosing_definition.empty()) {
+        enclosing_definition.pop_back();
+      } else if (!enclosing_namespace.empty()) {
+        enclosing_namespace.pop_back();
+      } else {
+        __debugbreak();
+      }
+      continue;
+      
+    } else if (it->type == CppToken::identifier) {
+      if (prev.type == CppToken::kw_namespace) {
+        if (next.type != CppToken::open_cur_bracket)
+          __debugbreak();
+        enclosing_namespace.push_back(it->range.Start());
+        lvars.push_back(CppTokenVector());
+        ++it;
+        continue;
+
+      } else if (IsAgregateIntroducer(prev.type)) {
+        if (next.type == CppToken::semicolon) {
+          if (IsInVector(ldefs, it->range.Start()))
+            __debugbreak();
+          // forward declaration.
+          ldefs.push_back(*it);
+          continue;
+        }
+        // local definition.
+        enclosing_definition.push_back(it->range.Start());
+        ldefs.push_back(*it);
+        in_local_definition = true;
+        continue;
+      }
+
+      if (!IsInVector(ldefs, it->range.Start())) {
+
+        if(IsInVector(xrefs, it->range.Start())) {
+          continue;
+        }
+
+        if (prev.type == CppToken::period)
+          continue;
+
+        // could be variable declaration. Scan backwards.
+        bool is_var_decl = false;
+        auto rit = it;
+        while(--rit != begin(tv)) {
+          if (IsBuiltIn(rit->type)) {
+            is_var_decl = true;
+            break;
+          }
+          if (rit->type == CppToken::identifier) {
+            is_var_decl = true;
+            break;
+          }
+          if (!IsModifier(rit->type))
+            break;
+        }
+
+        if (is_var_decl) {
+          lvars.back().push_back(*it);
+          continue;
+        } else {
+          // check in our stack of local vars.
+          bool is_var_use = false;
+          for (auto ix = begin(lvars); ix != end(lvars); ++ix) {
+            for (auto iy = begin(*ix); iy != end(*ix); ++iy) {
+              if (it->range.Equal(iy->range)) {
+                is_var_use = true;
+                break;
+              }  
+            }
+          }
+          if (is_var_use)
+            continue;
+        }
+
+        // possible external reference, need to check in db.
+        auto xdit = xdefs.find(ToString(*it));
+        if ( xdit!= xdefs.end()) {
+          xdit->second.src_pos.push_back(it - tv.begin());
+          xrefs.push_back(*it);
+          Logger::Get().AddExternDef(xdit->second.name, it->line);
+          continue;
+        }
+
+        // Many things can end up here for example method invocations
+        // on the enclosing aggregate.
+
+      }  // not seen before.
+
+    }  // identifier.
+      
+  }  // for.
 
 #if 0
     if (!enclosing_namespace.empty())
@@ -1732,6 +1732,8 @@ void GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     if (lvars.size() != 1)
       __debugbreak();
 #endif
+
+  return static_cast<int>(xdefs.size());
 }
 
 #pragma endregion
