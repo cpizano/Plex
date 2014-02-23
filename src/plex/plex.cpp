@@ -1733,7 +1733,7 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
       __debugbreak();
 #endif
 
-  return static_cast<int>(xdefs.size());
+  return static_cast<int>(xrefs.size());
 }
 
 #pragma endregion
@@ -2096,12 +2096,13 @@ int wmain(int argc, wchar_t* argv[]) {
     // Phase 1 : process the input cc.
     CppTokenVector cc_tv = TokenizeCpp(input_range);
     LexCppTokens(LexMode::PlainCPP, cc_tv);
-    GetExternalDefinitions(cc_tv, xdefs);
 
-    XEntities entities = 
-        LoadEntities(xdefs, catalog.Parent());
-
-    ProcessEntities(cc_tv, entities);
+    // Phase 2: find and resolve the externals.
+    if (GetExternalDefinitions(cc_tv, xdefs)) {
+      XEntities entities = 
+          LoadEntities(xdefs, catalog.Parent());
+      ProcessEntities(cc_tv, entities);
+    }
 
     if (op_mode & Generate) {
       File output_cc = MakeOutputCodeFile(path);
