@@ -1385,7 +1385,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               tokens.erase(it + 1, it2);
               if (mode == LexMode::PlexCPP) {
                 if (it->range.Size() > 3) {
-                  if (it->range[3] == '#')
+                  if ((it->range[2] == '#') && (it->range[3] == '~'))
                     it->type = CppToken::plex_comment;
                 }
               }
@@ -1528,11 +1528,13 @@ struct XternDef {
   Type type;
   MemRange<char> name;
   MemRange<char> path;
-  std::vector<size_t> src_pos;
+  bool needed;
+  bool loaded;
 
   XternDef(const MemRange<char>& name, const MemRange<char>& path)
       : type(kNone),
-        name(name), path(path) {
+        name(name), path(path),
+        needed(false), loaded(false) {
   }
 
   XternDef()
@@ -1603,6 +1605,8 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
   std::vector<const char*> enclosing_namespace;
   std::vector<const char*> enclosing_definition;
   bool in_local_definition = false;
+
+  int new_xdefs = 0;
 
   // Skip over SOS token.
   auto last = ++begin(tv);
@@ -1709,9 +1713,12 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
         // possible external reference, need to check in db.
         auto xdit = xdefs.find(ToString(*it));
         if ( xdit!= xdefs.end()) {
-          xdit->second.src_pos.push_back(it - tv.begin());
+          if (!xdit->second.needed) {
+            ++new_xdefs;
+            xdit->second.needed = true;
+            Logger::Get().AddExternDef(xdit->second.name, it->line);
+          }
           xrefs.push_back(*it);
-          Logger::Get().AddExternDef(xdit->second.name, it->line);
           continue;
         }
 
@@ -1732,8 +1739,7 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     if (lvars.size() != 1)
       __debugbreak();
 #endif
-
-  return static_cast<int>(xrefs.size());
+  return new_xdefs;
 }
 
 #pragma endregion
@@ -1802,7 +1808,6 @@ class XEntity {
   MemRange<char> name_;
   XternDef::Type type_;
   MemRange<char> src_;
-  std::vector<size_t> pos_;
   std::string insert_;
   CppTokenVector* tv_;
 
@@ -1811,7 +1816,6 @@ public:
     : name_(def.name),
       type_(def.type),
       src_(src),
-      pos_(def.src_pos),
       tv_(tv) {
   }
 
@@ -1835,14 +1839,14 @@ private:
     auto it = kel.includes.find(src_);
     if (it != end(kel.includes))
       return;
-
     // Include not found in source. We currently insert after the first include.
     auto pos = kel.includes.empty() ? 1 : kel.includes[MemRange<char>(first_include_key)];
-
     insert_ = std::string("#include ") + ToString(src_);
     CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
     InsertAtToken(in_src[pos], Insert::keep_original, itv);
+    // insert in kels to avoid a second include of the same.
+    kel.includes[src_] = pos;
   }
 
   void HandleFunction(CppTokenVector& in_src) {
@@ -1857,7 +1861,7 @@ private:
   void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
     if (!src.insert)
       src.insert = new Insert(kind);
-
+    // Minimal insertion has two tokens: SOS + tv[0].
     auto start = tv[0].range.Start();
     CppToken control(MemRange<char>(start, start), CppToken::plex_insert, 0, 0);
     if (tv.size() == 1) {
@@ -1869,9 +1873,9 @@ private:
       throw PlexException(__LINE__, "Missing SOS token");
     }
 
+    // Insert most tokens and renumber the lines as we go along.
     auto& exv = src.insert->tv;
     int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
-
     for (auto& tok : tv) {
       auto t = tok.type;
       if (t == CppToken::eos || t == CppToken::plex_comment)
@@ -1894,25 +1898,22 @@ MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
 XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
   XEntities ents;
   for (auto it = begin(xdefs); it != end(xdefs); ++it) {
-    if (it->second.src_pos.empty())
+    if (!it->second.needed)
+      continue;
+    if (it->second.loaded)
       continue;
     // Load, tokenize and lex.
     auto mr = LoadEntity(it->second, path);
     auto tok = new CppTokenVector(TokenizeCpp(mr));
     LexCppTokens(LexMode::PlexCPP, *tok);
-    // Get external definitions and create/insert the new xentity.
-    XternDefs inner_xdefs;
-    GetExternalDefinitions(*tok, inner_xdefs);
     ents.push_back(XEntity(it->second, mr, tok));
-    // Prune the inner xdefs that also exist in xdefs.
-    for (auto& x : xdefs) {
-      auto xi = inner_xdefs.find(x.first);
-      if (xi != end(inner_xdefs))
-        inner_xdefs.erase(xi);
-    }
-    if (!inner_xdefs.empty()) {
-      auto inner_ents = LoadEntities(inner_xdefs, path);
-      ents.insert(ents.end(), begin(inner_ents), end(inner_ents));
+    it->second.loaded = true;
+
+    // Get external definitions and create/insert the new xentity.
+    if (GetExternalDefinitions(*tok, xdefs)) {
+      // Recurse now.
+      auto inner = LoadEntities(xdefs, path);
+      ents.insert(ents.begin(), inner.begin(), inner.end());
     }
   }
 
@@ -2087,23 +2088,24 @@ int wmain(int argc, wchar_t* argv[]) {
       return 1;
     }
 
-    // Phase 0 : process the catalog.
+    // Phase 1 : process the catalog.
     CppTokenVector index_tv = TokenizeCpp(index_range);
     LexCppTokens(LexMode::PlexCPP, index_tv);
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
 
-    // Phase 1 : process the input cc.
+    // Phase 2 : process the input cc.
     CppTokenVector cc_tv = TokenizeCpp(input_range);
     LexCppTokens(LexMode::PlainCPP, cc_tv);
 
-    // Phase 2: find and resolve the externals.
-    if (GetExternalDefinitions(cc_tv, xdefs)) {
-      XEntities entities = 
-          LoadEntities(xdefs, catalog.Parent());
-      ProcessEntities(cc_tv, entities);
-    }
+    // Phase 3: find and resolve the needed catalog entities.
+    GetExternalDefinitions(cc_tv, xdefs);
+    XEntities entities = 
+        LoadEntities(xdefs, catalog.Parent());
+    // Phase 4: process each entity augmenting the source.
+    ProcessEntities(cc_tv, entities);
 
+    // Phase 5: Generate the outputs.
     if (op_mode & Generate) {
       File output_cc = MakeOutputCodeFile(path);
       WriteOutputFile(output_cc, cc_tv);

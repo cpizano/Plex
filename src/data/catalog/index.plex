@@ -19,8 +19,12 @@ cen(std::vector, in, <vector>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
+cen(::GetLastError, in, <windows.h>, 1);
+cen(DWORD, in, <windows.h>, 1);
 
 cen(plx::Exception,
     cs, plx\exception.h, 1);
+cen(plx::IOException,
+    cs, plx\io_exception.h, 1);
  
 end();
