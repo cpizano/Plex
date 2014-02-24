@@ -7,50 +7,52 @@
 // tailored for source code transformation rather than code generation.
 //
 // The purpose behind it is to relieve the average programer from tedious tasks
-// like #includes and to allow expressing code that today requires bespoke tools
+// like #includes and to allow expressing in code that today requires bespoke tools
 // and auxiliary files in json or xml.
 //
-// There are 3 main phases of operation:
+// There are 2 main phases of operation on a single CPP:
 // 1- tokenization: basically generate a vector of CppTokens that
-//    represent string runs, numbers, parens and such
+//    represent string runs, numbers, parens and such.
 // 2- lexical lift: a second pass on the vector of step 1 converts the
 //    tokens in place into c++ elements, like pragmas and c++ reserved
 //    words, c++ literals, etc.
-// 3- transformation: aided by a database the vector of tokens is transformed.
-//    For example by adding lines with new c++ and the result written back as
-//    a c++ file with prefix g_.
 //
 // For example of phase 2:
 // a c++ comment '// blah blah' is represented as a single token and so are the
 // following:   1) L"nikita is alive" 2) .999e+3 3) #if defined FOO
 //
+//
 // BUGS to be fixed short term
 // ---------------------------
 // 001 coalese strings "aaa""bb""cc" even in different lines.
 // 002 learn to ignore #if 0.
-// 006 make 7 test files that run in the harness.
 // 007 handle comments at the end of preprocessor lines.
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
-// 017 find definitions
 // 018 remove definition names
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'
 // 023 output file should not destroy previous one.
 // 024 output file in its own directory.
 //
-// Longer term
+// Medium term
 // ---------------------------
-// 101 define and load catalog information.
-// 102 include referenced entities directly.
-// 103 git or github integration .
+// 101 coalese namespaces for inserts.
+// 102 truly manage insert dependencies.
+// 103 compilation tests.
 //
-// features
+// Longer term niceties
+// ---------------------------
+// 203 git or github integration .
+// 204 catalog index (index.plex) generation should be automated.
+//
+// features to be done
 //----------------------------
-// 201 automate enum to string code, see XternDef::Type.
-// 202 writes all includes for std:: well known entities
-// 203 catalog index (index.plex) generation should be automated.
-//
+// 401 automate enum to string code, see XternDef::Type.
+// 402 writes all includes for std:: well known entities.
+// 403 writes common includes for <windows> types.
+// 404 isolate const strings into bundles. for example
+//     foo("error: no space") -> foo(error_no_space);
 
 #include <SDKDDKVer.h>
 
@@ -139,6 +141,10 @@ std::string UTF16ToAscii(const std::wstring& utf16) {
     }
   }
   return result;
+}
+
+std::wstring AsciiToUTF16(const std::string& ascii) {
+  return std::wstring(ascii.begin(), ascii.end());
 }
 
 #pragma region memory
@@ -395,6 +401,15 @@ public:
 
   std::string ToAscii() const {
     return UTF16ToAscii(path_);
+  }
+
+  bool Exists() const {
+    WIN32_FIND_DATAW ffd;
+    HANDLE fh = ::FindFirstFileW(path_.c_str(), &ffd);
+    if (fh == INVALID_HANDLE_VALUE)
+      return false;
+    ::FindClose(fh);
+    return true;
   }
 
   const wchar_t* Raw() { return path_.c_str(); }
@@ -767,7 +782,6 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
   return range;
 }
 
-
 #pragma endregion
 
 #pragma region cpptoken
@@ -790,7 +804,6 @@ struct KeyElements {
   std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
   std::unordered_map<std::string, std::string> properties;
 };
-
 
 struct CppToken {
   enum Type {
@@ -2037,15 +2050,18 @@ enum OpMode {
   Generate   = 1 << 1,
 };
 
-File MakeOutputCodeFile(const FilePath& cc_path) {
-  FilePath output_path = cc_path.Parent().Append(L"g_" + cc_path.Leaf());
+File MakeOutputCodeFile(const FilePath& out_path, std::wstring name) {
+  auto probe_path = out_path.Append(name);
+  FilePath output_path = probe_path.Exists() ?
+      out_path.Append(L"g_" + name) :
+      probe_path;
   return File::Create(output_path,
                       FileParams::ReadWriteSharedRead(CREATE_ALWAYS),
                       FileSecurity());
 }
 
-File MakeTestDumpFile(const FilePath& cc_path) {
-  FilePath output_path = cc_path.Parent().Append(cc_path.Leaf()+L".dmp");
+File MakeTestDumpFile(const FilePath& out_path, std::wstring name) {
+  auto output_path = out_path.Append(name + L".dmp");
   return File::Create(output_path,
                       FileParams::ReadWriteSharedRead(CREATE_ALWAYS),
                       FileSecurity());
@@ -2075,6 +2091,17 @@ int wmain(int argc, wchar_t* argv[]) {
     FilePath path(cmdline.Extra(0));
     FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
 
+    auto out_path_str = AsciiToUTF16(cmdline.Value("out-dir"));
+    if (!out_path_str.empty()) {
+      if (!::CreateDirectoryW(out_path_str.c_str(), NULL)) {
+        wprintf(L"unable to create output directory\n");
+        return 1;
+      }
+    } else {
+      out_path_str = path.Parent().Raw();
+    }
+
+    FilePath out_path(out_path_str);
     Logger logger(path.Parent().Append(L"plex_log.txt"));
 
     MemRange<char> input_range;
@@ -2107,12 +2134,12 @@ int wmain(int argc, wchar_t* argv[]) {
 
     // Phase 5: Generate the outputs.
     if (op_mode & Generate) {
-      File output_cc = MakeOutputCodeFile(path);
+      File output_cc = MakeOutputCodeFile(out_path, path.Leaf());
       WriteOutputFile(output_cc, cc_tv);
     }
 
     if (op_mode & TreeDump) {  
-      File test_dump = MakeTestDumpFile(path);
+      File test_dump = MakeTestDumpFile(out_path, path.Leaf());
       GenerateDump(test_dump, cc_tv);
     }
 
