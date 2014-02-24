@@ -1,7 +1,7 @@
 # VS2012 ignore list
 
 src/plex/out*
-src/data/*.dmp
+src/data/gen/*.dmp
 
 *.cdf
 *.cache

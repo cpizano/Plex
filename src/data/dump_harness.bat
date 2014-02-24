@@ -1,7 +1,7 @@
 @echo off
 echo == plex test harness v1 ==
 
-set plexbin="..\plex\out\x64\Release\plex.exe"
+set plexbin="..\plex\out\x64\%1\plex.exe"
 if not exist %plexbin% goto error1
 
 set /a errcount=0
@@ -11,7 +11,7 @@ setlocal ENABLEDELAYEDEXPANSION
 for /F %%x in ('dir /B/D *.cc') do (
   echo processing %%x
   set /a count=count+1
-  %plexbin% --dump-tree %%x
+  %plexbin% --dump-tree --out-dir=gen %%x
   if errorlevel 1 set /a errcount=errcount+1
 )
 echo .
@@ -22,9 +22,9 @@ if !errcount! NEQ 0 goto error2
 set /a errcount=0
 set /a count=0
 
-for /F %%y in ('dir /B/D *.dmp') do (
+for /F %%y in ('dir /B/D gen\*.dmp') do (
   set /a count=count+1
-  FC reference\%%y  %%y
+  FC reference\%%y  gen\%%y
   if errorlevel 1 set /a errcount=errcount+1
 )
 echo !count! files compared.
