@@ -2094,8 +2094,10 @@ int wmain(int argc, wchar_t* argv[]) {
     auto out_path_str = AsciiToUTF16(cmdline.Value("out-dir"));
     if (!out_path_str.empty()) {
       if (!::CreateDirectoryW(out_path_str.c_str(), NULL)) {
-        wprintf(L"unable to create output directory\n");
-        return 1;
+        if (::GetLastError() != ERROR_ALREADY_EXISTS) {
+          wprintf(L"unable to create output directory\n");
+          return 1;
+        }
       }
     } else {
       out_path_str = path.Parent().Raw();
