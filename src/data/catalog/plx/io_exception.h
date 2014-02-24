@@ -8,7 +8,7 @@ class IOException : public plx::Exception {
 
 public:
   IOException(int line)
-      : PlexException(line, "IO problem"), error_code_(::GetLastError()) {
+      : Exception(line, "IO problem"), error_code_(::GetLastError()) {
     PostCtor();
   }
   DWORD ErrorCode() const { return error_code_; }
