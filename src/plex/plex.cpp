@@ -21,7 +21,6 @@
 // a c++ comment '// blah blah' is represented as a single token and so are the
 // following:   1) L"nikita is alive" 2) .999e+3 3) #if defined FOO
 //
-//
 // BUGS to be fixed short term
 // ---------------------------
 // 001 coalese strings "aaa""bb""cc" even in different lines.
@@ -29,11 +28,8 @@
 // 007 handle comments at the end of preprocessor lines.
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
-// 018 remove definition names
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'
-// 023 output file should not destroy previous one.
-// 024 output file in its own directory.
 //
 // Medium term
 // ---------------------------
