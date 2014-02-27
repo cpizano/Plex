@@ -1865,7 +1865,10 @@ public:
 
   // The processing order is the Type order.
   bool Order(const XEntity& other) const {
-    return type_ < other.type_;
+    if (type_ == other.type_)
+      return ToString(name_) < ToString(other.name_);
+    else 
+      return type_ < other.type_;
   }
 
 private:
