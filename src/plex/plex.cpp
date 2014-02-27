@@ -1374,10 +1374,36 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
             if (kelem.includes.empty())
               kelem.includes[MemRange<char>(first_include_key)] = item_pos;
             kelem.includes[irange] = item_pos;
+          } else if (pp_type == CppToken::prep_if) {
+            auto if_it = it + 2;
+            if (EqualToStr(*if_it, "0")) {
+              // Found an #if 0. Find the matching #endif.
+              int if_count = 1;
+              ++if_it;
+              while ((if_it->type != CppToken::eos) && (if_count > 0)) {
+                if (EqualToStr(*if_it, "endif") && (if_it -1)->type == CppToken::hash)
+                  --if_count;
+                else if (EqualToStr(*if_it, "else") && (if_it -1)->type == CppToken::hash)
+                  --if_count;
+                else if (EqualToStr(*if_it, "if") && (if_it -1)->type == CppToken::hash)
+                  ++if_count;
+                else if (EqualToStr(*if_it, "ifdef") && (if_it -1)->type == CppToken::hash)
+                  ++if_count;
+                else if (EqualToStr(*if_it, "ifndef") && (if_it -1)->type == CppToken::hash)
+                  ++if_count;
+                ++if_it;
+              }
+              if (if_count != 0)
+                throw TokenizerException(__LINE__, it->line);
+              // Erase all the tokens by marking them as 'none' type.
+              it2 = if_it;
+              pp_type = CppToken::none;
+            }  // #if 0.
           }
 
           CoaleseToken(it, it2 - 1, pp_type);
           tokens.erase(it + 1, it2);
+
         }
         break;
         default : {
@@ -2012,6 +2038,8 @@ void DumpTokens(const CppTokenVector& src, std::ostream& oss) {
       oss << "[SOS]\n";
     else if (it->type == CppToken::eos)
       oss << "[EOS]\n";
+    else if (it->type == CppToken::none)
+      oss << "[NONE] (" << it->range.Size() << " chars elided)\n";
     else {
       if (it->insert)
         DumpInsert(*it, oss);

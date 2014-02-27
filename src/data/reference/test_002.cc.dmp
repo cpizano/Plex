@@ -1,5 +1,5 @@
 Plex Dump Version 001
-token count: 37
+token count: 38
    0:[SOS]
    1:   1 {  8}  // test_002, part of the plex test suite.
    2:   3 {112}  namespace
@@ -34,6 +34,7 @@ token count: 37
   31:   9 { 43}  }
   32:   9 { 30} _ ;
   33:  10 {159}  #endif
-  34:  11 { 43}  }
-  35:  11 {  8} ___ // namespace "what if?"
-  36:[EOS]
+  34:[NONE] (61 chars elided)
+  35:  15 { 43}  }
+  36:  15 {  8} ___ // namespace "what if?"
+  37:[EOS]

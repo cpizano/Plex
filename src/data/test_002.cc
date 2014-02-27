@@ -8,5 +8,9 @@ class Foo {
   float two() const { return 22.01; }
 };
 #endif
+#if 0
+  this is insane stuff .... here
+  here as well.
+#endif
 }  // namespace "what if?"
 
