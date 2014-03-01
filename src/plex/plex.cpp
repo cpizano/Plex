@@ -1854,9 +1854,10 @@ public:
       tv_(tv) {
   }
 
-  void Process(CppTokenVector& in_src, KeyElements& kel) {
+  void Process(CppTokenVector& in_src) {
+    auto kel = in_src[0].kelems;
     if (type_ == XternDef::kInclude)
-      HandleInclude(in_src, kel); 
+      HandleInclude(in_src, *kel); 
     else if (type_ == XternDef::kFunction)
       HandleFunction(in_src);
     else if (type_ == XternDef::kClass)
@@ -1966,7 +1967,7 @@ void ProcessEntities(CppTokenVector& src, XEntities& ent) {
   });
 
   for (auto it = begin(ent); it != end(ent); ++it) {
-    it->Process(src, *src[0].kelems);
+    it->Process(src);
   }
 }
 
