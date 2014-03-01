@@ -784,20 +784,44 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
 
 struct Insert;
 
-struct KeyIncludeHash {
+struct KeyMemRangeHash {
   std::size_t operator()(const MemRange<char>& k) const {
     return HashFNV1a(k);
   }
 };
 
-struct KeyIncludeEqual {
+struct KeyMemRanrgeEq {
   bool operator()(const MemRange<char>& k1, const MemRange<char>& k2) const {
     return k1.Equal(k2);
   }
 };
 
+template <typename T>
+using MemRangeHashTable =
+    std::unordered_map<MemRange<char>, T, KeyMemRangeHash, KeyMemRanrgeEq>;
+
+struct ScopeBlock {
+  enum Type { 
+    none,
+    anons_namespace,
+    named_namespace,
+    block_aggregate,
+    block_scope,
+    block_other};
+
+  Type type;
+  size_t top;
+  size_t start;
+  size_t end;
+  const MemRange<char> name;
+
+  ScopeBlock(Type type, const MemRange<char>&name, size_t start, size_t top)
+      : type(type), top(top), start(start), end(0), name(name) {}
+};
+
 struct KeyElements {
-  std::unordered_map<MemRange<char>, size_t, KeyIncludeHash, KeyIncludeEqual> includes;
+  MemRangeHashTable<size_t> includes;
+  std::vector<ScopeBlock> scopes;
   std::unordered_map<std::string, std::string> properties;
 };
 
@@ -1276,6 +1300,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
     throw PlexException(__LINE__, "SOS in bad state");
   it->kelems = new KeyElements;
   KeyElements& kelem = *(it->kelems);
+  std::vector<ScopeBlock> scopes;
 
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -1406,6 +1431,45 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
 
         }
         break;
+        case CppToken::open_cur_bracket: {
+          size_t pos = (it - tokens.begin());
+          if (pos < 3)
+            continue;
+          auto it2 = it - 1;
+          auto block_type = ScopeBlock::block_other;
+          MemRange<char> name;
+
+          if (it2->type == CppToken::kw_namespace) {
+            block_type = ScopeBlock::anons_namespace;
+          } else if (it2->type == CppToken::semicolon) {
+            block_type = ScopeBlock::block_scope;
+          } else if (it2->type == CppToken::identifier) {
+            auto it3 = it2 - 1;
+            name = it2->range;
+            if (it3->type == CppToken::kw_namespace)
+              block_type = ScopeBlock::named_namespace;
+            else if ((it3->type == CppToken::kw_class)   ||
+                     (it3->type == CppToken::kw_public)  ||
+                     (it3->type == CppToken::kw_private) ||
+                     (it3->type == CppToken::kw_struct))
+              block_type = ScopeBlock::block_aggregate;
+            else
+              throw TokenizerException(__LINE__, it->line);
+          }
+          auto top = scopes.empty() ? 0 : scopes.back().start;
+          scopes.push_back(ScopeBlock(block_type, name, pos, top));
+        }
+        break;
+        case CppToken::close_cur_bracket : {
+          if (scopes.empty())
+            throw TokenizerException(__LINE__, it->line);
+          auto cs = scopes.back();
+          cs.end = (it - tokens.begin());
+          kelem.scopes.push_back(cs);
+          scopes.pop_back();
+        }
+        break;
+
         default : {
           // Handle the two char token case
           auto tt_type = GetTwoTokenType(*it, *(it + 1));
@@ -2145,15 +2209,15 @@ int wmain(int argc, wchar_t* argv[]) {
       return 1;
     }
 
-    // Phase 1 : process the catalog.
+    // Phase 1 : process the input cc.
+    CppTokenVector cc_tv = TokenizeCpp(input_range);
+    LexCppTokens(LexMode::PlainCPP, cc_tv);
+
+    // Phase 2 : process the catalog.
     CppTokenVector index_tv = TokenizeCpp(index_range);
     LexCppTokens(LexMode::PlexCPP, index_tv);
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
-
-    // Phase 2 : process the input cc.
-    CppTokenVector cc_tv = TokenizeCpp(input_range);
-    LexCppTokens(LexMode::PlainCPP, cc_tv);
 
     // Phase 3: find and resolve the needed catalog entities.
     GetExternalDefinitions(cc_tv, xdefs);
