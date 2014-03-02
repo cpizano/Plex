@@ -1703,7 +1703,6 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
   // adding the global scope.
   lvars.push_back(CppTokenVector());
 
-  std::vector<const char*> enclosing_namespace;
   std::vector<const char*> enclosing_definition;
   bool in_local_definition = false;
 
@@ -1722,9 +1721,7 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
     if (it->type == CppToken::open_cur_bracket) {
       lvars.push_back(CppTokenVector());
 
-      if (prev.type == CppToken::kw_namespace) {
-        enclosing_namespace.push_back(anonymous_namespace_mk);
-      } else {
+      if (prev.type != CppToken::kw_namespace) {
         if (in_local_definition)
           in_local_definition = false;
         else 
@@ -1737,10 +1734,6 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 
       if (!enclosing_definition.empty()) {
         enclosing_definition.pop_back();
-      } else if (!enclosing_namespace.empty()) {
-        enclosing_namespace.pop_back();
-      } else {
-        __debugbreak();
       }
       continue;
       
@@ -1748,7 +1741,6 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
       if (prev.type == CppToken::kw_namespace) {
         if (next.type != CppToken::open_cur_bracket)
           __debugbreak();
-        enclosing_namespace.push_back(it->range.Start());
         lvars.push_back(CppTokenVector());
         ++it;
         continue;
@@ -1833,8 +1825,6 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
   }  // for.
 
 #if 0
-    if (!enclosing_namespace.empty())
-      __debugbreak();
     if (!enclosing_definition.empty())
       __debugbreak();
     if (lvars.size() != 1)
