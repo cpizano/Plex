@@ -12,7 +12,8 @@ bool ProcessTestPragma(MVector::iterator it,
       ::exception_seen = true;
       throw FastException(__LINE__, it->line);
     }
-  return (expected_count == tokens.size());
+    return (expected_count == tokens.size());
+  }
 }
 
 extern int lamda::Royal::bee = 1;

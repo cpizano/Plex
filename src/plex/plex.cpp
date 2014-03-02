@@ -1598,6 +1598,8 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
     } else if (it->type == CppToken::sos) {
       // first token.
     } else if (it->type == CppToken::eos) {
+      if (!scopes.empty())
+        throw TokenizerException(__LINE__, 0);
       return true;
     } else {
       throw TokenizerException(__LINE__, it->line);
