@@ -163,15 +163,10 @@ private:
   friend class LineIterator;
 
 public:
-  Range(T* start,
-           T* end)
-    : start_(start),
-      end_(end) {
+  Range(T* start, T* end) : start_(start), end_(end) {
   }
 
-  Range()
-    : start_(nullptr),
-      end_(nullptr) {
+  Range() : start_(nullptr), end_(nullptr) {
   }
 
   // Watch out, it does not de-alloc on destruction.
