@@ -151,7 +151,7 @@ std::wstring AsciiToUTF16(const std::string& ascii) {
 #pragma region memory
 
 template <typename T>
-class MemRange {
+class Range {
 private:
   T* start_;
   T* end_;
@@ -163,24 +163,24 @@ private:
   friend class LineIterator;
 
 public:
-  MemRange(T* start,
+  Range(T* start,
            T* end)
     : start_(start),
       end_(end) {
   }
 
-  MemRange()
+  Range()
     : start_(nullptr),
       end_(nullptr) {
   }
 
   // Watch out, it does not de-alloc on destruction.
-  explicit MemRange(size_t alloc_count) 
+  explicit Range(size_t alloc_count) 
     : start_(new T[alloc_count]), end_(start_ + sizeof(T)*alloc_count) {
   }
 
   template <int count>
-  MemRange(T (&str)[count])
+  Range(T (&str)[count])
      : start_(str), end_(&str[count - 1]) {
   }
 
@@ -208,13 +208,13 @@ public:
     return *(++curr);
   }
 
-  MemRange<T>& operator=(const MemRange& rhs) {
+  Range<T>& operator=(const Range& rhs) {
     start_ = rhs.start_;
     end_ = rhs.end_;
     return *this;
   }
 
-  bool Equal(const MemRange<T>& rhs) const {
+  bool Equal(const Range<T>& rhs) const {
     if (Size() != rhs.Size())
       return false;
     if (!Size())
@@ -225,21 +225,21 @@ public:
   struct SliceToEnd {};
   struct SliceFromStart{};
 
-  MemRange<T> Find(T what, const SliceToEnd&) const {
+  Range<T> Find(T what, const SliceToEnd&) const {
     for (auto it = start_; it != end_; ++it) {
-      if (what == *it) return MemRange<T>(it, end_);
+      if (what == *it) return Range<T>(it, end_);
     }
-    return MemRange<T>();
+    return Range<T>();
   }
 
-  MemRange<T> Find(T what, const SliceFromStart&) const {
+  Range<T> Find(T what, const SliceFromStart&) const {
     for (auto it = start_; it != end_; ++it) {
-      if (what == *it) return MemRange<T>(start_, it + 1);
+      if (what == *it) return Range<T>(start_, it + 1);
     }
-    return MemRange<T>();
+    return Range<T>();
   }
 
-  MemRange<T> Find(T first, T last) const {
+  Range<T> Find(T first, T last) const {
     auto r = Find(first, SliceToEnd());
     if (!r.Size())
       return r;
@@ -247,17 +247,17 @@ public:
   }
 };
 
-MemRange<const char> FromString(const std::string& txt) {
-  return MemRange<const char>(&txt[0], &txt[txt.size()]);
+Range<const char> FromString(const std::string& txt) {
+  return Range<const char>(&txt[0], &txt[txt.size()]);
 }
 
-MemRange<char> FromString(std::string& txt) {
-  return MemRange<char>(&txt[0], &txt[txt.size()]);
+Range<char> FromString(std::string& txt) {
+  return Range<char>(&txt[0], &txt[txt.size()]);
 }
 
 // FNV-1a Hash.
 // Test "foobar" --> 0x85944171f73967e8ULL.
-size_t HashFNV1a(const MemRange<char>& r) {
+size_t HashFNV1a(const Range<char>& r) {
   auto bp = reinterpret_cast<const unsigned char*>(r.Start());
   auto be = reinterpret_cast<const unsigned char*>(r.End());
 
@@ -274,11 +274,11 @@ size_t HashFNV1a(const MemRange<char>& r) {
   return hval;
 }
 
-std::string ToString(const MemRange<char>& r) {
+std::string ToString(const Range<char>& r) {
   return std::string(r.Start(), r.Size());
 }
 
-std::wstring AsciiToUTF16(const MemRange<char>& str) {
+std::wstring AsciiToUTF16(const Range<char>& str) {
   auto r = str.Start();
   std::wstring rv;
   rv.reserve(str.Size());
@@ -289,7 +289,7 @@ std::wstring AsciiToUTF16(const MemRange<char>& str) {
   return rv;
 }
 
-int DecodeUTF8Point(char*& start, const MemRange<char>& range) {
+int DecodeUTF8Point(char*& start, const Range<char>& range) {
   return -1;
 }
 
@@ -598,7 +598,7 @@ public:
     return li.QuadPart;
   }
 
-  size_t Read(MemRange<char>& mem, unsigned int start) {
+  size_t Read(Range<char>& mem, unsigned int start) {
     OVERLAPPED ov = {0};
     ov.Offset = start;
     DWORD read = 0;
@@ -608,11 +608,11 @@ public:
     return read;
   }
 
-  size_t Write(const MemRange<const char>& mem, int start = -1) {
+  size_t Write(const Range<const char>& mem, int start = -1) {
     return Write(mem.Start(), mem.Size(), start);
   }
 
-  size_t Write(const MemRange<char>& mem, int start = -1) {
+  size_t Write(const Range<char>& mem, int start = -1) {
     return Write(mem.Start(), mem.Size(), start);
   }
 
@@ -627,14 +627,14 @@ public:
   }
 };
 
-class FileView : public MemRange<char> {
+class FileView : public Range<char> {
 private:
   HANDLE map_;
 
   FileView(HANDLE map,
            char* start,
            char* end)
-    : MemRange(start, end),
+    : Range(start, end),
       map_(map) {
   }
 
@@ -728,13 +728,13 @@ public:
     file_.Write(FromString(text));
   }
 
-  void AddExternDef(const MemRange<char>& def, int line_no) {
+  void AddExternDef(const Range<char>& def, int line_no) {
     auto text = std::string("adding xdef [") + ToString(def) + "] " + LineNumber(line_no);
     text.append(1, '\n');
     file_.Write(FromString(text));
   }
 
-  void ProcessInclude(const MemRange<char>& include) {
+  void ProcessInclude(const Range<char>& include) {
     auto text = std::string("include target [") + ToString(include) + "]\n";
     file_.Write(FromString(text));
   }
@@ -755,8 +755,8 @@ Logger* Logger::instance = nullptr;
 
 // Loads an entire file into memory, keeping only one copy. Memory is kept
 // until program ends. Harcoded limit of 256 MB for all files.
-MemRange<char> LoadFileOnce(const FilePath& path) {
-  static std::unordered_map<long long, MemRange<char>> map;
+Range<char> LoadFileOnce(const FilePath& path) {
+  static std::unordered_map<long long, Range<char>> map;
   static size_t total_size = 0;
 
   File file = File::Create(path, FileParams::ReadSharedRead(), FileSecurity());
@@ -773,7 +773,7 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
 
   Logger::Get().AddFileInfoStart(path);
 
-  MemRange<char> range(size);
+  Range<char> range(size);
   size = file.Read(range, 0);
   if (size != range.Size())
     throw IOException(__LINE__);
@@ -789,21 +789,21 @@ MemRange<char> LoadFileOnce(const FilePath& path) {
 
 struct Insert;
 
-struct KeyMemRangeHash {
-  std::size_t operator()(const MemRange<char>& k) const {
+struct KeyRangeHash {
+  std::size_t operator()(const Range<char>& k) const {
     return HashFNV1a(k);
   }
 };
 
-struct KeyMemRanrgeEq {
-  bool operator()(const MemRange<char>& k1, const MemRange<char>& k2) const {
+struct KeyRangeEq {
+  bool operator()(const Range<char>& k1, const Range<char>& k2) const {
     return k1.Equal(k2);
   }
 };
 
 template <typename T>
-using MemRangeHashTable =
-    std::unordered_map<MemRange<char>, T, KeyMemRangeHash, KeyMemRanrgeEq>;
+using RangeHashTable =
+    std::unordered_map<Range<char>, T, KeyRangeHash, KeyRangeEq>;
 
 struct ScopeBlock {
   enum Type { 
@@ -818,14 +818,14 @@ struct ScopeBlock {
   size_t top;
   size_t start;
   size_t end;
-  const MemRange<char> name;
+  const Range<char> name;
 
-  ScopeBlock(Type type, const MemRange<char>&name, size_t start, size_t top)
+  ScopeBlock(Type type, const Range<char>&name, size_t start, size_t top)
       : type(type), top(top), start(start), end(0), name(name) {}
 };
 
 struct KeyElements {
-  MemRangeHashTable<size_t> includes;
+  RangeHashTable<size_t> includes;
   std::vector<ScopeBlock> scopes;
   std::unordered_map<std::string, std::string> properties;
 };
@@ -1017,7 +1017,7 @@ struct CppToken {
     plex_insert,
   };
 
-  MemRange<char> range;
+  Range<char> range;
   Type type;
   int line;
   int col;
@@ -1027,7 +1027,7 @@ struct CppToken {
     KeyElements* kelems;  // Only applies for SOS token.
   };
 
-  CppToken(const MemRange<char>& range, CppToken::Type type, int line, int col)
+  CppToken(const Range<char>& range, CppToken::Type type, int line, int col)
     : range(range), type(type), line(line), col(col), insert(nullptr) { }
 };
 
@@ -1057,9 +1057,9 @@ bool EqualToStr(const CppToken& tok, const char* str) {
 }
 
 template<typename T, size_t count>
-size_t FindToken(T (&kw)[count], const MemRange<char>& r) {
+size_t FindToken(T (&kw)[count], const Range<char>& r) {
  auto f = std::lower_bound(&kw[0], &kw[count], r, 
-    [] (const char* kw, const MemRange<char>& v) {
+    [] (const char* kw, const Range<char>& v) {
       return strncmp(kw, v.Start(), v.Size()) < 0;
   });
   if (f == &kw[count]) 
@@ -1071,7 +1071,7 @@ size_t FindToken(T (&kw)[count], const MemRange<char>& r) {
   return (f - kw );
 }
 
-CppToken::Type GetCppKeywordType(const MemRange<char>& r) {
+CppToken::Type GetCppKeywordType(const Range<char>& r) {
   // The 86 c++11 keywords.
   const char* kw[] = {
     "alignas", "alignof", "and", "and_eq",
@@ -1104,7 +1104,7 @@ CppToken::Type GetCppKeywordType(const MemRange<char>& r) {
       static_cast<CppToken::Type>(CppToken::kw_start + off + 1);
 }
 
-CppToken::Type GetCppPreprocessorKeyword(const MemRange<char>& r) {
+CppToken::Type GetCppPreprocessorKeyword(const Range<char>& r) {
   const char* kw[] = {
     "define", "else", "endif", "error",
     "if", "ifdef", "ifndef", "include",
@@ -1116,7 +1116,7 @@ CppToken::Type GetCppPreprocessorKeyword(const MemRange<char>& r) {
       static_cast<CppToken::Type>(CppToken::prep_start + off + 1);
 }
 
-bool IsPredefinedMacro(const MemRange<char>& r) {
+bool IsPredefinedMacro(const Range<char>& r) {
   const char* kw[] = {
     "_ATL_VER", "_CPPRTTI", "_CPPUNWIND", "_DEBUG", "_DLL",
     "_MSC_VER", "_MT", "_M_IX86", "_M_X64", "_WIN32", "_WIN64",
@@ -1139,7 +1139,7 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
   if (first.range.End() != second.range.Start())
     return CppToken::unknown;
 
-  size_t off = FindToken(kw, MemRange<char>(first.range.Start(), second.range.End()));
+  size_t off = FindToken(kw, Range<char>(first.range.Start(), second.range.End()));
   return (off == -1) ?
       CppToken::unknown :
       static_cast<CppToken::Type>(CppToken::symbols_end + off + 1);
@@ -1151,7 +1151,7 @@ typedef std::vector<CppToken> CppTokenVector;
 
 #pragma region tokenizer
 
-CppTokenVector TokenizeCpp(const MemRange<char>& range) {
+CppTokenVector TokenizeCpp(const Range<char>& range) {
   CppTokenVector tv;
   tv.reserve(range.Size() / 3);
 
@@ -1160,7 +1160,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   char c = *curr;
 
   // The first token is always (s)tart-(o)f-(s)stream.
-  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::sos, 0, 0));
+  tv.push_back(CppToken(Range<char>(curr, curr), CppToken::sos, 0, 0));
     
   int line = 1;
   int column = 1;
@@ -1185,7 +1185,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
     } else if ((point == 0x09) || (point == 0x0A) || (point == 0x20)) {
       // tab (0x09) linefeed (0x0A) and space (0x20).
       if (str) {
-        auto r = MemRange<char>(str, curr);
+        auto r = Range<char>(str, curr);
         int scol = column - static_cast<int>(r.Size());
         tv.push_back(CppToken(r, CppToken::string, line, scol));
         str = nullptr;
@@ -1248,12 +1248,12 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
             str = curr;
       } else {
         if (str) {
-          auto r = MemRange<char>(str, curr);
+          auto r = Range<char>(str, curr);
           int scol = column - static_cast<int>(r.Size());
           tv.push_back(CppToken(r, CppToken::string, line, scol));
           str = nullptr;
         }
-        tv.push_back(CppToken(MemRange<char>(curr, curr + 1), 
+        tv.push_back(CppToken(Range<char>(curr, curr + 1), 
                               static_cast<CppToken::Type>(symbol_type),
                               line, column));
       }
@@ -1264,7 +1264,7 @@ CppTokenVector TokenizeCpp(const MemRange<char>& range) {
   } while (curr);
 
   // Insert a final token to simplify further processing.
-  tv.push_back(CppToken(MemRange<char>(curr, curr), CppToken::eos, line + 1, 0));
+  tv.push_back(CppToken(Range<char>(curr, curr), CppToken::eos, line + 1, 0));
   return tv;
 }
 
@@ -1288,7 +1288,7 @@ void CoaleseToken(CppTokenVector::iterator first,
                   CppTokenVector::iterator last,
                   CppToken::Type type) {
   first->type = type;
-  first->range = MemRange<char>(first->range.Start(),
+  first->range = Range<char>(first->range.Start(),
                                 last->range.End());
 }
 
@@ -1397,12 +1397,12 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
             if (count < 4)
               throw TokenizerException(__LINE__, it->line);
             //Includes go into a special map.
-            MemRange<char> irange((it + 2)->range.Start(), (it2 - 1)->range.End());
+            Range<char> irange((it + 2)->range.Start(), (it2 - 1)->range.End());
             if ((irange[0] != '"') && (irange[0] != '<'))
               throw TokenizerException(__LINE__, it->line);
             auto item_pos = it - tokens.begin();
             if (kelem.includes.empty())
-              kelem.includes[MemRange<char>(first_include_key)] = item_pos;
+              kelem.includes[Range<char>(first_include_key)] = item_pos;
             kelem.includes[irange] = item_pos;
           } else if (pp_type == CppToken::prep_if) {
             auto if_it = it + 2;
@@ -1442,7 +1442,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
             continue;
           auto it2 = it - 1;
           auto block_type = ScopeBlock::block_other;
-          MemRange<char> name;
+          Range<char> name;
 
           if (it2->type == CppToken::kw_namespace) {
             block_type = ScopeBlock::anons_namespace;
@@ -1632,12 +1632,12 @@ struct XternDef {
   };
 
   Type type;
-  MemRange<char> name;
-  MemRange<char> path;
+  Range<char> name;
+  Range<char> path;
   bool needed;
   bool loaded;
 
-  XternDef(const MemRange<char>& name, const MemRange<char>& path)
+  XternDef(const Range<char>& name, const Range<char>& path)
       : type(kNone),
         name(name), path(path),
         needed(false), loaded(false) {
@@ -1843,8 +1843,8 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
 #pragma region catalog
 
 XternDef MakeXDef(const char* type,
-                  const MemRange<char>& name,
-                  const MemRange<char>& path) {
+                  const Range<char>& name,
+                  const Range<char>& path) {
   XternDef::Type xdt;
   if (type[0] == 'c' && type[1] == 's')
     xdt = XternDef::kClass;
@@ -1901,14 +1901,14 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
 }
 
 class XEntity {
-  MemRange<char> name_;
+  Range<char> name_;
   XternDef::Type type_;
-  MemRange<char> src_;
+  Range<char> src_;
   std::string insert_;
   CppTokenVector* tv_;
 
 public:
-  XEntity(XternDef& def, MemRange<char> src, CppTokenVector* tv)
+  XEntity(XternDef& def, Range<char> src, CppTokenVector* tv)
     : name_(def.name),
       type_(def.type),
       src_(src),
@@ -1940,7 +1940,7 @@ private:
     if (it != end(kel.includes))
       return;
     // Include not found in source. We currently insert after the first include.
-    auto fik = kel.includes.find(MemRange<char>(first_include_key));
+    auto fik = kel.includes.find(Range<char>(first_include_key));
     auto pos = kel.includes.empty() ?
         1 : (fik != end(kel.includes)) ?
         fik->second : 1 ;
@@ -1966,7 +1966,7 @@ private:
       src.insert = new Insert(kind);
     // Minimal insertion has two tokens: SOS + tv[0].
     auto start = tv[0].range.Start();
-    CppToken control(MemRange<char>(start, start), CppToken::plex_insert, 0, 0);
+    CppToken control(Range<char>(start, start), CppToken::plex_insert, 0, 0);
     if (tv.size() == 1) {
       tv.insert(begin(tv), control);
     } else if (tv[0].type == CppToken::sos) {
@@ -1991,7 +1991,7 @@ private:
 
 typedef std::vector<XEntity> XEntities;
 
-MemRange<char> LoadEntity(XternDef& def, const FilePath& path) {
+Range<char> LoadEntity(XternDef& def, const FilePath& path) {
   if (def.type == XternDef::kInclude)
     return def.path;
   FilePath fpath = path.Append(AsciiToUTF16(def.path));
@@ -2198,8 +2198,8 @@ int wmain(int argc, wchar_t* argv[]) {
     FilePath out_path(out_path_str);
     Logger logger(path.Parent().Append(L"plex_log.txt"));
 
-    MemRange<char> input_range;
-    MemRange<char> index_range;
+    Range<char> input_range;
+    Range<char> index_range;
     try {
       input_range = LoadFileOnce(path);
       index_range = LoadFileOnce(catalog);
