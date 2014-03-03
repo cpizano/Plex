@@ -49,6 +49,8 @@
 // 403 writes common includes for <windows> types.
 // 404 isolate const strings into bundles. for example
 //     foo("error: no space") -> foo(error_no_space);
+// 405 partial catalog classes, for example not all methods
+//     of plx::CpuId need to be copied.
 
 #include <SDKDDKVer.h>
 
@@ -1935,7 +1937,10 @@ private:
     if (it != end(kel.includes))
       return;
     // Include not found in source. We currently insert after the first include.
-    auto pos = kel.includes.empty() ? 1 : kel.includes[MemRange<char>(first_include_key)];
+    auto fik = kel.includes.find(MemRange<char>(first_include_key));
+    auto pos = kel.includes.empty() ?
+        1 : (fik != end(kel.includes)) ?
+        fik->second : 1 ;
     insert_ = std::string("#include ") + ToString(src_);
     CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};

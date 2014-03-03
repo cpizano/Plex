@@ -9,6 +9,8 @@ if not exist %plexbin% goto error2
 REM put the ones that should compile here.
 del full\test_007.cc 
 %plexbin% --generate --out-dir=full test_007.cc
+del full\test_008.cc 
+%plexbin% --generate --out-dir=full test_008.cc
 
 set /a errcount=0
 set /a count=0
