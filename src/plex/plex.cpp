@@ -29,17 +29,20 @@
 // 015 recognize -> as a token.
 // 016 have a test with printfs.
 // 019 coalease templated types in the name like Moo<int> moo;
-// 020 handle namespace alias 'namespace foo = bar::doo'
+// 020 handle namespace alias 'namespace foo = bar::doo'.
+// 030 exceptions should have the file they came from.
 //
 // Medium term
 // ---------------------------
 // 101 coalese namespaces for inserts.
 // 102 truly manage insert dependencies.
 // 103 compilation tests.
+// 104 more useful catalog entities.
+// 105 control x64 vs ia32 constructs.
 //
 // Longer term niceties
 // ---------------------------
-// 203 git or github integration .
+// 203 git or github integration.
 // 204 catalog index (index.plex) generation should be automated.
 //
 // features to be done
