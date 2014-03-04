@@ -30,7 +30,6 @@
 // 016 have a test with printfs.
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'.
-// 030 exceptions should have the file they came from.
 //
 // Medium term
 // ---------------------------
