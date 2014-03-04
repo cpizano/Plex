@@ -111,13 +111,15 @@ public:
 
 class TokenizerException : public PlexException {
   int source_line_;
+  std::wstring file_;
 
 public:
-  TokenizerException(int line, int source_line)
-      : PlexException(line, "Tokenizer problem"), source_line_(source_line)  {
+  TokenizerException(const std::wstring& file, int line, int source_line)
+      : PlexException(line, "Tokenizer problem"), source_line_(source_line), file_(file)  {
     PostCtor();
   }
   int SourceLine() const { return source_line_; }
+  const wchar_t* Path() const { return file_.c_str(); }
 };
 
 class CatalogException : public PlexException {
@@ -408,7 +410,7 @@ public:
     return true;
   }
 
-  const wchar_t* Raw() { return path_.c_str(); }
+  const wchar_t* Raw() const { return path_.c_str(); }
 
 private:
   FilePath() {}
@@ -820,9 +822,14 @@ struct ScopeBlock {
 };
 
 struct KeyElements {
+  FilePath src_path;
   RangeHashTable<size_t> includes;
   std::vector<ScopeBlock> scopes;
   std::unordered_map<std::string, std::string> properties;
+
+  KeyElements(const FilePath& path) : src_path(path) {
+    scopes.reserve(20);
+  }
 };
 
 struct CppToken {
@@ -1157,7 +1164,8 @@ CppTokenVector TokenizeCpp(const FilePath& path) {
 
   // The first token is always (s)tart-(o)f-(s)stream.
   tv.push_back(CppToken(Range<char>(curr, curr), CppToken::sos, 0, 0));
-    
+  tv.front().kelems = new KeyElements(path);
+ 
   int line = 1;
   int column = 1;
 
@@ -1165,17 +1173,17 @@ CppTokenVector TokenizeCpp(const FilePath& path) {
     int point = (c < 0x80) ? c :  DecodeUTF8Point(curr, range);
 
     if (point < 0) {
-      throw TokenizerException(__LINE__, line);
+      throw TokenizerException(path.Raw(), __LINE__, line);
     }
 
     if (point == 0) {
       if (curr != range.End()) {
         // End of the file, must only be at the end.
-        throw TokenizerException(__LINE__, line);
+        throw TokenizerException(path.Raw(), __LINE__, line);
       }
       if (str) {
         // Incomplete token, unexpected EoF.
-        throw TokenizerException(__LINE__, line);
+        throw TokenizerException(path.Raw(), __LINE__, line);
       }
 
     } else if ((point == 0x09) || (point == 0x0A) || (point == 0x20)) {
@@ -1194,7 +1202,7 @@ CppTokenVector TokenizeCpp(const FilePath& path) {
 
     } else if ((point <  0x20) || (point == 0x7F)) {
       // Nonprintables are unrecoberable erros.
-      throw TokenizerException(__LINE__, line);
+      throw TokenizerException(path.Raw(), __LINE__, line);
     } else {
       int symbol_type;
       switch (point) {
@@ -1297,11 +1305,12 @@ enum LexMode {
 
 bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
   auto it = tokens.begin();
-  if ((it->kelems != nullptr) || (it->type != CppToken::sos))
-    throw PlexException(__LINE__, "SOS in bad state");
-  it->kelems = new KeyElements;
+  if (it->type != CppToken::sos)
+    throw PlexException(__LINE__, "No SOS in tokens stream");
+
   KeyElements& kelem = *(it->kelems);
   std::vector<ScopeBlock> scopes;
+  auto path = kelem.src_path.Raw();
 
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
@@ -1311,7 +1320,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           auto it2 = it + 1;
           while (*it2->range.Start() != '"') {
             if (it2->line != it->line)
-              throw TokenizerException(__LINE__, it->line);   // $$ fix multiline.
+              throw TokenizerException(path, __LINE__, it->line);   // $$ fix multiline.
             if (*it2->range.Start() == '\\') 
               ++it2;
             ++it2; 
@@ -1333,7 +1342,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           auto it2 = it + 1;
           while (*it2->range.Start() != '\'') {
             if (it2->line != it->line)
-              throw TokenizerException(__LINE__, it->line);
+              throw TokenizerException(path, __LINE__, it->line);
             if (*it2->range.Start() == '\\')
               ++it2;
             ++it2; 
@@ -1353,7 +1362,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           // Handle coalesing all tokens in a preprocessor or pragma line.
           if ((it - 1)->line == it->line) {
             // can't have tokens before a # in the same line.
-            throw TokenizerException(__LINE__, it->line);
+            throw TokenizerException(path, __LINE__, it->line);
           }
           
           // Next token is the kind.
@@ -1361,7 +1370,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           auto pp_type = GetCppPreprocessorKeyword(it2->range);
           if (pp_type == CppToken::unknown) {
             // unrecongized preprocessor directive;
-            throw TokenizerException(__LINE__, it->line);
+            throw TokenizerException(path, __LINE__, it->line);
           }
           int count = 0;
           while (it2->line == it->line) {
@@ -1386,16 +1395,16 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                 if ((++pit)->type != CppToken::string) break;
                 kelem.properties[key] = ToString(*pit);
                 if ((++pit)->type != CppToken::double_quote)
-                  throw TokenizerException(__LINE__, it->line);
+                  throw TokenizerException(path, __LINE__, it->line);
               } while (false);
             }
           } else if (pp_type == CppToken::prep_include) {
             if (count < 4)
-              throw TokenizerException(__LINE__, it->line);
+              throw TokenizerException(path, __LINE__, it->line);
             //Includes go into a special map.
             Range<char> irange((it + 2)->range.Start(), (it2 - 1)->range.End());
             if ((irange[0] != '"') && (irange[0] != '<'))
-              throw TokenizerException(__LINE__, it->line);
+              throw TokenizerException(path, __LINE__, it->line);
             auto item_pos = it - tokens.begin();
             if (kelem.includes.empty())
               kelem.includes[Range<char>(first_include_key)] = item_pos;
@@ -1420,7 +1429,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                 ++if_it;
               }
               if (if_count != 0)
-                throw TokenizerException(__LINE__, it->line);
+                throw TokenizerException(path, __LINE__, it->line);
               // Erase all the tokens by marking them as 'none' type.
               it2 = if_it;
               pp_type = CppToken::none;
@@ -1455,7 +1464,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                      (it3->type == CppToken::kw_struct))
               block_type = ScopeBlock::block_aggregate;
             else
-              throw TokenizerException(__LINE__, it->line);
+              throw TokenizerException(path, __LINE__, it->line);
           }
           auto top = scopes.empty() ? 0 : scopes.back().start;
           scopes.push_back(ScopeBlock(block_type, name, pos, top));
@@ -1463,7 +1472,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
         break;
         case CppToken::close_cur_bracket : {
           if (scopes.empty())
-            throw TokenizerException(__LINE__, it->line);
+            throw TokenizerException(path, __LINE__, it->line);
           auto cs = scopes.back();
           cs.end = (it - tokens.begin());
           kelem.scopes.push_back(cs);
@@ -1517,7 +1526,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           long long value;
           ss >> value;
           if (!ss)
-            throw TokenizerException(__LINE__, it->line);
+            throw TokenizerException(path, __LINE__, it->line);
           size_t np = ss.tellg();
           if (np != -1) {
             // failed to fully consume the number. See if we have a
@@ -1527,7 +1536,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               case 'E' : {
                 // Mantissa + exponent form. 'e' must be the last char.
                 if ((np + 1) != number.size())
-                  throw TokenizerException(__LINE__, it->line);
+                  throw TokenizerException(path, __LINE__, it->line);
               }
               break;
               case 'x' :
@@ -1536,10 +1545,10 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                 ss.seekg(0);
                 ss >> std::hex >> value;
                 if (!ss)
-                  throw TokenizerException(__LINE__, it->line);
+                  throw TokenizerException(path, __LINE__, it->line);
                 np = ss.tellg();
                 if (np != -1)
-                  throw TokenizerException(__LINE__, it->line);
+                  throw TokenizerException(path, __LINE__, it->line);
               }
               break;
               // $$$ handle better the f, l ul u and ll cases.
@@ -1550,7 +1559,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               case 'u' :
               case 'U' : break;
               default:
-                throw TokenizerException(__LINE__, it->line);
+                throw TokenizerException(path, __LINE__, it->line);
             }
           }
           // ok, it seems to be a number. See if we can coalease with + - or .
@@ -1593,23 +1602,23 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           }
 
         } else {
-          throw TokenizerException(__LINE__, it->line);
+          throw TokenizerException(path, __LINE__, it->line);
         }
       }
     } else if (it->type == CppToken::sos) {
       // first token.
     } else if (it->type == CppToken::eos) {
       if (!scopes.empty())
-        throw TokenizerException(__LINE__, 0);
+        throw TokenizerException(path, __LINE__, 0);
       return true;
     } else {
-      throw TokenizerException(__LINE__, it->line);
+      throw TokenizerException(path, __LINE__, it->line);
     }
     // advance to next token.
     ++it;
   }
 
-  throw TokenizerException(__LINE__, 0);
+  throw TokenizerException(path, __LINE__, 0);
 }
 
 #pragma region xdef
@@ -2230,8 +2239,11 @@ int wmain(int argc, wchar_t* argv[]) {
 
   } catch (TokenizerException& ex) {
     wprintf(L"\nerror: [%s] Tokenizer error\n"
-            L"in program line %d, source line %d, version (%S)\n",
-            cmdline.Extra(0).c_str(), ex.Line(), ex.SourceLine(), __DATE__);
+            L"in source line %d file [%s]\n"
+            L"in program line %d, version (%S)\n",
+            cmdline.Extra(0).c_str(),
+            ex.SourceLine(), ex.Path(),
+            ex.Line(), __DATE__);
 
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
