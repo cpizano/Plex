@@ -1146,7 +1146,8 @@ typedef std::vector<CppToken> CppTokenVector;
 
 #pragma region tokenizer
 
-CppTokenVector TokenizeCpp(const Range<char>& range) {
+CppTokenVector TokenizeCpp(const FilePath& path) {
+  Range<char> range = LoadFileOnce(path);
   CppTokenVector tv;
   tv.reserve(range.Size() / 3);
 
@@ -2001,17 +2002,21 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     if (it->second.loaded)
       continue;
     // Load, tokenize and lex.
-    auto mr = LoadEntity(it->second, path);
-    auto tok = new CppTokenVector(TokenizeCpp(mr));
-    LexCppTokens(LexMode::PlexCPP, *tok);
-    ents.push_back(XEntity(it->second, mr, tok));
-    it->second.loaded = true;
-
-    // Get external definitions and create/insert the new xentity.
-    if (GetExternalDefinitions(*tok, xdefs)) {
-      // Recurse now.
-      auto inner = LoadEntities(xdefs, path);
-      ents.insert(ents.begin(), inner.begin(), inner.end());
+    auto& def = it->second;
+    if (it->second.type == XternDef::kInclude) {
+      ents.push_back(XEntity(def, def.path, nullptr));
+      def.loaded = true;
+    } else {
+      auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));
+      LexCppTokens(LexMode::PlexCPP, *tok);
+      ents.push_back(XEntity(def, Range<char>(), tok));
+      def.loaded = true;
+      // Get external definitions and create/insert the new xentity.
+      if (GetExternalDefinitions(*tok, xdefs)) {
+        // Recurse now.
+        auto inner = LoadEntities(xdefs, path);
+        ents.insert(ents.begin(), inner.begin(), inner.end());
+      }
     }
   }
 
@@ -2193,23 +2198,12 @@ int wmain(int argc, wchar_t* argv[]) {
     FilePath out_path(out_path_str);
     Logger logger(path.Parent().Append(L"plex_log.txt"));
 
-    Range<char> input_range;
-    Range<char> index_range;
-    try {
-      input_range = LoadFileOnce(path);
-      index_range = LoadFileOnce(catalog);
-    } catch (IOException& err) {
-      wprintf(L"error: can't open input file or index.plex (line %d)\n",
-              err.Line());
-      return 1;
-    }
-
     // Phase 1 : process the input cc.
-    CppTokenVector cc_tv = TokenizeCpp(input_range);
+    CppTokenVector cc_tv = TokenizeCpp(path);
     LexCppTokens(LexMode::PlainCPP, cc_tv);
 
     // Phase 2 : process the catalog.
-    CppTokenVector index_tv = TokenizeCpp(index_range);
+    CppTokenVector index_tv = TokenizeCpp(catalog);
     LexCppTokens(LexMode::PlexCPP, index_tv);
     XternDefs xdefs;
     ProcessCatalog(index_tv, xdefs);
@@ -2242,6 +2236,12 @@ int wmain(int argc, wchar_t* argv[]) {
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
   
+  } catch (IOException& ex) {
+    wprintf(L"error: can't open file (line %d)\n", ex.Line());
+
+    if (Logger::HasLogger())
+      Logger::Get().ReportException(ex);
+
   } catch (PlexException& ex) {
     wprintf(L"\nerror: [%s] fatal exception [%S]\n"
             L"in program line %d, version (%S)\n",
