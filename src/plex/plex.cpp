@@ -24,9 +24,7 @@
 // BUGS to be fixed short term
 // ---------------------------
 // 001 coalese strings "aaa""bb""cc" even in different lines.
-// 002 learn to ignore #if 0.
 // 007 handle comments at the end of preprocessor lines.
-// 015 recognize -> as a token.
 // 016 have a test with printfs.
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'.
@@ -894,6 +892,7 @@ struct CppToken {
     ass_increment,        // +=
     decrement,            // --
     ass_decrement,        // -=
+    deref_ptr,            // ->
     line_comment,         // //
     ass_division,         // /=
     name_scope,           // ::
@@ -1133,17 +1132,21 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
   const char* kw[] = {
     "!=", "%=", "&&", "&=", 
     "*=", "++", "+=", "--", 
-    "-=", "//", "/=", "::", 
+    "-=", "->", "//", "/=", "::", 
     "<<", "<=", "==", ">=",
     ">>", "^=", "||", "|=" 
   };
+
+  static_assert(_countof(kw) == 
+      size_t(CppToken::ass_left_shift - CppToken::not_eq), "TwoToken");
+
   if (first.range.End() != second.range.Start())
     return CppToken::unknown;
 
   size_t off = FindToken(kw, Range<char>(first.range.Start(), second.range.End()));
   return (off == -1) ?
       CppToken::unknown :
-      static_cast<CppToken::Type>(CppToken::symbols_end + off + 1);
+      static_cast<CppToken::Type>(CppToken::not_eq + off);
 }
 
 #pragma endregion
