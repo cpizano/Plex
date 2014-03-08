@@ -97,13 +97,17 @@ public:
 
 class IOException : public PlexException {
   DWORD error_code_;
+  const std::wstring name_;
 
 public:
-  IOException(int line)
-      : PlexException(line, "IO problem"), error_code_(::GetLastError()) {
+  IOException(int line, const wchar_t* name)
+      : PlexException(line, "IO problem"),
+        error_code_(::GetLastError()),
+        name_(name) {
     PostCtor();
   }
   DWORD ErrorCode() const { return error_code_; }
+  const wchar_t* Name() const { return name_.c_str(); }
 };
 
 class TokenizerException : public PlexException {
@@ -564,7 +568,7 @@ public:
   ~File() {
     if (handle_ != INVALID_HANDLE_VALUE) {
       if (!::CloseHandle(handle_)) {
-        throw IOException(__LINE__);
+        throw IOException(__LINE__, nullptr);
       }
     }
   }
@@ -573,7 +577,7 @@ public:
   long long GetUniqueId() {
     BY_HANDLE_FILE_INFORMATION bhfi;
     if (!::GetFileInformationByHandle(handle_, &bhfi))
-      throw IOException(__LINE__);
+      throw IOException(__LINE__, nullptr);
     LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
     return li.QuadPart;
   }
@@ -651,14 +655,14 @@ public:
     DWORD access = (protection == PAGE_READONLY) ? FILE_MAP_READ : FILE_MAP_WRITE | FILE_MAP_READ;
     HANDLE map = ::CreateFileMappingW(file.handle_, 0, protection, 0, 0, name);
     if (map == 0) {
-      throw IOException(__LINE__);
+      throw IOException(__LINE__, nullptr);
     }
 
     ULARGE_INTEGER uli;
     uli.QuadPart = offset;
     char* start = reinterpret_cast<char*>(::MapViewOfFile(map, access, uli.HighPart, uli.LowPart, map_size));
     if (!start) {
-      throw IOException(__LINE__);
+      throw IOException(__LINE__, nullptr);
     }
 
     return FileView(map, start, start + file.SizeInBytes());
@@ -668,7 +672,7 @@ public:
     MEMORY_BASIC_INFORMATION mbi = {0};
     ::VirtualQuery(Start(), &mbi, sizeof(mbi));
     if (!mbi.RegionSize) {
-      throw IOException(__LINE__);
+      throw IOException(__LINE__, nullptr);
     }
     return mbi.RegionSize;
   }
@@ -676,12 +680,12 @@ public:
   ~FileView() {
     if (Start()) {
       if (!::UnmapViewOfFile(Start())) {
-        throw IOException(__LINE__);
+        throw IOException(__LINE__, nullptr);
       }
     }
     if (map_) {
       if (!::CloseHandle(map_)) {
-        throw IOException(__LINE__);
+        throw IOException(__LINE__, nullptr);
       }
     }
   }
@@ -702,7 +706,7 @@ public:
 
   Logger(FilePath& path) : file_(Create(path)) {
     if (!file_.IsValid()) {
-      throw IOException(__LINE__);
+      throw IOException(__LINE__, path.Raw());
     }
     file_.Write("@ Plex genlog [0.3] "__DATE__"\n");
     instance = this;
@@ -755,7 +759,7 @@ Range<char> LoadFileOnce(const FilePath& path) {
 
   File file = File::Create(path, FileParams::ReadSharedRead(), FileSecurity());
   if (!file.IsValid())
-    throw IOException(__LINE__);
+    throw IOException(__LINE__, path.Raw());
   long long id = file.GetUniqueId();
   auto it = map.find(id);
   if (it != map.end())
@@ -763,14 +767,14 @@ Range<char> LoadFileOnce(const FilePath& path) {
 
   size_t size = file.SizeInBytes();
   if (size + total_size > (1024 * 1024 * 256))
-    throw IOException(__LINE__);
+    throw IOException(__LINE__, path.Raw());
 
   Logger::Get().AddFileInfoStart(path);
 
   Range<char> range(size);
   size = file.Read(range, 0);
   if (size != range.Size())
-    throw IOException(__LINE__);
+    throw IOException(__LINE__, path.Raw());
 
   map[id] = range;
   total_size += size;
@@ -2251,7 +2255,7 @@ int wmain(int argc, wchar_t* argv[]) {
       Logger::Get().ReportException(ex);
   
   } catch (IOException& ex) {
-    wprintf(L"error: can't open file (line %d)\n", ex.Line());
+    wprintf(L"error: can't open file [%s] (line %d)\n", ex.Name(), ex.Line());
 
     if (Logger::HasLogger())
       Logger::Get().ReportException(ex);
