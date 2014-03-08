@@ -9,14 +9,38 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="catalog">
+      <UniqueIdentifier>{b463ccdb-a5b9-42c4-ba9f-cb6f10539a65}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="catalog\plx">
+      <UniqueIdentifier>{6e5dde26-312a-4b48-9651-609712f8cda8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="catalog\pxx">
+      <UniqueIdentifier>{12a236d0-e575-437a-b757-441048e46016}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="plex.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\data\catalog\pxx\TestClassA.cc">
+      <Filter>catalog\pxx</Filter>
+    </ClCompile>
+    <ClCompile Include="..\data\catalog\pxx\TestFunA.cc">
+      <Filter>catalog\pxx</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="..\data\catalog\plx\cpu_id.h">
+      <Filter>catalog\plx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\data\catalog\plx\exception.h">
+      <Filter>catalog\plx</Filter>
+    </ClInclude>
+    <ClInclude Include="..\data\catalog\plx\io_exception.h">
+      <Filter>catalog\plx</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="plex.rc">

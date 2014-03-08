@@ -80,9 +80,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\data\catalog\pxx\TestClassA.cc" />
+    <ClCompile Include="..\data\catalog\pxx\TestFunA.cc" />
     <ClCompile Include="plex.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\data\catalog\plx\cpu_id.h" />
+    <ClInclude Include="..\data\catalog\plx\exception.h" />
+    <ClInclude Include="..\data\catalog\plx\io_exception.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
