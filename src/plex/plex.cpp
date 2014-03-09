@@ -73,6 +73,7 @@
 const char anonymous_namespace_mk[] = "<[anonymous]>";
 const char scope_namespace_mk[] = "<[scope]>";
 char first_include_key[] = "!~";
+char last_include_key[] = "$~";
 #pragma endregion
 
 #pragma region exceptions
@@ -1318,6 +1319,8 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
   std::vector<ScopeBlock> scopes;
   auto path = kelem.src_path.Raw();
 
+  size_t last_include_pos = 0;
+
   while (it != tokens.end()) {
     if ((it->type > CppToken::symbols_begin ) && (it->type < CppToken::symbols_end)) {
       switch (it->type) {
@@ -1414,7 +1417,10 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
             auto item_pos = it - tokens.begin();
             if (kelem.includes.empty())
               kelem.includes[Range<char>(first_include_key)] = item_pos;
+            
+            last_include_pos = item_pos;
             kelem.includes[irange] = item_pos;
+            
           } else if (pp_type == CppToken::prep_if) {
             auto if_it = it + 2;
             if (EqualToStr(*if_it, "0")) {
@@ -1614,6 +1620,9 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
     } else if (it->type == CppToken::sos) {
       // first token.
     } else if (it->type == CppToken::eos) {
+      if (last_include_pos)
+        kelem.includes[Range<char>(last_include_key)] = last_include_pos;
+      // The scopes vector should be empty or else we have an unbalanced "{".
       if (!scopes.empty())
         throw TokenizerException(path, __LINE__, 0);
       return true;
@@ -1931,9 +1940,9 @@ public:
     if (type_ == XternDef::kInclude)
       HandleInclude(in_src, *kel); 
     else if (type_ == XternDef::kFunction)
-      HandleFunction(in_src);
+      HandleFunction(in_src, *kel);
     else if (type_ == XternDef::kClass)
-      HandleClass(in_src);
+      HandleClass(in_src, *kel);
   }
 
   // The processing order is the Type order.
@@ -1952,9 +1961,8 @@ private:
       return;
     // Include not found in source. We currently insert after the first include.
     auto fik = kel.includes.find(Range<char>(first_include_key));
-    auto pos = kel.includes.empty() ?
-        1 : (fik != end(kel.includes)) ?
-        fik->second : 1 ;
+    auto pos = (fik != end(kel.includes)) ? fik->second : 1 ;
+
     insert_ = std::string("#include ") + ToString(src_);
     CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
@@ -1963,13 +1971,16 @@ private:
     kel.includes[src_] = pos;
   }
 
-  void HandleFunction(CppTokenVector& in_src) {
-    // Insert at the top.
-    InsertAtToken(in_src[1], Insert::keep_original, *tv_);
+  void HandleFunction(CppTokenVector& in_src, KeyElements& kel) {
+    // Insert after the last include.
+    auto lik = kel.includes.find(Range<char>(last_include_key));
+    auto pos = (lik != end(kel.includes)) ? lik->second : 1 ;
+
+    InsertAtToken(in_src[pos], Insert::keep_original, *tv_);
   }
 
-  void HandleClass(CppTokenVector& in_src) {
-    HandleFunction(in_src);
+  void HandleClass(CppTokenVector& in_src, KeyElements& kel) {
+    HandleFunction(in_src, kel);
   }
 
   void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
