@@ -1,7 +1,6 @@
 // utests.h : unittests for the plex catalog.
 //
 
-
 class Test {
   static int run_count;
   static const char* test_name;
@@ -10,17 +9,14 @@ public:
   static int GetRunCount() { return run_count; }
   static const char* GetTestName() { return test_name; }
 
-  Test(const char* name) {
-    test_name = name;
-  }
+  Test(const char* name);
 
-  void Run() {
-    Exec();
-    ++run_count;
-  }
+  ~Test();
+  void Run();
 
 private:
   virtual void Exec() = 0;
+  long long tick_time_;
 
 };
 
@@ -34,6 +30,18 @@ struct Fail {
 template <typename A, typename B>
 void CheckEQ(A&& a, B&& b) {
   if (a != b)
+    throw Fail(__LINE__, Test::GetTestName());
+}
+
+template <typename A, typename B>
+void CheckGT(A&& a, B&& b) {
+  if (a <= b)
+    throw Fail(__LINE__, Test::GetTestName());
+}
+
+template <typename A, typename B>
+void CheckLT(A&& a, B&& b) {
+  if (a >= b)
     throw Fail(__LINE__, Test::GetTestName());
 }
 

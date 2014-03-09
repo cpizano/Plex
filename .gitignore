@@ -35,3 +35,5 @@ src/data/gen/*.dmp
 *.opensdf
 *.aps
 *.suo
+
+src/utests/plex_log.txt

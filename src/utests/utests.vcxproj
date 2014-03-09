@@ -80,8 +80,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="gen\ut_core.cpp" />
     <ClCompile Include="utests.cpp" />
-    <ClCompile Include="ut_core.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="utests.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
