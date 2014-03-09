@@ -37,3 +37,4 @@ src/data/gen/*.dmp
 *.suo
 
 src/utests/plex_log.txt
+src/data/plex_log.txt
