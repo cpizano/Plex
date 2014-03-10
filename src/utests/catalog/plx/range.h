@@ -1,0 +1,8 @@
+//#~def plx::Range
+///////////////////////////////////////////////////////////////////////////////
+// plx::Range
+namespace plx {
+template <typename T>
+using Range = plx::ItRange<T*>;
+
+}

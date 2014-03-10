@@ -21,28 +21,28 @@ private:
 };
 
 struct Fail {
-  int line;
+  const char* kind;
   const char* test;
 
-  Fail(int line, const char* test) : line(line), test(test) {}
+  Fail(const char* kind, const char* test) : kind(kind), test(test) {}
 };
 
 template <typename A, typename B>
 void CheckEQ(A&& a, B&& b) {
   if (a != b)
-    throw Fail(__LINE__, Test::GetTestName());
+    throw Fail("EQ", Test::GetTestName());
 }
 
 template <typename A, typename B>
 void CheckGT(A&& a, B&& b) {
   if (a <= b)
-    throw Fail(__LINE__, Test::GetTestName());
+    throw Fail("GT", Test::GetTestName());
 }
 
 template <typename A, typename B>
 void CheckLT(A&& a, B&& b) {
   if (a >= b)
-    throw Fail(__LINE__, Test::GetTestName());
+    throw Fail("LT", Test::GetTestName());
 }
 
 #define TEST(name) \

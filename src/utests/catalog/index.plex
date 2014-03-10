@@ -11,6 +11,8 @@
 cen(std::string, in, <string>, 1);
 cen(std::wstring, in, <string>, 1);
 cen(std::vector, in, <vector>, 1);
+cen(std::remove_reference, in, <type_traits>, 1)
+cen(std::iterator_traits, in, <iterator>, 1)
 
 cen(wmain, in, <SDKDDKVer.h>, 1
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
@@ -25,5 +27,9 @@ cen(plx::IOException,
     cs, plx\io_exception.h, 1);
 cen(plx::CpuId,
     cs, plx\cpu_id.h, 1);
+cen(plx::ItRange,
+    cs, plx\it_range.h, 1);
+cen(plx::Range,
+    cs, plx\range.h, 1);
 
 end();

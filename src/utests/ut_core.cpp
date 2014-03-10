@@ -3,7 +3,19 @@
 #include "../utests.h"
 
 void Test_Range::Exec() {
+  // Empty iterator is empty.
+  plx::Range<const char> range1;
+  CheckEQ(range1.empty(), true);
+  CheckEQ(range1.size(), size_t(0));
 
+  // The range so defined includes the null character.
+  const char txt1[] = "abcdefghijklmnopqrstuv";
+  const plx::Range<const char> range2(txt1, sizeof(txt1));
+  CheckEQ(range2.empty(), false);
+  CheckEQ(range2.size(), sizeof(txt1));
+  CheckEQ(range2.front(), 'a');
+  CheckEQ(range2.back(), '\0');
+  CheckEQ(range2[2], 'c');
 }
 
 void Test_CpuId::Exec() {

@@ -33,7 +33,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_CpuId().Run();
 
   } catch (Fail& ex) {
-    wprintf(L"Test %S of line %d failed\n", ex.test, ex.line);
+    wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
     return 1;
   }
 
