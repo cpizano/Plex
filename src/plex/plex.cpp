@@ -1921,29 +1921,20 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
   }
 }
 
+#pragma endregion
+
+
 struct XEntity {
   Range<char> name;
   XternDef::Type type;
   Range<char> src;
   CppTokenVector* tv;
-
-  std::string insert;   // $$$ remove?
+  // |insert| is only here to keep alive the memory backing
+  // the MemRange on the final tree.
+  std::string insert;
 
   XEntity(XternDef& def, Range<char> src, CppTokenVector* tv)
-    : name(def.name),
-      type(def.type),
-      src(src),
-      tv(tv) {
-  }
-
-  void Process(CppTokenVector& in_src) {
-    auto kel = in_src[0].kelems;
-    if (type == XternDef::kInclude)
-      HandleInclude(in_src, *kel); 
-    else if (type == XternDef::kFunction)
-      HandleFunction(in_src, *kel);
-    else if (type == XternDef::kClass)
-      HandleClass(in_src, *kel);
+    : name(def.name), type(def.type), src(src), tv(tv) {
   }
 
   // The processing order is the Type order.
@@ -1952,63 +1943,6 @@ struct XEntity {
       return ToString(name) < ToString(other.name);
     else 
       return type < other.type;
-  }
-
-private:
-  void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
-    Logger::Get().ProcessInclude(src);
-    auto it = kel.includes.find(src);
-    if (it != end(kel.includes))
-      return;
-    // Include not found in source. We currently insert after the first include.
-    auto fik = kel.includes.find(Range<char>(first_include_key));
-    auto pos = (fik != end(kel.includes)) ? fik->second : 1 ;
-
-    insert = std::string("#include ") + ToString(src);
-    CppToken newtoken(FromString(insert), CppToken::prep_include, 1, 1);
-    CppTokenVector itv = {newtoken};
-    InsertAtToken(in_src[pos], Insert::keep_original, itv);
-    // insert in kels to avoid a second include of the same.
-    kel.includes[src] = pos;
-  }
-
-  void HandleFunction(CppTokenVector& in_src, KeyElements& kel) {
-    // Insert after the last include.
-    auto lik = kel.includes.find(Range<char>(last_include_key));
-    auto pos = (lik != end(kel.includes)) ? lik->second : 1 ;
-
-    InsertAtToken(in_src[pos], Insert::keep_original, *tv);
-  }
-
-  void HandleClass(CppTokenVector& in_src, KeyElements& kel) {
-    HandleFunction(in_src, kel);
-  }
-
-  void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
-    if (!src.insert)
-      src.insert = new Insert(kind);
-    // Minimal insertion has two tokens: SOS + tv[0].
-    auto start = tv[0].range.Start();
-    CppToken control(Range<char>(start, start), CppToken::plex_insert, 0, 0);
-    if (tv.size() == 1) {
-      tv.insert(begin(tv), control);
-    } else if (tv[0].type == CppToken::sos) {
-      // replace SOS for the insert token.
-      tv[0] = control;
-    } else {
-      throw PlexException(__LINE__, "Missing SOS token");
-    }
-
-    // Insert most tokens and renumber the lines as we go along.
-    auto& exv = src.insert->tv;
-    int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
-    for (auto& tok : tv) {
-      auto t = tok.type;
-      if (t == CppToken::eos || t == CppToken::plex_comment)
-        continue;
-      tok.line += b_line;
-      src.insert->tv.push_back(tok);
-    }
   }
 };
 
@@ -2058,9 +1992,34 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
   return ents;
 }
 
-#pragma endregion
+void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
+  if (!src.insert)
+    src.insert = new Insert(kind);
+  // Minimal insertion has two tokens: SOS + tv[0].
+  auto start = tv[0].range.Start();
+  CppToken control(Range<char>(start, start), CppToken::plex_insert, 0, 0);
+  if (tv.size() == 1) {
+    tv.insert(begin(tv), control);
+  } else if (tv[0].type == CppToken::sos) {
+    // replace SOS for the insert token.
+    tv[0] = control;
+  } else {
+    throw PlexException(__LINE__, "Missing SOS token");
+  }
 
-void ProcessEntities(CppTokenVector& src, XEntities& ent) {
+  // Insert most tokens and renumber the lines as we go along.
+  auto& exv = src.insert->tv;
+  int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
+  for (auto& tok : tv) {
+    auto t = tok.type;
+    if (t == CppToken::eos || t == CppToken::plex_comment)
+      continue;
+    tok.line += b_line;
+    src.insert->tv.push_back(tok);
+  }
+}
+
+void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   std::sort(begin(ent.includes), end(ent.includes), 
       [] (const XEntity& e1, const XEntity& e2) {
         return e1.Order(e2);
@@ -2073,12 +2032,33 @@ void ProcessEntities(CppTokenVector& src, XEntities& ent) {
       }
   );
 
-  for (auto& xe : ent.includes) {
-    xe.Process(src);
+  auto& kel = *in_src[0].kelems;
+
+  for (auto& incl : ent.includes) {
+    auto it = kel.includes.find(incl.src);
+    if (it != end(kel.includes))
+      continue;
+    // Include not found in source. We currently insert after the first include.
+    Logger::Get().ProcessInclude(incl.src);
+    auto fik = kel.includes.find(Range<char>(first_include_key));
+    auto pos = (fik != end(kel.includes)) ? fik->second : 1 ;
+
+    incl.insert = std::string("#include ") + ToString(incl.src);
+    CppToken newtoken(FromString(incl.insert), CppToken::prep_include, 1, 1);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(in_src[pos], Insert::keep_original, itv);
+    // insert in kels to avoid a second include of the same.
+    kel.includes[incl.src] = pos;
   }
-  for (auto& xe : ent.code) {
-    xe.Process(src);
+
+  for (auto& cod : ent.code) {
+    // Insert after the last include.
+    auto lik = kel.includes.find(Range<char>(last_include_key));
+    auto pos = (lik != end(kel.includes)) ? lik->second : 1 ;
+
+    InsertAtToken(in_src[pos], Insert::keep_original, *cod.tv);
   }
+
 }
 
 void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
