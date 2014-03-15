@@ -1921,55 +1921,55 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
   }
 }
 
-class XEntity {
-  Range<char> name_;
-  XternDef::Type type_;
-  Range<char> src_;
-  std::string insert_;
-  CppTokenVector* tv_;
+struct XEntity {
+  Range<char> name;
+  XternDef::Type type;
+  Range<char> src;
+  CppTokenVector* tv;
 
-public:
+  std::string insert;   // $$$ remove?
+
   XEntity(XternDef& def, Range<char> src, CppTokenVector* tv)
-    : name_(def.name),
-      type_(def.type),
-      src_(src),
-      tv_(tv) {
+    : name(def.name),
+      type(def.type),
+      src(src),
+      tv(tv) {
   }
 
   void Process(CppTokenVector& in_src) {
     auto kel = in_src[0].kelems;
-    if (type_ == XternDef::kInclude)
+    if (type == XternDef::kInclude)
       HandleInclude(in_src, *kel); 
-    else if (type_ == XternDef::kFunction)
+    else if (type == XternDef::kFunction)
       HandleFunction(in_src, *kel);
-    else if (type_ == XternDef::kClass)
+    else if (type == XternDef::kClass)
       HandleClass(in_src, *kel);
   }
 
   // The processing order is the Type order.
   bool Order(const XEntity& other) const {
-    if (type_ == other.type_)
-      return ToString(name_) < ToString(other.name_);
+    if (type == other.type)
+      return ToString(name) < ToString(other.name);
     else 
-      return type_ < other.type_;
+      return type < other.type;
   }
 
 private:
   void HandleInclude(CppTokenVector& in_src, KeyElements& kel) {
-    Logger::Get().ProcessInclude(src_);
-    auto it = kel.includes.find(src_);
+    Logger::Get().ProcessInclude(src);
+    auto it = kel.includes.find(src);
     if (it != end(kel.includes))
       return;
     // Include not found in source. We currently insert after the first include.
     auto fik = kel.includes.find(Range<char>(first_include_key));
     auto pos = (fik != end(kel.includes)) ? fik->second : 1 ;
 
-    insert_ = std::string("#include ") + ToString(src_);
-    CppToken newtoken(FromString(insert_), CppToken::prep_include, 1, 1);
+    insert = std::string("#include ") + ToString(src);
+    CppToken newtoken(FromString(insert), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
     InsertAtToken(in_src[pos], Insert::keep_original, itv);
     // insert in kels to avoid a second include of the same.
-    kel.includes[src_] = pos;
+    kel.includes[src] = pos;
   }
 
   void HandleFunction(CppTokenVector& in_src, KeyElements& kel) {
@@ -1977,7 +1977,7 @@ private:
     auto lik = kel.includes.find(Range<char>(last_include_key));
     auto pos = (lik != end(kel.includes)) ? lik->second : 1 ;
 
-    InsertAtToken(in_src[pos], Insert::keep_original, *tv_);
+    InsertAtToken(in_src[pos], Insert::keep_original, *tv);
   }
 
   void HandleClass(CppTokenVector& in_src, KeyElements& kel) {
