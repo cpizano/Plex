@@ -710,12 +710,12 @@ public:
     if (!file_.IsValid()) {
       throw IOException(__LINE__, path.Raw());
     }
-    file_.Write("@ Plex genlog [0.3] "__DATE__"\n");
+    file_.Write("@ Plex genlog [0.4] "__DATE__"\n");
     instance = this;
   }
 
   ~Logger() {
-    file_.Write("@ Session end\n");
+    file_.Write("@ Session end\n\n");
   }
 
   void AddFileInfoStart(const FilePath& file) {
@@ -736,6 +736,11 @@ public:
 
   void ProcessInclude(const Range<char>& include) {
     auto text = std::string("include target [") + ToString(include) + "]\n";
+    file_.Write(FromString(text));
+  }
+
+  void ProcessCode(const Range<char>& code_ref) {
+    auto text = std::string("code target [") + ToString(code_ref) + "]\n";
     file_.Write(FromString(text));
   }
 
@@ -2032,7 +2037,14 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
       }
   );
 
+  // Insert includes after the first include.
   auto& kel = *in_src[0].kelems;
+  auto fik = kel.includes.find(Range<char>(first_include_key));
+  const auto pos_include = (fik != end(kel.includes)) ? fik->second : 1;
+
+  // Insert code after the last include.
+  auto lik = kel.includes.find(Range<char>(last_include_key));
+  const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
 
   for (auto& incl : ent.includes) {
     auto it = kel.includes.find(incl.src);
@@ -2040,23 +2052,18 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
       continue;
     // Include not found in source. We currently insert after the first include.
     Logger::Get().ProcessInclude(incl.src);
-    auto fik = kel.includes.find(Range<char>(first_include_key));
-    auto pos = (fik != end(kel.includes)) ? fik->second : 1 ;
 
     incl.insert = std::string("#include ") + ToString(incl.src);
     CppToken newtoken(FromString(incl.insert), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
-    InsertAtToken(in_src[pos], Insert::keep_original, itv);
+    InsertAtToken(in_src[pos_include], Insert::keep_original, itv);
     // insert in kels to avoid a second include of the same.
-    kel.includes[incl.src] = pos;
+    kel.includes[incl.src] = pos_include;
   }
 
   for (auto& cod : ent.code) {
-    // Insert after the last include.
-    auto lik = kel.includes.find(Range<char>(last_include_key));
-    auto pos = (lik != end(kel.includes)) ? lik->second : 1 ;
-
-    InsertAtToken(in_src[pos], Insert::keep_original, *cod.tv);
+    Logger::Get().ProcessCode(cod.name);
+    InsertAtToken(in_src[pos_code], Insert::keep_original, *cod.tv);
   }
 
 }
