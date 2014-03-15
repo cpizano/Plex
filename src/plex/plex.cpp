@@ -60,6 +60,7 @@
 
 #include <stdlib.h>
 #include <algorithm>
+#include <deque>
 #include <sstream>
 #include <string>
 #include <iomanip>
@@ -2011,7 +2012,15 @@ private:
   }
 };
 
-typedef std::vector<XEntity> XEntities;
+struct XEntities {
+  std::deque<XEntity> includes;
+  std::deque<XEntity> code;
+
+  void Add_Front(const XEntities& other) {
+    includes.insert(begin(includes), begin(other.includes), end(other.includes));
+    code.insert(begin(code), begin(other.code), end(other.code));
+  }
+};
 
 Range<char> LoadEntity(XternDef& def, const FilePath& path) {
   if (def.type == XternDef::kInclude)
@@ -2030,18 +2039,18 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     // Load, tokenize and lex.
     auto& def = it->second;
     if (it->second.type == XternDef::kInclude) {
-      ents.push_back(XEntity(def, def.path, nullptr));
+      ents.includes.push_back(XEntity(def, def.path, nullptr));
       def.loaded = true;
     } else {
       auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));
       LexCppTokens(LexMode::PlexCPP, *tok);
-      ents.push_back(XEntity(def, Range<char>(), tok));
+      ents.code.push_back(XEntity(def, Range<char>(), tok));
       def.loaded = true;
       // Get external definitions and create/insert the new xentity.
       if (GetExternalDefinitions(*tok, xdefs)) {
         // Recurse now.
         auto inner = LoadEntities(xdefs, path);
-        ents.insert(ents.begin(), inner.begin(), inner.end());
+        ents.Add_Front(inner);
       }
     }
   }
@@ -2052,12 +2061,23 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
 #pragma endregion
 
 void ProcessEntities(CppTokenVector& src, XEntities& ent) {
-  std::sort(begin(ent), end(ent), [] (const XEntity& e1, const XEntity& e2) {
-    return e1.Order(e2);
-  });
+  std::sort(begin(ent.includes), end(ent.includes), 
+      [] (const XEntity& e1, const XEntity& e2) {
+        return e1.Order(e2);
+      }
+  );
 
-  for (auto it = begin(ent); it != end(ent); ++it) {
-    it->Process(src);
+  std::sort(begin(ent.code), end(ent.code), 
+      [] (const XEntity& e1, const XEntity& e2) {
+        return e1.Order(e2);
+      }
+  );
+
+  for (auto& xe : ent.includes) {
+    xe.Process(src);
+  }
+  for (auto& xe : ent.code) {
+    xe.Process(src);
   }
 }
 
