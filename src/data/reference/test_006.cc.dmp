@@ -68,11 +68,11 @@ token count: 174
   62:  17 { 43} __ }
   63:  18 { 43}  }
   64:  18 { 30} _ ;
-  65:  20 { 43}  }
+  65:[NONE] (1 chars elided)
   66:  20 {173} <ctrl>
-  67:  22 {113}  namespace
-  68:  22 {  6} __________ pxx
-  69:  22 { 41} ______________ {
+  67:[NONE] (9 chars elided)
+  68:[NONE] (3 chars elided)
+  69:[NONE] (1 chars elided)
   70:  23 {110}  int
   71:  23 {  6} ____ TestFunA
   72:  23 { 21} ____________ (

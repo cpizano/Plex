@@ -91,14 +91,12 @@ class CpuId {
 
   bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
 };
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::ItRange
 // s_ : first element
 // e_ : one past the last element
 //
-namespace plx {
 template <typename It>
 class ItRange {
   It s_;
@@ -165,11 +163,8 @@ public:
 
 };
 
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Range
-namespace plx {
 template <typename T>
 using Range = plx::ItRange<T*>;
 

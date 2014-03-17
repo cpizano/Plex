@@ -87,13 +87,11 @@ class CpuId {
 
   bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
 };
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
-namespace plx {
 class Exception {
   int line_;
   const char* message_;

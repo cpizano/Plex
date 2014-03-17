@@ -196,6 +196,11 @@ public:
     return end_ - start_;
   }
 
+  void Reset() {
+    start_ = nullptr;
+    end_ = nullptr;
+  }
+
   const T& operator[](size_t ix) const {
     return start_[ix];
   }
@@ -2042,10 +2047,6 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   auto fik = kel.includes.find(Range<char>(first_include_key));
   const auto pos_include = (fik != end(kel.includes)) ? fik->second : 1;
 
-  // Insert code after the last include.
-  auto lik = kel.includes.find(Range<char>(last_include_key));
-  const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
-
   for (auto& incl : ent.includes) {
     auto it = kel.includes.find(incl.src);
     if (it != end(kel.includes))
@@ -2061,8 +2062,46 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
     kel.includes[incl.src] = pos_include;
   }
 
+  // Insert code after the last include.
+  auto lik = kel.includes.find(Range<char>(last_include_key));
+  const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
+
+  Range<char> curr_namespace;
+
   for (auto& cod : ent.code) {
     Logger::Get().ProcessCode(cod.name);
+    auto& scopes = (*cod.tv)[0].kelems->scopes;
+
+    auto& top_scope = scopes.back();
+    if (top_scope.type == ScopeBlock::named_namespace) {
+      if ((curr_namespace.Size() == 0) || 
+          (!curr_namespace.Equal(top_scope.name))) {
+        // Start tracking new top namespace.
+        curr_namespace = top_scope.name;
+      } else {
+        // Insert has the same namespace as the previous one, we
+        // need to collapse them, by removing previous insert.
+        auto& exv = in_src[pos_code].insert->tv;
+        auto revit = rbegin(exv);
+        while (revit != rend(exv)) {
+          if (revit->type == CppToken::close_cur_bracket) {
+            revit->type = CppToken::none;
+            break;
+          }
+        }
+        // Then remove the namespace from this insert. Which means
+        // the tree tokens "namespace xxx {".
+        size_t rp = top_scope.start;
+        (*cod.tv)[rp--].type = CppToken::none;
+        (*cod.tv)[rp--].type = CppToken::none;
+        (*cod.tv)[rp].type = CppToken::none;
+
+      }
+    } else {
+      // No top level namespace.
+      curr_namespace.Reset();
+    }
+
     InsertAtToken(in_src[pos_code], Insert::keep_original, *cod.tv);
   }
 
@@ -2075,6 +2114,11 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
   for (auto it = begin(src); it != end(src); ++it) {
     if (!it->col)
       continue;
+
+    if (it->type == CppToken::none) {
+      line = it->line;
+      continue;
+    }
 
     std::string out;
     int ldiff = it->line - line;
