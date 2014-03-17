@@ -1062,6 +1062,13 @@ struct Insert {
 
   Insert(Kind kind) : kind(kind) {
   }
+
+  // This returns a singleton deleter that can be used
+  // in many places without extra cost.
+  static Insert* TokenDeleter() {
+    static auto insert = new Insert(delete_original);
+    return insert;
+  }
 };
 
 std::string ToString(const CppToken& tok) {
@@ -2085,16 +2092,16 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
         auto revit = rbegin(exv);
         while (revit != rend(exv)) {
           if (revit->type == CppToken::close_cur_bracket) {
-            revit->type = CppToken::none;
+            revit->insert = Insert::TokenDeleter();
             break;
           }
         }
         // Then remove the namespace from this insert. Which means
         // the tree tokens "namespace xxx {".
         size_t rp = top_scope.start;
-        (*cod.tv)[rp--].type = CppToken::none;
-        (*cod.tv)[rp--].type = CppToken::none;
-        (*cod.tv)[rp].type = CppToken::none;
+        (*cod.tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod.tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod.tv)[rp].insert = Insert::TokenDeleter();
 
       }
     } else {
@@ -2150,12 +2157,14 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
 
 void DumpTokens(const CppTokenVector& src, std::ostream& oss);
 
+std::string DumpName(const CppToken& tok) {
+  return (tok.range.Size() ? ToString(tok.range) : std::string("<nullstr>"));
+}
+
 void DumpToken(const CppToken& tok, std::ostream& oss) {
   oss << std::setw(4) << tok.line << " {" << std::setw(3) << tok.type << "} ";
   if (tok.col) {
-    oss << std::string(tok.col - 1, '_') << " "
-        << (tok.range.Size() ? ToString(tok.range) :
-                               std::string("<nullstr>"));
+    oss << std::string(tok.col - 1, '_') << " " << DumpName(tok);
   }
   else {
     oss << "<ctrl>";
@@ -2165,9 +2174,12 @@ void DumpToken(const CppToken& tok, std::ostream& oss) {
 
 void DumpInsert(const CppToken& tok, std::ostream& oss) {
   Insert& ins = *tok.insert;
-  if (ins.kind == Insert::delete_original)
-    oss << "<deleted>\n";
-  DumpToken(tok, oss);
+  if (ins.kind == Insert::delete_original) {
+    oss << "<deleted>" << " {" << std::setw(3) << tok.type << "} ";
+    oss << DumpName(tok) << std::endl;
+  } else {
+    DumpToken(tok, oss);
+  }
   if (ins.tv.empty())
     return;
   oss << "<+insert> count: " << ins.tv.size() << std::endl;
