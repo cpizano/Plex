@@ -822,6 +822,7 @@ struct ScopeBlock {
     named_namespace,
     block_aggregate,
     block_scope,
+    block_enum,
     block_other};
 
   Type type;
@@ -1493,6 +1494,8 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                      (it3->type == CppToken::kw_private) ||
                      (it3->type == CppToken::kw_struct))
               block_type = ScopeBlock::block_aggregate;
+            else if (it3->type == CppToken::kw_enum)
+              block_type = ScopeBlock::block_enum; //$$ handle enum class.
             else
               throw TokenizerException(path, __LINE__, it->line);
           }
