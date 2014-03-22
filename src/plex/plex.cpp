@@ -1944,18 +1944,28 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
 
 #pragma endregion
 
-
-struct XEntity {
+struct XInclude {
   Range<char> name;
-  XternDef::Type type;
   Range<char> src;
-  CppTokenVector* tv;
   // |insert| is only here to keep alive the memory backing
   // the MemRange on the final tree.
   std::string insert;
 
-  XEntity(XternDef& def, Range<char> src, CppTokenVector* tv)
-    : name(def.name), type(def.type), src(src), tv(tv) {
+  XInclude(XternDef& def) : name(def.name), src(def.path) {}
+
+  // The processing order is alphabetic.
+  bool Order(const XInclude& other) const {
+    return ToString(name) < ToString(other.name);
+  }
+};
+
+struct XEntity {
+  Range<char> name;
+  XternDef::Type type;
+  CppTokenVector* tv;
+
+  XEntity(XternDef& def, CppTokenVector* tv)
+    : name(def.name), type(def.type), tv(tv) {
   }
 
   // The processing order is the Type order.
@@ -1968,7 +1978,7 @@ struct XEntity {
 };
 
 struct XEntities {
-  std::deque<XEntity> includes;
+  std::deque<XInclude> includes;
   std::deque<XEntity> code;
 
   void Add_Front(const XEntities& other) {
@@ -1987,12 +1997,12 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     // Load, tokenize and lex.
     auto& def = it->second;
     if (it->second.type == XternDef::kInclude) {
-      ents.includes.push_back(XEntity(def, def.path, nullptr));
+      ents.includes.push_back(XInclude(def));
       def.loaded = true;
     } else {
       auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));
       LexCppTokens(LexMode::PlexCPP, *tok);
-      ents.code.push_back(XEntity(def, Range<char>(), tok));
+      ents.code.push_back(XEntity(def, tok));
       def.loaded = true;
       // Get external definitions and create/insert the new xentity.
       if (GetExternalDefinitions(*tok, xdefs)) {
@@ -2035,7 +2045,7 @@ void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
 
 void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   std::sort(begin(ent.includes), end(ent.includes), 
-      [] (const XEntity& e1, const XEntity& e2) {
+      [] (const XInclude& e1, const XInclude& e2) {
         return e1.Order(e2);
       }
   );
