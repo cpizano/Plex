@@ -28,10 +28,11 @@
 // 016 have a test with printfs.
 // 019 coalease templated types in the name like Moo<int> moo;
 // 020 handle namespace alias 'namespace foo = bar::doo'.
+// 021 handle enum <type> class.
+// 023 add NOMINMAX macro when required.
 //
 // Medium term
 // ---------------------------
-// 101 coalese namespaces for inserts.
 // 102 truly manage insert dependencies.
 // 103 compilation tests.
 // 104 more useful catalog entities.
@@ -40,7 +41,7 @@
 // Longer term niceties
 // ---------------------------
 // 203 git or github integration.
-// 204 catalog index (index.plex) generation should be automated.
+// 204 catalog index (index.plex) automated generation.
 //
 // features to be done
 //----------------------------
@@ -1975,13 +1976,6 @@ struct XEntities {
     code.insert(begin(code), begin(other.code), end(other.code));
   }
 };
-
-Range<char> LoadEntity(XternDef& def, const FilePath& path) {
-  if (def.type == XternDef::kInclude)
-    return def.path;
-  FilePath fpath = path.Append(AsciiToUTF16(def.path));
-  return LoadFileOnce(fpath);
-}
 
 XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
   XEntities ents;
