@@ -1659,6 +1659,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
 }
 
 #pragma region xdef
+struct XEntity;
 
 struct XternDef {
   enum Type {
@@ -1676,23 +1677,43 @@ struct XternDef {
   Type type;
   Range<char> name;
   Range<char> path;
-  bool needed;
-  bool loaded;
+  XEntity* entity;
 
   XternDef(const Range<char>& name, const Range<char>& path)
       : type(kNone),
         name(name), path(path),
-        needed(false), loaded(false) {
+        entity(nullptr) {
   }
 
   XternDef()
-      : type(kNone) {
+      : type(kNone), entity(nullptr) {
+  }
+};
+
+struct XEntity {
+  Range<char> name;
+  XternDef::Type type;
+  CppTokenVector* tv;
+  std::vector<XEntity*> deps;
+
+  XEntity(XternDef& def, CppTokenVector* tv)
+    : name(def.name), type(def.type), tv(tv) {
+  }
+
+  // The processing order is the Type order.
+  bool Order(const XEntity& other) const {
+    if (type == other.type)
+      return ToString(name) < ToString(other.name);
+    else 
+      return type < other.type;
   }
 };
 
 typedef std::unordered_map<std::string, XternDef> XternDefs;
 
-int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
+int GetExternalDefinitions(CppTokenVector& tv,
+                           XternDefs& xdefs,
+                           XEntity* entity = nullptr) {
 
   auto IsBuiltIn = [](int t) -> bool {
     return (
@@ -1853,10 +1874,18 @@ int GetExternalDefinitions(CppTokenVector& tv, XternDefs& xdefs) {
         // possible external reference, need to check in db.
         auto xdit = xdefs.find(ToString(*it));
         if ( xdit!= xdefs.end()) {
-          if (!xdit->second.needed) {
+          // reference found.
+          auto& found_xdef = xdit->second;
+          if (!found_xdef.entity) {
             ++new_xdefs;
-            xdit->second.needed = true;
-            Logger::Get().AddExternDef(xdit->second.name, it->line);
+            found_xdef.entity = new XEntity(found_xdef, nullptr);
+            Logger::Get().AddExternDef(found_xdef.name, it->line);
+          }
+          if (entity) {
+            if (found_xdef.type != XternDef::kInclude) {
+              if (found_xdef.entity == entity) __debugbreak();
+              entity->deps.push_back(found_xdef.entity);
+            }
           }
           xrefs.push_back(*it);
           continue;
@@ -1959,27 +1988,9 @@ struct XInclude {
   }
 };
 
-struct XEntity {
-  Range<char> name;
-  XternDef::Type type;
-  CppTokenVector* tv;
-
-  XEntity(XternDef& def, CppTokenVector* tv)
-    : name(def.name), type(def.type), tv(tv) {
-  }
-
-  // The processing order is the Type order.
-  bool Order(const XEntity& other) const {
-    if (type == other.type)
-      return ToString(name) < ToString(other.name);
-    else 
-      return type < other.type;
-  }
-};
-
 struct XEntities {
   std::deque<XInclude> includes;
-  std::deque<XEntity> code;
+  std::deque<XEntity*> code;
 
   void Add_Front(const XEntities& other) {
     includes.insert(begin(includes), begin(other.includes), end(other.includes));
@@ -1990,22 +2001,22 @@ struct XEntities {
 XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
   XEntities ents;
   for (auto it = begin(xdefs); it != end(xdefs); ++it) {
-    if (!it->second.needed)
+    auto& def = it->second;
+    if (!def.entity)
       continue;
-    if (it->second.loaded)
+    if (def.entity->tv)
       continue;
     // Load, tokenize and lex.
-    auto& def = it->second;
     if (it->second.type == XternDef::kInclude) {
       ents.includes.push_back(XInclude(def));
-      def.loaded = true;
+      //$$ do something here? def.loaded = true;
     } else {
       auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));
       LexCppTokens(LexMode::PlexCPP, *tok);
-      ents.code.push_back(XEntity(def, tok));
-      def.loaded = true;
+      def.entity->tv = tok;
+      ents.code.push_back(def.entity);
       // Get external definitions and create/insert the new xentity.
-      if (GetExternalDefinitions(*tok, xdefs)) {
+      if (GetExternalDefinitions(*tok, xdefs, def.entity)) {
         // Recurse now.
         auto inner = LoadEntities(xdefs, path);
         ents.Add_Front(inner);
@@ -2051,8 +2062,8 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   );
 
   std::sort(begin(ent.code), end(ent.code), 
-      [] (const XEntity& e1, const XEntity& e2) {
-        return e1.Order(e2);
+      [] (const XEntity* e1, const XEntity* e2) {
+        return e1->Order(*e2);
       }
   );
 
@@ -2083,8 +2094,8 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   Range<char> curr_namespace;
 
   for (auto& cod : ent.code) {
-    Logger::Get().ProcessCode(cod.name);
-    auto& scopes = (*cod.tv)[0].kelems->scopes;
+    Logger::Get().ProcessCode(cod->name);
+    auto& scopes = (*cod->tv)[0].kelems->scopes;
 
     auto& top_scope = scopes.back();
     if (top_scope.type == ScopeBlock::named_namespace) {
@@ -2106,9 +2117,9 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
         // Then remove the namespace from this insert. Which means
         // the tree tokens "namespace xxx {".
         size_t rp = top_scope.start;
-        (*cod.tv)[rp--].insert = Insert::TokenDeleter();
-        (*cod.tv)[rp--].insert = Insert::TokenDeleter();
-        (*cod.tv)[rp].insert = Insert::TokenDeleter();
+        (*cod->tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod->tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod->tv)[rp].insert = Insert::TokenDeleter();
 
       }
     } else {
@@ -2116,7 +2127,7 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
       curr_namespace.Reset();
     }
 
-    InsertAtToken(in_src[pos_code], Insert::keep_original, *cod.tv);
+    InsertAtToken(in_src[pos_code], Insert::keep_original, *cod->tv);
   }
 
 }
