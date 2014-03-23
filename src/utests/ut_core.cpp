@@ -1,4 +1,5 @@
 // ut_core.cpp
+#define NOMINMAX
 
 #include "../utests.h"
 
@@ -38,6 +39,14 @@ void Test_CpuId::Exec() {
   CheckEQ(cpu_id.mmx(), true);
   CheckEQ(cpu_id.sse2(), true);
   CheckEQ(cpu_id.sse3(), true);
+}
 
+void Test_To_Integer::Exec() {
+  int x = plx::To<int>(2);
+  int y = plx::To<int>(short(3));
+  int z = plx::To<int>(char('a'));
+  CheckEQ(x, 2);
+  CheckEQ(y, 3);
+  CheckEQ(z, 'a');
 }
 

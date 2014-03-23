@@ -31,6 +31,7 @@ int wmain(int argc, wchar_t* argv[]) {
   try {
     Test_Range().Run();
     Test_CpuId().Run();
+    Test_To_Integer().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);

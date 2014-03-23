@@ -1,11 +1,15 @@
 // ut_core.cpp
+#define NOMINMAX
 
 #include "../utests.h"
 
 
 
+
+#include <windows.h>
 #include <intrin.h>
 #include <iterator>
+#include <limits>
 #include <type_traits>
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -93,6 +97,28 @@ class CpuId {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::Exception
+// line_ : The line of code, usually __LINE__.
+// message_ : Whatever useful text.
+class Exception {
+  int line_;
+  const char* message_;
+
+protected:
+  void PostCtor() {
+    if (::IsDebuggerPresent()) {
+      __debugbreak();
+    }
+  }
+
+public:
+  Exception(int line, const char* message) : line_(line), message_(message) {}
+  virtual ~Exception() {}
+  const char* Message() const { return message_; }
+  int Line() const { return line_; }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::ItRange
 // s_ : first element
 // e_ : one past the last element
@@ -164,10 +190,48 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::OverflowKind
+enum class OverflowKind {
+  None,
+  Positive,
+  Negative,
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::OverflowException
+// kind_ : Type of overflow, positive or negative.
+class OverflowException : public plx::Exception {
+  plx::OverflowKind kind_;
+
+public:
+  OverflowException(int line, plx::OverflowKind kind)
+      : Exception(line, "Overflow"), kind_(kind) {
+    PostCtor();
+  }
+  plx::OverflowKind kind() const { return kind_; }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::Range
 template <typename T>
 using Range = plx::ItRange<T*>;
 
+///////////////////////////////////////////////////////////////////////////////
+// plx::To  (integer to integer type safe cast)
+template <typename Tgt, typename Src>
+Tgt To(const Src & value) {
+  if (std::numeric_limits<Tgt>::max() < std::numeric_limits<Src>::max())
+    throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+
+  if (std::numeric_limits<Src>::is_signed) {
+    if (!std::numeric_limits<Tgt>::is_signed)
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+    if (sizeof(Src) > sizeof(Tgt))
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+  }
+
+  return static_cast<Tgt>(value);
+}
 }
 
 void Test_Range::Exec() {
@@ -206,5 +270,13 @@ void Test_CpuId::Exec() {
   CheckEQ(cpu_id.mmx(), true);
   CheckEQ(cpu_id.sse2(), true);
   CheckEQ(cpu_id.sse3(), true);
+}
 
+void Test_To_Integer::Exec() {
+  int x = plx::To<int>(2);
+  int y = plx::To<int>(short(3));
+  int z = plx::To<int>(char('a'));
+  CheckEQ(x, 2);
+  CheckEQ(y, 3);
+  CheckEQ(z, 'a');
 }

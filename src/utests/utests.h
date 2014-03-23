@@ -55,3 +55,4 @@ private:\
 
 TEST(Test_Range);
 TEST(Test_CpuId);
+TEST(Test_To_Integer);
