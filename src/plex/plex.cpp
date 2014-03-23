@@ -2009,7 +2009,6 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     // Load, tokenize and lex.
     if (it->second.type == XternDef::kInclude) {
       ents.includes.push_back(XInclude(def));
-      //$$ do something here? def.loaded = true;
     } else {
       auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));
       LexCppTokens(LexMode::PlexCPP, *tok);
@@ -2066,6 +2065,34 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
         return e1->Order(*e2);
       }
   );
+
+  // Lazy attempt to re-order the code if the dependency order
+  // is wrong. Easy to detect but hard to fix completely. We try
+  // several times exchanging the order.
+  if (ent.code.size() > 1) {
+    int tries = 5;
+    bool go_again = true;
+    while ((--tries != 0) && go_again) {
+      go_again = false;
+      for (auto ix = begin(ent.code); ix != end(ent.code); ++ix) {
+        for (auto& d : (*ix)->deps) {
+          auto xd = std::find(ix + 1, end(ent.code), d);
+          if (xd != end(ent.code)) {
+            // Sort order is wrong, a dependency is below.
+            std::swap(*ix, *xd);
+            go_again = true;
+            goto leave;
+          }
+        }
+      }
+      leave: ;
+    }  // while.
+
+    if (go_again) {
+      // we could not find an arrangement of code inserts that works.
+      throw PlexException(__LINE__, "dependency conflict");
+    }
+  }
 
   // Insert includes after the first include.
   auto& kel = *in_src[0].kelems;
