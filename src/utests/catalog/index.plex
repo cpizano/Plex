@@ -36,7 +36,10 @@ cen(plx::ItRange,
     cs, plx\it_range.h, 1);
 cen(plx::Range,
     cs, plx\range.h, 1);
+cen(plx::GreaterThan,
+    cs, plx\greater_than.h, 1)
+cen(plx::LessThan,
+    cs, plx\less_than.h, 1)
 cen(plx::To,
     cs, plx\to.h, 1);
-
 end();

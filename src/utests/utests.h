@@ -27,6 +27,11 @@ struct Fail {
   Fail(const char* kind, const char* test) : kind(kind), test(test) {}
 };
 
+template<typename A>
+void NotReached(A&&) {
+  throw Fail("NR", Test::GetTestName());
+}
+
 template <typename A, typename B>
 void CheckEQ(A&& a, B&& b) {
   if (a != b)
