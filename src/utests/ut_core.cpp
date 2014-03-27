@@ -42,33 +42,29 @@ void Test_CpuId::Exec() {
 }
 
 void Test_To_Integer::Exec() {
-  auto x = plx::To<int>(2);
-  CheckEQ(x, 2);
+  // Signed to signed.
+  auto v = plx::To<long long>(2);
+  CheckEQ(v, long long(2));
+  auto w = plx::To<long>(-9);
+  CheckEQ(w, long(-9));
+  auto x = plx::To<int>(-2);
+  CheckEQ(x, -2);
   auto y = plx::To<int>(short(3));
   CheckEQ(y, 3);
   auto z = plx::To<int>(char('a'));
   CheckEQ(z, 'a');
 
-  auto a = plx::To<int>(float(100));
-  CheckEQ(a, 100);
-  auto b = plx::To<char>(float(127));
-  CheckEQ(b, char(127));
-  auto c = plx::To<char>(float(-127));
-  CheckEQ(c, char(-127));
+  // signed to unsigned.
+  auto f = plx::To<unsigned long>(int(500));
+  CheckEQ(f, unsigned long(500));
+  auto g = plx::To<unsigned long>(int(0));
+  CheckEQ(g, unsigned long(0));
 
   try {
-    auto d = plx::To<char>(float(128));
-    NotReached(d);
-  } catch (plx::OverflowException& ex) {
-    CheckEQ(ex.kind(), plx::OverflowKind::Positive);
-  }
-
-  try {
-    auto e = plx::To<char>(float(-129));
-    NotReached(e);
+    auto h = plx::To<unsigned int>(int(-1));
+    NotReached(h);
   } catch (plx::OverflowException& ex) {
     CheckEQ(ex.kind(), plx::OverflowKind::Negative);
   }
-
 }
 

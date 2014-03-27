@@ -119,53 +119,6 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::GreaterThan
-template <typename LHS>
-typename std::enable_if<
-    std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer,
-    bool>::type
-GreaterThan(LHS const lhs, long rhs) {
-  return (lhs > rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer,
-    bool>::type
-GreaterThan(LHS const lhs, unsigned long rhs) {
-  return (lhs > rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer &&
-    (std::numeric_limits<LHS>::digits > std::numeric_limits<long>::digits),
-    bool>::type
-GreaterThan(LHS const lhs, long long rhs) {
-  return (lhs > rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer &&
-    (std::numeric_limits<LHS>::digits > std::numeric_limits<unsigned long>::digits),
-    bool>::type
-GreaterThan(LHS const lhs, unsigned long long rhs) {
-  return (lhs > rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_integer, bool>::type
-GreaterThan(LHS const lhs, double rhs) {
-  return (lhs > rhs);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::ItRange
 // s_ : first element
 // e_ : one past the last element
@@ -237,53 +190,6 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::LessThan
-template <typename LHS>
-typename std::enable_if<
-    std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer,
-    bool>::type
-LessThan(LHS const lhs, long rhs) {
-  return (lhs < rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer,
-    bool>::type
-LessThan(LHS const lhs, unsigned long rhs) {
-  return (lhs < rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer &&
-    (std::numeric_limits<LHS>::digits > std::numeric_limits<long>::digits),
-    bool>::type
-LessThan(LHS const lhs, long long rhs) {
-  return (lhs < rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_signed &&
-    std::numeric_limits<LHS>::is_integer &&
-    (std::numeric_limits<LHS>::digits > std::numeric_limits<unsigned long>::digits),
-    bool>::type
-LessThan(LHS const lhs, unsigned long long rhs) {
-  return (lhs < rhs);
-}
-
-template <typename LHS>
-typename std::enable_if<
-    !std::numeric_limits<LHS>::is_integer, bool>::type
-LessThan(LHS const lhs, double rhs) {
-  return (lhs < rhs);
-}
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowKind
 enum class OverflowKind {
   None,
@@ -312,21 +218,74 @@ using Range = plx::ItRange<T*>;
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::To  (integer to integer type safe cast)
-template <typename Tgt, typename Src>
-Tgt To(const Src & value) {
-  if (std::numeric_limits<Tgt>::max() < std::numeric_limits<Src>::max()) {
-    if (plx::GreaterThan(value, std::numeric_limits<Tgt>::max()))
-      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-  }
 
-  if (std::numeric_limits<Src>::is_signed) {
-    if (!std::numeric_limits<Tgt>::is_signed || (sizeof(Src) > sizeof(Tgt))) {
-      if (plx::LessThan(value, std::numeric_limits<Tgt>::min()))
+template <bool src_signed, bool tgt_signed>
+struct ToCastHelper;
+
+template <>
+struct ToCastHelper<false, false> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (sizeof(Tgt) >= sizeof(Src)) {
+      return static_cast<Tgt>(value);
+    } else {
+      if (value > std::numeric_limits<Tgt>::max())
+        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+      if (value < std::numeric_limits<Tgt>::min())
         throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+      return static_cast<Tgt>(value);
     }
   }
+};
 
-  return static_cast<Tgt>(value);
+template <>
+struct ToCastHelper<true, true> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (sizeof(Tgt) >= sizeof(Src)) {
+      return static_cast<Tgt>(value);
+    } else {
+      if (value > std::numeric_limits<Tgt>::max())
+        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+      if (value < std::numeric_limits<Tgt>::min())
+        throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+      return static_cast<Tgt>(value);
+    }
+  }
+};
+
+template <>
+struct ToCastHelper<false, true> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (value > std::numeric_limits<Tgt>::max())
+      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+    if (value < std::numeric_limits<Tgt>::min())
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+    return static_cast<Tgt>(value);
+  }
+};
+
+template <>
+struct ToCastHelper<true, false> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (value < Src(0))
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+    if (unsigned(value) > std::numeric_limits<Tgt>::max())
+      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+    return static_cast<Tgt>(value);
+  }
+};
+
+template <typename Tgt, typename Src>
+typename std::enable_if<
+    std::numeric_limits<Tgt>::is_integer &&
+    std::numeric_limits<Src>::is_integer,
+    Tgt>::type
+To(const Src & value) {
+  return ToCastHelper<std::numeric_limits<Src>::is_signed,
+                      std::numeric_limits<Tgt>::is_signed>::cast<Tgt>(value);
 }
 }
 
@@ -369,32 +328,28 @@ void Test_CpuId::Exec() {
 }
 
 void Test_To_Integer::Exec() {
-  auto x = plx::To<int>(2);
-  CheckEQ(x, 2);
+  // Signed to signed.
+  auto v = plx::To<long long>(2);
+  CheckEQ(v, long long(2));
+  auto w = plx::To<long>(-9);
+  CheckEQ(w, long(-9));
+  auto x = plx::To<int>(-2);
+  CheckEQ(x, -2);
   auto y = plx::To<int>(short(3));
   CheckEQ(y, 3);
   auto z = plx::To<int>(char('a'));
   CheckEQ(z, 'a');
 
-  auto a = plx::To<int>(float(100));
-  CheckEQ(a, 100);
-  auto b = plx::To<char>(float(127));
-  CheckEQ(b, char(127));
-  auto c = plx::To<char>(float(-127));
-  CheckEQ(c, char(-127));
+  // signed to unsigned.
+  auto f = plx::To<unsigned long>(int(500));
+  CheckEQ(f, unsigned long(500));
+  auto g = plx::To<unsigned long>(int(0));
+  CheckEQ(g, unsigned long(0));
 
   try {
-    auto d = plx::To<char>(float(128));
-    NotReached(d);
-  } catch (plx::OverflowException& ex) {
-    CheckEQ(ex.kind(), plx::OverflowKind::Positive);
-  }
-
-  try {
-    auto e = plx::To<char>(float(-129));
-    NotReached(e);
+    auto h = plx::To<unsigned int>(int(-1));
+    NotReached(h);
   } catch (plx::OverflowException& ex) {
     CheckEQ(ex.kind(), plx::OverflowKind::Negative);
   }
-
 }
