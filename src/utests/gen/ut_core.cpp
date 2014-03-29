@@ -10,7 +10,9 @@
 #include <intrin.h>
 #include <iterator>
 #include <limits>
+#include <utility>
 #include <type_traits>
+#include <sstream>
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CpuId
@@ -212,6 +214,51 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::NextInt  integer promotion.
+
+short NextInt(char value) {
+  return short(value);
+}
+
+int NextInt(short value) {
+  return int(value);
+}
+
+long long NextInt(int value) {
+  return long long(value);
+}
+
+long long NextInt(long value) {
+  return long long(value);
+}
+
+long long NextInt(long long value) {
+  return value;
+}
+
+short NextInt(unsigned char value) {
+  return short(value);
+}
+
+int NextInt(unsigned short value) {
+  return int(value);
+}
+
+long long NextInt(unsigned int value) {
+  return long long(value);
+}
+
+long long NextInt(unsigned long value) {
+  return long long(value);
+}
+
+long long NextInt(unsigned long long value) {
+  if (static_cast<long long>(value) < 0LL)
+    throw plx::OverflowException(__LINE__, plx::OverflowKind::Positive);
+  return long long(value);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::Range
 template <typename T>
 using Range = plx::ItRange<T*>;
@@ -258,9 +305,9 @@ template <>
 struct ToCastHelper<false, true> {
   template <typename Tgt, typename Src>
   static inline Tgt cast(Src value) {
-    if (value > std::numeric_limits<Tgt>::max())
+    if (plx::NextInt(value) > std::numeric_limits<Tgt>::max())
       throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-    if (value < std::numeric_limits<Tgt>::min())
+    if (plx::NextInt(value) < std::numeric_limits<Tgt>::min())
       throw plx::OverflowException(__LINE__, OverflowKind::Negative);
     return static_cast<Tgt>(value);
   }
@@ -327,29 +374,231 @@ void Test_CpuId::Exec() {
   CheckEQ(cpu_id.sse3(), true);
 }
 
+template <typename T>
+std::pair<T, T> MinMaxForType() {
+  return std::make_pair(
+      std::numeric_limits<T>::min(),
+      std::numeric_limits<T>::max());
+}
+
+template <typename T, typename V>
+bool EqNum(T t, V v) {
+  std::stringstream ss1;
+  std::stringstream ss2;
+  ss1 << +t; ss2 << +v;
+  if (ss1.str().empty())
+    return false;
+  if (ss2.str().empty())
+    return false;
+  return (ss1.str() == ss2.str());
+}
+
 void Test_To_Integer::Exec() {
-  // Signed to signed.
-  auto v = plx::To<long long>(2);
-  CheckEQ(v, long long(2));
-  auto w = plx::To<long>(-9);
-  CheckEQ(w, long(-9));
-  auto x = plx::To<int>(-2);
-  CheckEQ(x, -2);
-  auto y = plx::To<int>(short(3));
-  CheckEQ(y, 3);
-  auto z = plx::To<int>(char('a'));
-  CheckEQ(z, 'a');
+  {
+    auto mm = MinMaxForType<char>();
+    CheckEQ(EqNum(plx::To<short>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<short>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<int>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<int>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.second), mm.second), true);
 
-  // signed to unsigned.
-  auto f = plx::To<unsigned long>(int(500));
-  CheckEQ(f, unsigned long(500));
-  auto g = plx::To<unsigned long>(int(0));
-  CheckEQ(g, unsigned long(0));
-
-  try {
-    auto h = plx::To<unsigned int>(int(-1));
-    NotReached(h);
-  } catch (plx::OverflowException& ex) {
-    CheckEQ(ex.kind(), plx::OverflowKind::Negative);
+    CheckEQ(EqNum(plx::To<unsigned char>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned short>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned int>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned long>(mm.second), mm.second), true);
   }
+
+  {
+    auto mm = MinMaxForType<short>();
+    CheckEQ(EqNum(plx::To<int>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<int>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.second), mm.second), true);
+
+    CheckEQ(EqNum(plx::To<unsigned short>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned int>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned long>(mm.second), mm.second), true);
+  }
+
+  {
+    auto mm = MinMaxForType<int>();
+    CheckEQ(EqNum(plx::To<long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.second), mm.second), true);
+
+    CheckEQ(EqNum(plx::To<unsigned int>(mm.second), mm.second), true);
+    CheckEQ(EqNum(plx::To<unsigned long>(mm.second), mm.second), true);
+  }
+
+  {
+    auto mm = MinMaxForType<long>();
+    CheckEQ(EqNum(plx::To<long long>(mm.first), mm.first), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.second), mm.second), true);
+
+    CheckEQ(EqNum(plx::To<unsigned long>(mm.second), mm.second), true);
+  }
+
+  {
+    auto mm = MinMaxForType<unsigned char>();
+    CheckEQ(EqNum(plx::To<char>(mm.first), 0), true);
+
+    try {
+      auto x = plx::To<char>(mm.second);  __debugbreak();
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Positive);
+    }
+  }
+
+  {
+    auto mm = MinMaxForType<unsigned short>();
+    CheckEQ(EqNum(plx::To<char>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<short>(mm.first), 0), true);
+
+    int c = 0;
+  loop1:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<char>(mm.second);  __debugbreak(); }
+      case 1: { auto b = plx::To<short>(mm.second); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Positive);
+      ++c; goto loop1;
+    }
+    CheckEQ(c, 2);
+  }
+
+  {
+    auto mm = MinMaxForType<unsigned int>();
+    CheckEQ(EqNum(plx::To<char>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<short>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<int>(mm.first), 0), true);
+
+    int c = 0;
+  loop2:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<char>(mm.second);  __debugbreak(); }
+      case 1: { auto b = plx::To<short>(mm.second); __debugbreak(); }
+      case 2: { auto b = plx::To<int>(mm.second); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Positive);
+      ++c; goto loop2;
+    }
+    CheckEQ(c,3);
+  }
+
+  {
+    auto mm = MinMaxForType<unsigned long>();
+    CheckEQ(EqNum(plx::To<char>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<short>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<int>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<long>(mm.first), 0), true);
+
+    int c = 0;
+  loop3:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<char>(mm.second);  __debugbreak(); }
+      case 1: { auto b = plx::To<short>(mm.second); __debugbreak(); }
+      case 2: { auto b = plx::To<int>(mm.second); __debugbreak(); }
+      case 3: { auto b = plx::To<long>(mm.second); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Positive);
+      ++c; goto loop3;
+    }
+    CheckEQ(c,4);
+  }
+
+  {
+    auto mm = MinMaxForType<unsigned long long>();
+    CheckEQ(EqNum(plx::To<char>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<short>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<int>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<long>(mm.first), 0), true);
+    CheckEQ(EqNum(plx::To<long long>(mm.first), 0), true);
+
+    int c = 0;
+  loop4:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<char>(mm.second);  __debugbreak(); }
+      case 1: { auto b = plx::To<short>(mm.second); __debugbreak(); }
+      case 2: { auto b = plx::To<int>(mm.second); __debugbreak(); }
+      case 3: { auto b = plx::To<long>(mm.second); __debugbreak(); }
+      case 4: { auto b = plx::To<long long>(mm.second); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Positive);
+      ++c; goto loop4;
+    }
+    CheckEQ(c,5);
+  }
+
+  {
+    auto mm = MinMaxForType<short>();
+    int c = 0;
+  loop5:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<unsigned char>(mm.first);  __debugbreak(); }
+      case 1: { auto b = plx::To<unsigned short>(mm.first); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Negative);
+      ++c; goto loop5;
+    }
+    CheckEQ(c, 2);
+  }
+
+  {
+    auto mm = MinMaxForType<int>();
+    int c = 0;
+  loop6:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<unsigned char>(mm.first);  __debugbreak(); }
+      case 1: { auto b = plx::To<unsigned short>(mm.first); __debugbreak(); }
+      case 2: { auto b = plx::To<unsigned int>(mm.first); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Negative);
+      ++c; goto loop6;
+    }
+    CheckEQ(c,3);
+  }
+
+  {
+    auto mm = MinMaxForType<long>();
+    int c = 0;
+  loop7:
+    try {
+      switch (c) {
+      case 0: { auto a = plx::To<unsigned char>(mm.first);  __debugbreak(); }
+      case 1: { auto b = plx::To<unsigned short>(mm.first); __debugbreak(); }
+      case 2: { auto b = plx::To<unsigned int>(mm.first); __debugbreak(); }
+      case 3: { auto b = plx::To<unsigned long>(mm.first); __debugbreak(); }
+        default: ;
+      }
+    } catch (plx::OverflowException& e) {
+      CheckEQ(e.kind(), plx::OverflowKind::Negative);
+      ++c; goto loop7;
+    }
+    CheckEQ(c,4);
+  }
+
 }

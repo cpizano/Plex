@@ -42,9 +42,9 @@ template <>
 struct ToCastHelper<false, true> {
   template <typename Tgt, typename Src>
   static inline Tgt cast(Src value) {
-    if (value > std::numeric_limits<Tgt>::max())
+    if (plx::NextInt(value) > std::numeric_limits<Tgt>::max())
       throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-    if (value < std::numeric_limits<Tgt>::min())
+    if (plx::NextInt(value) < std::numeric_limits<Tgt>::min())
       throw plx::OverflowException(__LINE__, OverflowKind::Negative);
     return static_cast<Tgt>(value);
   }
