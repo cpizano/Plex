@@ -9,6 +9,7 @@
 // in : include
 
 cen(std::string, in, <string>, 1);
+cen(std::to_string, in, <string>, 1);
 cen(std::wstring, in, <string>, 1);
 cen(std::vector, in, <vector>, 1);
 cen(std::remove_reference, in, <type_traits>, 1);

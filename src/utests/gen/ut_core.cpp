@@ -12,7 +12,7 @@
 #include <limits>
 #include <utility>
 #include <type_traits>
-#include <sstream>
+#include <string>
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CpuId
@@ -383,14 +383,11 @@ std::pair<T, T> MinMaxForType() {
 
 template <typename T, typename V>
 bool EqNum(T t, V v) {
-  std::stringstream ss1;
-  std::stringstream ss2;
-  ss1 << +t; ss2 << +v;
-  if (ss1.str().empty())
-    return false;
-  if (ss2.str().empty())
-    return false;
-  return (ss1.str() == ss2.str());
+  return std::to_string(t) == std::to_string(v);
+}
+template <typename T>
+bool EqNum(T t, T v) {
+  return (t == v);
 }
 
 void Test_To_Integer::Exec() {
