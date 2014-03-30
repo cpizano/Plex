@@ -70,10 +70,18 @@ public:
   }
 
   template <size_t count>
-  size_t CopyToArray(ValueT (&str)[count]) const {
+  size_t CopyToArray(ValueT (&arr)[count]) const {
     auto copied = std::min(size(), count);
     auto last = copied + s_;
-    std::copy(s_, last, str);
+    std::copy(s_, last, arr);
+    return copied;
+  }
+
+  template <size_t count>
+  size_t CopyToArray(std::array<ValueT, count>& arr) const {
+    auto copied = std::min(size(), count);
+    auto last = copied + s_;
+    std::copy(s_, last, arr.begin());
     return copied;
   }
 

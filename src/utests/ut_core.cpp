@@ -19,8 +19,13 @@ void Test_Range::Exec() {
   CheckEQ(range2[2], 'c');
 
   char txt2[5];
-  range2.CopyToArray(txt2);
+  auto copied = range2.CopyToArray(txt2);
   CheckEQ(memcmp(txt1, txt2, 5) == 0, true);
+  CheckEQ(copied, 5UL);
+
+  std::array<char, 3> txt3;
+  copied = range2.CopyToArray(txt3);
+  CheckEQ(copied, 3UL);
 }
 
 void Test_CpuId::Exec() {

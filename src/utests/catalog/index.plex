@@ -20,6 +20,7 @@ cen(std::stringstream, in, <sstream>, 1);
 cen(std::bind, in, <functional>, 1);
 cen(std::min, in, <algorithm>, 1);
 cen(std::max, in, <algorithm>, 1);
+cen(std::array, in, <array>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1);
 cen(::IsDebuggerPresent, in, <windows.h>, 1);

@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <intrin.h>
+#include <array>
 #include <functional>
 #include <iterator>
 #include <algorithm>
@@ -193,10 +194,18 @@ public:
   }
 
   template <size_t count>
-  size_t CopyToArray(ValueT (&str)[count]) const {
+  size_t CopyToArray(ValueT (&arr)[count]) const {
     auto copied = std::min(size(), count);
     auto last = copied + s_;
-    std::copy(s_, last, str);
+    std::copy(s_, last, arr);
+    return copied;
+  }
+
+  template <size_t count>
+  size_t CopyToArray(std::array<ValueT, count>& arr) const {
+    auto copied = std::min(size(), count);
+    auto last = copied + s_;
+    std::copy(s_, last, arr.begin());
     return copied;
   }
 
@@ -415,8 +424,14 @@ void Test_Range::Exec() {
   CheckEQ(range2[2], 'c');
 
   char txt2[5];
-  range2.CopyToArray(txt2);
+  auto copied = range2.CopyToArray(txt2);
   CheckEQ(memcmp(txt1, txt2, 5) == 0, true);
+  CheckEQ(copied, 5UL);
+
+  std::array<char, sizeof(txt1) + 3> txt3;
+  copied = range2.CopyToArray(txt3);
+  CheckEQ(copied, sizeof(txt1));
+  CheckEQ(txt3.size(), sizeof(txt1));
 }
 
 void Test_CpuId::Exec() {
