@@ -164,6 +164,10 @@ public:
     return e_;
   }
 
+  bool valid() const {
+    return (e_ >= s_);
+  }
+
   void clear() {
     s_ = It();
     e_ = It();
@@ -412,12 +416,14 @@ void Test_Range::Exec() {
   // Empty iterator is empty.
   plx::Range<const char> range1;
   CheckEQ(range1.empty(), true);
+  CheckEQ(range1.valid(), true);
   CheckEQ(range1.size(), size_t(0));
 
   // The range so defined includes the null character.
   const char txt1[] = "abcdefghijklmnopqrstuv";
   const plx::Range<const char> range2(txt1, sizeof(txt1));
   CheckEQ(range2.empty(), false);
+  CheckEQ(range2.valid(), true);
   CheckEQ(range2.size(), sizeof(txt1));
   CheckEQ(range2.front(), 'a');
   CheckEQ(range2.back(), '\0');
@@ -428,10 +434,9 @@ void Test_Range::Exec() {
   CheckEQ(memcmp(txt1, txt2, 5) == 0, true);
   CheckEQ(copied, 5UL);
 
-  std::array<char, sizeof(txt1) + 3> txt3;
+  std::array<char, 3> txt3;
   copied = range2.CopyToArray(txt3);
-  CheckEQ(copied, sizeof(txt1));
-  CheckEQ(txt3.size(), sizeof(txt1));
+  CheckEQ(copied, 3UL);
 }
 
 void Test_CpuId::Exec() {

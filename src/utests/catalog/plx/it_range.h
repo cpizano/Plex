@@ -40,6 +40,10 @@ public:
     return e_;
   }
 
+  bool valid() const {
+    return (e_ >= s_);
+  }
+
   void clear() {
     s_ = It();
     e_ = It();
