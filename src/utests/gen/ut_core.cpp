@@ -137,6 +137,10 @@ class ItRange {
 public:
   typedef typename std::iterator_traits<
       typename std::remove_reference<It>::type
+  >::reference RefT;
+
+  typedef typename std::iterator_traits<
+      typename std::remove_reference<It>::type
   >::value_type ValueT;
 
   ItRange() : s_(), e_() {
@@ -168,33 +172,16 @@ public:
     return (e_ >= s_);
   }
 
-  void clear() {
-    s_ = It();
-    e_ = It();
-  }
-
-  ValueT& front() {
+  RefT front() const {
     return s_[0];
   }
 
-  ValueT& back() {
+  RefT back() const {
     return e_[-1];
   }
 
-  const ValueT& front() const {
-    return s_[0];
-  }
-
-  const ValueT& back() const {
-    return e_[-1];
-  }
-
-  ValueT& operator[](size_t i) {
+  RefT operator[](size_t i) const {
     return s_[i];
-  }
-
-  const ValueT& operator[](size_t ix) const {
-    return s_[ix];
   }
 
   template <size_t count>
@@ -211,6 +198,16 @@ public:
     auto last = copied + s_;
     std::copy(s_, last, arr.begin());
     return copied;
+  }
+
+  bool advance(size_t count) {
+    s_ += count;
+    return (s_ < e_);
+  }
+
+  void clear() {
+    s_ = It();
+    e_ = It();
   }
 
 };
@@ -437,6 +434,11 @@ void Test_Range::Exec() {
   std::array<char, 3> txt3;
   copied = range2.CopyToArray(txt3);
   CheckEQ(copied, 3UL);
+
+  plx::Range<const char> range3(range2);
+  range3.advance(3);
+  CheckEQ(range3.size(), range2.size() - 3);
+  CheckEQ(range3.front(), 'd');
 }
 
 void Test_CpuId::Exec() {

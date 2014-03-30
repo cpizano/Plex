@@ -28,6 +28,11 @@ void Test_Range::Exec() {
   std::array<char, 3> txt3;
   copied = range2.CopyToArray(txt3);
   CheckEQ(copied, 3UL);
+
+  plx::Range<const char> range3(range2);
+  range3.advance(3);
+  CheckEQ(range3.size(), range2.size() - 3);
+  CheckEQ(range3.front(), 'd');
 }
 
 void Test_CpuId::Exec() {

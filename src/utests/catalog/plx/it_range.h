@@ -13,7 +13,11 @@ class ItRange {             //#~leaf class
 public:
   typedef typename std::iterator_traits<
       typename std::remove_reference<It>::type
-  >::value_type ValueT; 
+  >::reference RefT;
+
+  typedef typename std::iterator_traits<
+      typename std::remove_reference<It>::type
+  >::value_type ValueT;
 
   ItRange() : s_(), e_() {
   }
@@ -44,33 +48,16 @@ public:
     return (e_ >= s_);
   }
 
-  void clear() {
-    s_ = It();
-    e_ = It();
-  }
-
-  ValueT& front() {                 //#~ assert(s_ < e_)
+  RefT front() const {                 //#~ assert(s_ < e_)
     return s_[0];
   }
 
-  ValueT& back() {                  //#~ assert(s_ < e_)
+  RefT back() const {                  //#~ assert(s_ < e_)
     return e_[-1];
   }
 
-  const ValueT& front() const {    //#~ assert(s_ < e_)
-    return s_[0];
-  }
-
-  const ValueT& back() const {     //#~ assert(s_ < e_)
-    return e_[-1];
-  }
-
-  ValueT& operator[](size_t i) {    //#~ assert(s_ < e_)
+  RefT operator[](size_t i) const {    //#~ assert(s_ < e_)
     return s_[i];
-  }
-
-  const ValueT& operator[](size_t ix) const {
-    return s_[ix];
   }
 
   template <size_t count>
@@ -87,6 +74,16 @@ public:
     auto last = copied + s_;
     std::copy(s_, last, arr.begin());
     return copied;
+  }
+
+  bool advance(size_t count) {
+    s_ += count;
+    return (s_ < e_);
+  }
+
+  void clear() {
+    s_ = It();
+    e_ = It();
   }
 
 };
