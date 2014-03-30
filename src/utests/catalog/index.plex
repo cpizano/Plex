@@ -17,6 +17,7 @@ cen(std::iterator_traits, in, <iterator>, 1);
 cen(std::numeric_limits, in, <limits>, 1);
 cen(std::pair, in, <utility>, 1);
 cen(std::stringstream, in, <sstream>, 1);
+cen(std::bind, in, <functional>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1);
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
@@ -43,4 +44,6 @@ cen(plx::NextInt,
     cs, plx\next_int.h, 1);
 cen(plx::To,
     cs, plx\to.h, 1);
+cen(plx::MakeGuard,
+    cs, plx\scope_guard.h, 1);
 end();

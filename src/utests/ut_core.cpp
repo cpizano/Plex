@@ -264,6 +264,32 @@ void Test_To_Integer::Exec() {
     }
     CheckEQ(c,4);
   }
+}
+
+double TestFnReturnDouble1() {
+  return 1.0;
+}
+
+void Test_ScopeGuard::Exec() {
+  {
+    auto sc1 = plx::MakeGuard(TestFnReturnDouble1);
+  }
+
+  std::vector<int> v1 = {1, 2};
+  {
+    auto g = plx::MakeGuard(std::bind(&std::vector<int>::pop_back, &v1));
+  }
+  CheckEQ(v1.size(), 1);
+  {
+    auto g = plx::MakeGuard([&] { v1.push_back(5); });
+  }
+  CheckEQ(v1.size(), 2);
+  {
+    auto g = plx::MakeGuard([&] { v1.push_back(4); });
+    v1.pop_back();
+    g.dismiss();
+  }
+  CheckEQ(v1.size(), 1);
 
 }
 

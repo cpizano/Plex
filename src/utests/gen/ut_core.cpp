@@ -8,11 +8,13 @@
 
 #include <windows.h>
 #include <intrin.h>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <utility>
 #include <type_traits>
 #include <string>
+#include <vector>
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CpuId
@@ -109,7 +111,7 @@ class Exception {
 protected:
   void PostCtor() {
     if (::IsDebuggerPresent()) {
-      __debugbreak();
+      //__debugbreak();
     }
   }
 
@@ -190,6 +192,58 @@ public:
   }
 
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::ScopeGuardBase
+class ScopeGuardBase {
+ protected:
+  bool dismissed_;
+
+ public:
+  void dismiss() {
+    dismissed_ = true;
+  }
+
+ protected:
+  ScopeGuardBase() : dismissed_(false) {}
+
+  ScopeGuardBase(ScopeGuardBase&& other)
+      : dismissed_(other.dismissed_) {
+    other.dismissed_ = true;
+  }
+};
+
+template <typename TFunc>
+class ScopeGuardImpl : public ScopeGuardBase {
+  TFunc function_;
+
+ public:
+  explicit ScopeGuardImpl(const TFunc& fn)
+    : function_(fn) {}
+
+  explicit ScopeGuardImpl(TFunc&& fn)
+    : function_(std::move(fn)) {}
+
+  ScopeGuardImpl(ScopeGuardImpl&& other)
+    : ScopeGuardBase(std::move(other)),
+      function_(std::move(other.function_)) {
+  }
+
+  ~ScopeGuardImpl() {
+    if (!dismissed_)
+      function_();
+  }
+
+ private:
+  void* operator new(size_t) = delete;
+};
+
+template <typename TFunc>
+ScopeGuardImpl<typename std::decay<TFunc>::type>
+MakeGuard(TFunc&& fn) {
+  return ScopeGuardImpl<typename std::decay<TFunc>::type>(
+      std::forward<TFunc>(fn));
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowKind
@@ -597,5 +651,31 @@ void Test_To_Integer::Exec() {
     }
     CheckEQ(c,4);
   }
+}
+
+double TestFnReturnDouble1() {
+  return 1.0;
+}
+
+void Test_ScopeGuard::Exec() {
+  {
+    auto sc1 = plx::MakeGuard(TestFnReturnDouble1);
+  }
+
+  std::vector<int> v1 = {1, 2};
+  {
+    auto g = plx::MakeGuard(std::bind(&std::vector<int>::pop_back, &v1));
+  }
+  CheckEQ(v1.size(), 1);
+  {
+    auto g = plx::MakeGuard([&] { v1.push_back(5); });
+  }
+  CheckEQ(v1.size(), 2);
+  {
+    auto g = plx::MakeGuard([&] { v1.push_back(4); });
+    v1.pop_back();
+    g.dismiss();
+  }
+  CheckEQ(v1.size(), 1);
 
 }
