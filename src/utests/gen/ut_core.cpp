@@ -10,6 +10,7 @@
 #include <intrin.h>
 #include <functional>
 #include <iterator>
+#include <algorithm>
 #include <limits>
 #include <utility>
 #include <type_traits>
@@ -189,6 +190,14 @@ public:
 
   const ValueT& operator[](size_t ix) const {
     return s_[ix];
+  }
+
+  template <size_t count>
+  size_t CopyToArray(ValueT (&str)[count]) const {
+    auto copied = std::min(size(), count);
+    auto last = copied + s_;
+    std::copy(s_, last, str);
+    return copied;
   }
 
 };
@@ -404,6 +413,10 @@ void Test_Range::Exec() {
   CheckEQ(range2.front(), 'a');
   CheckEQ(range2.back(), '\0');
   CheckEQ(range2[2], 'c');
+
+  char txt2[5];
+  range2.CopyToArray(txt2);
+  CheckEQ(memcmp(txt1, txt2, 5) == 0, true);
 }
 
 void Test_CpuId::Exec() {

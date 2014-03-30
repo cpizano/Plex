@@ -69,6 +69,14 @@ public:
     return s_[ix];
   }
 
+  template <size_t count>
+  size_t CopyToArray(ValueT (&str)[count]) const {
+    auto copied = std::min(size(), count);
+    auto last = copied + s_;
+    std::copy(s_, last, str);
+    return copied;
+  }
+
 };
 
 }
