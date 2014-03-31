@@ -17,11 +17,34 @@
 #include <type_traits>
 #include <string>
 #include <vector>
+#include <stdint.h>
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::Exception
+// line_ : The line of code, usually __LINE__.
+// message_ : Whatever useful text.
+namespace plx {
+class Exception {
+  int line_;
+  const char* message_;
+
+protected:
+  void PostCtor() {
+    if (::IsDebuggerPresent()) {
+      //__debugbreak();
+    }
+  }
+
+public:
+  Exception(int line, const char* message) : line_(line), message_(message) {}
+  virtual ~Exception() {}
+  const char* Message() const { return message_; }
+  int Line() const { return line_; }
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CpuId
 // id_ : the four integers returned by the 'cpuid' instruction.
-namespace plx {
 class CpuId {
   int id_[4];
 
@@ -100,28 +123,6 @@ class CpuId {
   bool tm() const { return (id_[3] & (1 << 29)) != 0; }
 
   bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::Exception
-// line_ : The line of code, usually __LINE__.
-// message_ : Whatever useful text.
-class Exception {
-  int line_;
-  const char* message_;
-
-protected:
-  void PostCtor() {
-    if (::IsDebuggerPresent()) {
-      //__debugbreak();
-    }
-  }
-
-public:
-  Exception(int line, const char* message) : line_(line), message_(message) {}
-  virtual ~Exception() {}
-  const char* Message() const { return message_; }
-  int Line() const { return line_; }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -208,6 +209,28 @@ public:
   void clear() {
     s_ = It();
     e_ = It();
+  }
+
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::Range
+template <typename T>
+using Range = plx::ItRange<T*>;
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CodecException
+// bytes_ : The 16 bytes or less that caused the issue.
+class CodecException : public plx::Exception {
+  unsigned char bytes_[16];
+  size_t count_;
+
+public:
+  CodecException(int line, const plx::Range<const unsigned char>* br)
+      : Exception(line, "Codec exception"), count_(0) {
+    if (br)
+      count_ = br->CopyToArray(bytes_);
+    PostCtor();
   }
 
 };
@@ -332,9 +355,68 @@ long long NextInt(unsigned long long value) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Range
-template <typename T>
-using Range = plx::ItRange<T*>;
+// plx::DecodeUTF8
+//
+// bits encoding
+// 7    0xxxxxxx
+// 11   110xxxxx 10xxxxxx
+// 16   1110xxxx 10xxxxxx 10xxxxxx
+// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
+// max point is then U+10FFFF.
+static const uint32_t Utf8BitMask[] = {
+  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
+  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
+  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
+  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
+};
+
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+  if (!ir.valid() || (ir.size() == 0))
+    throw plx::CodecException(__LINE__, nullptr);
+
+  unsigned char fst = ir[0];
+  if (!(fst & 0x80)) {
+    // One byte sequence, so we are done.
+    ir.advance(1);
+    return fst;
+  }
+
+  if ((fst & 0xC0) != 0xC0)
+    throw plx::CodecException(__LINE__, &ir);
+
+  uint32_t d = fst;
+  fst <<= 1;
+
+  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
+    unsigned char tmp = ir[i];
+
+    if ((tmp & 0xC0) != 0x80)
+      throw plx::CodecException(__LINE__, &ir);
+
+    d = (d << 6) | (tmp & 0x3F);
+    fst <<= 1;
+
+    if (!(fst & 0x80)) {
+      d &= Utf8BitMask[i];
+
+      // overlong check.
+      if ((d & ~Utf8BitMask[i - 1]) == 0)
+        throw plx::CodecException(__LINE__, &ir);
+
+      // surrogate check.
+      if (i == 2) {
+        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
+          throw plx::CodecException(__LINE__, &ir);
+      }
+
+      ir.advance(i + 1);
+      return d;
+    }
+
+  }
+  throw plx::CodecException(__LINE__, &ir);
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::To  (integer to integer type safe cast)
@@ -712,5 +794,85 @@ void Test_ScopeGuard::Exec() {
     g.dismiss();
   }
   CheckEQ(v1.size(), 1);
+}
 
+void Test_Utf8decode::Exec() {
+  {
+    const unsigned char t[] = "\0";
+    plx::Range<const unsigned char> r(t, 1);
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0);
+  }
+
+  {
+    const unsigned char t[] = "the lazy";
+    plx::Range<const unsigned char> r(t, sizeof(t) - 1);
+    std::u32string result;
+    while (r.size()) {
+      auto c = plx::DecodeUTF8(r);
+      result.push_back(c);
+    }
+    std::u32string expected = { 't','h','e',' ','l','a','z','y' };
+    CheckEQ(result == expected, true);
+  }
+
+  {
+    // first two byte code U+0080 is 0xC2 0x80
+    const unsigned char t[] = {0xC2, 0x80};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x80);
+  }
+
+  {
+    // unicode U+00A9 (copyright sign) is 0xC2 0xA9
+    const unsigned char t[] = {0xC2, 0xA9};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0xA9);
+  }
+
+  {
+    // first tree byte code U+0800 (samaritan alaf) is
+    const unsigned char t[] = {0xE0, 0xA0, 0x80};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x800);
+  }
+
+  {
+    // unicode U+2260 (not equal to) is 0xE2 0x89 0xA0
+    const unsigned char t[] = {0xE2, 0x89, 0xA0};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x2260);
+  }
+
+   {
+    // unicode U+2260 (not equal to) 0xE2 0x89 0xA0
+    const unsigned char t[] = {0xE2, 0x89, 0xA0};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x2260);
+  }
+
+  {
+    // greek word 'kosme'.
+    const unsigned char t[] =
+        {0xCE,0xBA,0xE1,0xBD,0xB9,0xCF,0x83,0xCE,0xBC,0xCE,0xB5};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    std::u32string result;
+    while (r.size()) {
+      auto c = plx::DecodeUTF8(r);
+      result.push_back(c);
+    }
+    CheckEQ(result.size() == 5, true);
+  }
+
+  // overlong forms for U+000A (line feed)
+  //   0xC0 0x8A
+  //   0xE0 0x80 0x8A
+  //   0xF0 0x80 0x80 0x8A
+  //   0xF8 0x80 0x80 0x80 0x8A
+  //   0xFC 0x80 0x80 0x80 0x80 0x8A
 }

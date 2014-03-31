@@ -33,6 +33,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_CpuId().Run();
     Test_To_Integer().Run();
     Test_ScopeGuard().Run();
+    Test_Utf8decode().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);

@@ -11,6 +11,7 @@
 cen(std::string, in, <string>, 1);
 cen(std::to_string, in, <string>, 1);
 cen(std::wstring, in, <string>, 1);
+cen(std::u32string, in, <string>, 1);
 cen(std::vector, in, <vector>, 1);
 cen(std::remove_reference, in, <type_traits>, 1);
 cen(std::iterator_traits, in, <iterator>, 1);
@@ -21,6 +22,7 @@ cen(std::bind, in, <functional>, 1);
 cen(std::min, in, <algorithm>, 1);
 cen(std::max, in, <algorithm>, 1);
 cen(std::array, in, <array>, 1);
+cen(uint32_t, in, <stdint.h>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1);
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
@@ -30,13 +32,15 @@ cen(__cpuid, in, <intrin.h>, 1);
 cen(printf, in, <stdio.h>, 1);
 
 cen(plx::OverflowKind,
-    cs, plx\overflow_kind.h, 1)
+    cs, plx\overflow_kind.h, 1);
 cen(plx::Exception,
     cs, plx\exception.h, 1);
 cen(plx::IOException,
     cs, plx\io_exception.h, 1);
 cen(plx::OverflowException,
-    cs, plx\overflow_exception.h, 1)
+    cs, plx\overflow_exception.h, 1);
+cen(plx::CodecException,
+    cs, plx\codec_exception.h, 1);
 cen(plx::CpuId,
     cs, plx\cpu_id.h, 1);
 cen(plx::ItRange,
@@ -49,4 +53,6 @@ cen(plx::To,
     cs, plx\to.h, 1);
 cen(plx::MakeGuard,
     cs, plx\scope_guard.h, 1);
+cen(plx::DecodeUTF8,
+    cs, plx\decode_utf8.h, 1);
 end();

@@ -306,6 +306,86 @@ void Test_ScopeGuard::Exec() {
     g.dismiss();
   }
   CheckEQ(v1.size(), 1);
+}
 
+void Test_Utf8decode::Exec() {
+  {
+    const unsigned char t[] = "\0";
+    plx::Range<const unsigned char> r(t, 1);
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0);
+  }
+
+  {
+    const unsigned char t[] = "the lazy";
+    plx::Range<const unsigned char> r(t, sizeof(t) - 1);
+    std::u32string result;
+    while (r.size()) {
+      auto c = plx::DecodeUTF8(r);
+      result.push_back(c);
+    }
+    std::u32string expected = { 't','h','e',' ','l','a','z','y' };
+    CheckEQ(result == expected, true);
+  }
+
+  {
+    // first two byte code U+0080 is 0xC2 0x80
+    const unsigned char t[] = {0xC2, 0x80};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x80);
+  }
+
+  {
+    // unicode U+00A9 (copyright sign) is 0xC2 0xA9
+    const unsigned char t[] = {0xC2, 0xA9};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0xA9);
+  }
+
+  {
+    // first tree byte code U+0800 (samaritan alaf) is 
+    const unsigned char t[] = {0xE0, 0xA0, 0x80};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x800);
+  }
+
+  {
+    // unicode U+2260 (not equal to) is 0xE2 0x89 0xA0
+    const unsigned char t[] = {0xE2, 0x89, 0xA0};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x2260);
+  }
+
+   {
+    // unicode U+2260 (not equal to) 0xE2 0x89 0xA0
+    const unsigned char t[] = {0xE2, 0x89, 0xA0};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    auto c = plx::DecodeUTF8(r);
+    CheckEQ(c, 0x2260);
+  }
+
+  {
+    // greek word 'kosme'.
+    const unsigned char t[] =
+        {0xCE,0xBA,0xE1,0xBD,0xB9,0xCF,0x83,0xCE,0xBC,0xCE,0xB5};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    std::u32string result;
+    while (r.size()) {
+      auto c = plx::DecodeUTF8(r);
+      result.push_back(c);
+    }
+    CheckEQ(result.size() == 5, true);
+  }
+
+  // overlong forms for U+000A (line feed)
+  //   0xC0 0x8A
+  //   0xE0 0x80 0x8A
+  //   0xF0 0x80 0x80 0x8A
+  //   0xF8 0x80 0x80 0x80 0x8A
+  //   0xFC 0x80 0x80 0x80 0x80 0x8A
 }
 
