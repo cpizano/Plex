@@ -63,5 +63,5 @@ TEST(Test_CpuId);
 TEST(Test_To_Integer);
 TEST(Test_ScopeGuard);
 TEST(Test_Utf8decode);
-
+TEST(Test_JsonValue);
 #undef TEST

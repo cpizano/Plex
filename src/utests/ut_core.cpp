@@ -389,3 +389,12 @@ void Test_Utf8decode::Exec() {
   //   0xFC 0x80 0x80 0x80 0x80 0x8A
 }
 
+
+void Test_JsonValue::Exec() {
+  plx::JsonValue value("most likely");
+  plx::JsonValue obj(plx::JsonObject::Make());
+  obj["foo"] = value;
+  obj["bar"] = plx::JsonValue("aruba");
+
+
+}

@@ -13,6 +13,7 @@ cen(std::to_string, in, <string>, 1);
 cen(std::wstring, in, <string>, 1);
 cen(std::u32string, in, <string>, 1);
 cen(std::vector, in, <vector>, 1);
+cen(std::unordered_map, in, <unordered_map>, 1);
 cen(std::remove_reference, in, <type_traits>, 1);
 cen(std::iterator_traits, in, <iterator>, 1);
 cen(std::numeric_limits, in, <limits>, 1);
@@ -22,6 +23,8 @@ cen(std::bind, in, <functional>, 1);
 cen(std::min, in, <algorithm>, 1);
 cen(std::max, in, <algorithm>, 1);
 cen(std::array, in, <array>, 1);
+cen(std::initializer_list, in, <initializer_list>, 1);
+cen(std::move, in, <utility>, 1);
 cen(uint32_t, in, <stdint.h>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1);
@@ -55,4 +58,6 @@ cen(plx::MakeGuard,
     cs, plx\scope_guard.h, 1);
 cen(plx::DecodeUTF8,
     cs, plx\decode_utf8.h, 1);
+cen(plx::JsonValue,
+    cs, plx\json_value.h, 1);
 end();
