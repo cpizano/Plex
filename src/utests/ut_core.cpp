@@ -392,9 +392,13 @@ void Test_Utf8decode::Exec() {
 
 void Test_JsonValue::Exec() {
   plx::JsonValue value("most likely");
-  plx::JsonValue obj(plx::JsonObject::Make());
-  obj["foo"] = value;
-  obj["bar"] = plx::JsonValue("aruba");
-
+  plx::JsonValue obj1(plx::JsonType::OBJECT);
+  obj1["foo"] = value;
+  obj1["bar"] = plx::JsonValue("aruba");
+  plx::JsonValue obj2(obj1);
+  obj2["sun"] = "screen";
+  obj2["lava"] = 333;
+  plx::JsonValue obj3 = {22, 34, 77, 11, 55};
+  plx::JsonValue obj4 = { "sun", 12, false, "rum", obj2 };
 
 }

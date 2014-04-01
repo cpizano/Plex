@@ -254,10 +254,6 @@ enum class JsonType {
   STRING,
 };
 
-struct JsonObject {
-  static JsonObject Make() { return JsonObject(); }
-};
-
 class JsonValue {
   typedef std::unordered_map<std::string, JsonValue> ObjectImpl;
   typedef std::vector<JsonValue> ArrayImpl;
@@ -265,22 +261,34 @@ class JsonValue {
 
   JsonType type_;
   union Data {
-    explicit Data() {}
-    ~Data() {}
-
-    void* nulv;
     bool bolv;
     double dblv;
     int64_t intv;
     AligedStore<StringImpl>::type str;
     AligedStore<ArrayImpl>::type arr;
-    //AligedStore<ObjectImpl>::type obj;
-    std::aligned_storage<sizeof(ObjectImpl), __alignof(ObjectImpl)>::type obj;
+    AligedStore<ObjectImpl>::type obj;
   } u_;
 
  public:
 
   JsonValue() : type_(JsonType::NULLT) {
+  }
+
+  JsonValue(const JsonType& type) : type_(type) {
+    if (type_ == JsonType::NULLT)
+      return;
+    else if (type_ == JsonType::OBJECT)
+      new (&u_.obj) ObjectImpl();
+    else
+      throw 5;
+  }
+
+  JsonValue(const JsonValue& other) : type_(JsonType::NULLT) {
+    *this = other;
+  }
+
+  JsonValue(JsonValue&& other) : type_(JsonType::NULLT) {
+    *this = std::move(other);
   }
 
   ~JsonValue() {
@@ -318,10 +326,6 @@ class JsonValue {
   template<class It>
   JsonValue(It first, It last) : type_(JsonType::ARRAY) {
     new (&u_.arr) ArrayImpl(first, last);
-  }
-
-  JsonValue(const JsonObject&) : type_(JsonType::OBJECT) {
-    new (&u_.obj) ObjectImpl();
   }
 
   JsonValue& operator=(const JsonValue& other) {
@@ -369,8 +373,39 @@ class JsonValue {
   }
 
   JsonValue& operator[](const std::string& s) {
-    ObjectImpl& obj = *GetObject();
-    return obj[s];
+    return (*GetObject())[s];
+  }
+
+  JsonValue& operator[](size_t ix) {
+    return (*GetArray())[ix];
+  }
+
+  JsonType type() const {
+    return type_;
+  }
+
+  bool get_bool() const {
+    return u_.bolv;
+  }
+
+  int64_t get_int64() const {
+    return u_.intv;
+  }
+
+  double get_double() const {
+    return u_.dblv;
+  }
+
+  std::string get_string() const {
+    return *GetString();
+  }
+
+  size_t size() const {
+   if (type_ == JsonType::ARRAY)
+      return GetArray()->size();
+    else if (type_ == JsonType::OBJECT)
+      return GetObject()->size();
+    else return 0;
   }
 
  private:
@@ -1073,9 +1108,13 @@ void Test_Utf8decode::Exec() {
 
 void Test_JsonValue::Exec() {
   plx::JsonValue value("most likely");
-  plx::JsonValue obj(plx::JsonObject::Make());
-  obj["foo"] = value;
-  obj["bar"] = plx::JsonValue("aruba");
-
+  plx::JsonValue obj1(plx::JsonType::OBJECT);
+  obj1["foo"] = value;
+  obj1["bar"] = plx::JsonValue("aruba");
+  plx::JsonValue obj2(obj1);
+  obj2["sun"] = "screen";
+  obj2["lava"] = 333;
+  plx::JsonValue obj3 = {22, 34, 77, 11, 55};
+  plx::JsonValue obj4 = { "sun", 12, false, "rum", obj2 };
 
 }
