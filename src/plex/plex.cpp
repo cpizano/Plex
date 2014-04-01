@@ -1493,7 +1493,8 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
             else if ((it3->type == CppToken::kw_class)   ||
                      (it3->type == CppToken::kw_public)  ||
                      (it3->type == CppToken::kw_private) ||
-                     (it3->type == CppToken::kw_struct))
+                     (it3->type == CppToken::kw_struct)  ||
+                     (it3->type == CppToken::kw_union))
               block_type = ScopeBlock::block_aggregate;
             else if (it3->type == CppToken::kw_enum)
               block_type = ScopeBlock::block_enum; //$$ handle enum class.
