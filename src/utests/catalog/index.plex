@@ -22,6 +22,7 @@ cen(std::stringstream, in, <sstream>, 1);
 cen(std::bind, in, <functional>, 1);
 cen(std::min, in, <algorithm>, 1);
 cen(std::max, in, <algorithm>, 1);
+cen(std::map, in, <map>, 1);
 cen(std::array, in, <array>, 1);
 cen(std::initializer_list, in, <initializer_list>, 1);
 cen(std::move, in, <utility>, 1);
@@ -58,6 +59,8 @@ cen(plx::MakeGuard,
     cs, plx\scope_guard.h, 1);
 cen(plx::DecodeUTF8,
     cs, plx\decode_utf8.h, 1);
+cen(plx::JsonType,
+    cs, plx\json_type.h, 1);
 cen(plx::JsonValue,
     cs, plx\json_value.h, 1);
 end();

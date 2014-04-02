@@ -6,23 +6,13 @@ namespace plx {
 template <typename T> using AligedStore =
     std::aligned_storage<sizeof(T), __alignof(T)>;
 
-
-enum class JsonType {
-  NULLT,
-  BOOL,
-  INT64,
-  DOUBLE,
-  ARRAY,
-  OBJECT,
-  STRING,
-};
-
 class JsonValue {
-  typedef std::unordered_map<std::string, JsonValue> ObjectImpl;
+  //typedef std::unordered_map<std::string, JsonValue> ObjectImpl;
+  typedef std::map<std::string, JsonValue> ObjectImpl;
   typedef std::vector<JsonValue> ArrayImpl;
   typedef std::string StringImpl;
 
-  JsonType type_;
+  plx::JsonType type_;
   union Data {
     bool bolv;
     double dblv;
@@ -37,7 +27,7 @@ class JsonValue {
   JsonValue() : type_(JsonType::NULLT) {
   }
 
-  JsonValue(const JsonType& type) : type_(type) {
+  JsonValue(const plx::JsonType& type) : type_(type) {
     if (type_ == JsonType::NULLT)
       return;
     else if (type_ == JsonType::OBJECT)
@@ -143,7 +133,7 @@ class JsonValue {
     return (*GetArray())[ix];
   }
 
-  JsonType type() const {
+  plx::JsonType type() const {
     return type_;
   }
 

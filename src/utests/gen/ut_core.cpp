@@ -12,12 +12,12 @@
 #include <functional>
 #include <initializer_list>
 #include <iterator>
+#include <map>
 #include <algorithm>
 #include <utility>
 #include <limits>
 #include <type_traits>
 #include <string>
-#include <unordered_map>
 #include <vector>
 #include <stdint.h>
 
@@ -238,12 +238,8 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::JsonValue
+// plx::JsonType
 //
-template <typename T> using AligedStore =
-    std::aligned_storage<sizeof(T), __alignof(T)>;
-
-
 enum class JsonType {
   NULLT,
   BOOL,
@@ -254,12 +250,19 @@ enum class JsonType {
   STRING,
 };
 
+///////////////////////////////////////////////////////////////////////////////
+// plx::JsonValue
+//
+template <typename T> using AligedStore =
+    std::aligned_storage<sizeof(T), __alignof(T)>;
+
 class JsonValue {
-  typedef std::unordered_map<std::string, JsonValue> ObjectImpl;
+  //typedef std::unordered_map<std::string, JsonValue> ObjectImpl;
+  typedef std::map<std::string, JsonValue> ObjectImpl;
   typedef std::vector<JsonValue> ArrayImpl;
   typedef std::string StringImpl;
 
-  JsonType type_;
+  plx::JsonType type_;
   union Data {
     bool bolv;
     double dblv;
@@ -274,7 +277,7 @@ class JsonValue {
   JsonValue() : type_(JsonType::NULLT) {
   }
 
-  JsonValue(const JsonType& type) : type_(type) {
+  JsonValue(const plx::JsonType& type) : type_(type) {
     if (type_ == JsonType::NULLT)
       return;
     else if (type_ == JsonType::OBJECT)
@@ -380,7 +383,7 @@ class JsonValue {
     return (*GetArray())[ix];
   }
 
-  JsonType type() const {
+  plx::JsonType type() const {
     return type_;
   }
 
@@ -1107,6 +1110,7 @@ void Test_Utf8decode::Exec() {
 
 
 void Test_JsonValue::Exec() {
+  auto sj = sizeof(plx::JsonValue);
   plx::JsonValue value("most likely");
   plx::JsonValue obj1(plx::JsonType::OBJECT);
   obj1["foo"] = value;

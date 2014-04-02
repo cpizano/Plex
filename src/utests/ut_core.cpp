@@ -391,6 +391,7 @@ void Test_Utf8decode::Exec() {
 
 
 void Test_JsonValue::Exec() {
+  auto sj = sizeof(plx::JsonValue);
   plx::JsonValue value("most likely");
   plx::JsonValue obj1(plx::JsonType::OBJECT);
   obj1["foo"] = value;
