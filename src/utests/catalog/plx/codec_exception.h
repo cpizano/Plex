@@ -14,6 +14,5 @@ public:
       count_ = br->CopyToArray(bytes_);
     PostCtor();
   }
-
 };
 }

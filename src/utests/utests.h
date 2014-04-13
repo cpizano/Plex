@@ -64,4 +64,5 @@ TEST(Test_To_Integer);
 TEST(Test_ScopeGuard);
 TEST(Test_Utf8decode);
 TEST(Test_JsonValue);
+TEST(Test_Hex);
 #undef TEST

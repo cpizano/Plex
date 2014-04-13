@@ -220,6 +220,17 @@ public:
 template <typename T>
 using Range = plx::ItRange<T*>;
 
+
+///////////////////////////////////////////////////////////////////////////////
+static const char HexASCIITable[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+char* HexASCII(uint8_t byte, char* out) {
+  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
+  *out++ = HexASCIITable[byte & 0x0F];
+  return out;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CodecException
 // bytes_ : The 16 bytes or less that caused the issue.
@@ -234,7 +245,6 @@ public:
       count_ = br->CopyToArray(bytes_);
     PostCtor();
   }
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1072,14 +1082,14 @@ void Test_Utf8decode::Exec() {
   }
 
   {
-    // unicode U+2260 (not equal to) is 0xE2 0x89 0xA0
-    const unsigned char t[] = {0xE2, 0x89, 0xA0};
+    // last 3 byte code U+FFFF (non character) is 0xE2 0x89 0xA0
+    const unsigned char t[] = {0xEF, 0xBF, 0xBF};
     plx::Range<const unsigned char> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
-    CheckEQ(c, 0x2260);
+    CheckEQ(c, 0xFFFF);
   }
 
-   {
+  {
     // unicode U+2260 (not equal to) 0xE2 0x89 0xA0
     const unsigned char t[] = {0xE2, 0x89, 0xA0};
     plx::Range<const unsigned char> r(t, sizeof(t));
@@ -1100,6 +1110,18 @@ void Test_Utf8decode::Exec() {
     CheckEQ(result.size() == 5, true);
   }
 
+   {
+    // overlong form 0xC0 0x8A
+    const unsigned char t[] = {0xC0, 0x8A};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    try {
+      auto c = plx::DecodeUTF8(r);
+      __debugbreak();
+    } catch (plx::CodecException& e) {
+      //CheckEQ()
+    }
+  }
+
   // overlong forms for U+000A (line feed)
   //   0xC0 0x8A
   //   0xE0 0x80 0x8A
@@ -1107,7 +1129,6 @@ void Test_Utf8decode::Exec() {
   //   0xF8 0x80 0x80 0x80 0x8A
   //   0xFC 0x80 0x80 0x80 0x80 0x8A
 }
-
 
 void Test_JsonValue::Exec() {
   auto sj = sizeof(plx::JsonValue);
@@ -1120,5 +1141,27 @@ void Test_JsonValue::Exec() {
   obj2["lava"] = 333;
   plx::JsonValue obj3 = {22, 34, 77, 11, 55};
   plx::JsonValue obj4 = { "sun", 12, false, "rum", obj2 };
+}
+
+void Test_Hex::Exec() {
+  char out[256];
+  char* pos = out;
+  for (size_t ix = 0; ix != _countof(out) / 2; ix++) {
+    plx::HexASCII(plx::To<uint8_t>(ix), pos);
+    pos += 2;
+  }
+  char res[] = "000102030405060708090A0B0C0D0E0F";
+  char* oo = out;
+  int times = 8;
+  do {
+    CheckEQ(memcmp(res, oo, _countof(res) - 1), 0);
+    int pos = 0;
+    for (auto& x : res) {
+      if (pos % 2 == 0)
+        ++x;
+      ++pos;
+    }
+    oo = oo + _countof(res) -1 ;
+  } while (--times);
 
 }

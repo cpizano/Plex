@@ -63,4 +63,6 @@ cen(plx::JsonType,
     cs, plx\json_type.h, 1);
 cen(plx::JsonValue,
     cs, plx\json_value.h, 1);
+cen(plx::HexASCII,
+    cs, plx\hex_ascii.h, 1);
 end();

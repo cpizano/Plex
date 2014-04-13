@@ -35,6 +35,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_ScopeGuard().Run();
     Test_Utf8decode().Run();
     Test_JsonValue().Run();
+    Test_Hex().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
