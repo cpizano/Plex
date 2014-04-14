@@ -69,6 +69,7 @@
 #include <unordered_map>
 #include <memory>
 #include <functional>
+#include <type_traits>
 #include <utility>
 
 #pragma region constants
@@ -165,6 +166,8 @@ private:
   bool plex_check_init() {
     return (start_ <= end_);
   }
+
+  typedef typename std::remove_const<T>::type NCT;
   
   friend class LineIterator;
 
@@ -175,12 +178,16 @@ public:
   Range() : start_(nullptr), end_(nullptr) {
   }
 
+  Range(const Range<NCT>& other)
+    : start_(other.Start()), end_(other.End()) {
+  }
+
   // Watch out, it does not de-alloc on destruction.
   explicit Range(size_t alloc_count) 
     : start_(new T[alloc_count]), end_(start_ + sizeof(T)*alloc_count) {
   }
 
-  template <int count>
+  template <size_t count>
   Range(T (&str)[count])
      : start_(str), end_(&str[count - 1]) {
   }
@@ -220,12 +227,12 @@ public:
     return *this;
   }
 
-  bool Equal(const Range<T>& rhs) const {
+  bool Equal(const Range<const T>& rhs) const {
     if (Size() != rhs.Size())
       return false;
     if (!Size())
       return true;
-    return (memcmp(start_, rhs.start_, Size()) == 0);
+    return (memcmp(start_, rhs.Start(), Size()) == 0);
   }
 
   struct SliceToEnd {};
@@ -1077,8 +1084,8 @@ std::string ToString(const CppToken& tok) {
   return ToString(tok.range);
 }
 
-bool EqualToStr(const CppToken& tok, const char* str) {
-  return (::strncmp(str,  tok.range.Start(), tok.range.Size()) == 0);
+bool EqualToStr(const CppToken& tok, const Range<const char>& r) {
+  return tok.range.Equal(r);
 }
 
 template<typename T, size_t count>
@@ -1748,9 +1755,9 @@ int GetExternalDefinitions(CppTokenVector& tv,
   };
 
   auto IsInVector = [](const CppTokenVector& v,
-                       const char* start) -> bool {
+                       const Range<const char>& r) -> bool {
     for (auto it = begin(v); it != end(v); ++it) {
-      if (EqualToStr(*it, start))
+      if (EqualToStr(*it, r))
         return true;
     }
     return false;
@@ -1816,7 +1823,7 @@ int GetExternalDefinitions(CppTokenVector& tv,
 
       } else if (IsAgregateIntroducer(prev.type)) {
         if (next.type == CppToken::semicolon) {
-          if (IsInVector(ldefs, it->range.Start()))
+          if (IsInVector(ldefs, it->range))
             __debugbreak();
           // forward declaration.
           ldefs.push_back(*it);
@@ -1829,9 +1836,9 @@ int GetExternalDefinitions(CppTokenVector& tv,
         continue;
       }
 
-      if (!IsInVector(ldefs, it->range.Start())) {
+      if (!IsInVector(ldefs, it->range)) {
 
-        if(IsInVector(xrefs, it->range.Start())) {
+        if(IsInVector(xrefs, it->range)) {
           continue;
         }
 
