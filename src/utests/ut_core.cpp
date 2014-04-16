@@ -50,6 +50,11 @@ void Test_Range::Exec() {
   CheckEQ(range6.equals(range4), true);
   range6.advance(1);
   CheckEQ(range6.equals(range4), false);
+  CheckEQ(range4.equals(range6), false);
+
+  auto range7 = plx::RangeFromLitStr("12");
+  CheckEQ(range4.starts_with(range7), 2);
+  CheckEQ(range7.starts_with(range4), 0);
 }
 
 void Test_CpuId::Exec() {

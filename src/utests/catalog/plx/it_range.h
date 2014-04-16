@@ -67,6 +67,12 @@ public:
     return (memcmp(s_, o.s_, size()) == 0);
   }
 
+  size_t starts_with(const ItRange<It>& o) const {
+    if (o.size() > size())
+      return false;
+    return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0; 
+  }
+
   template <size_t count>
   size_t CopyToArray(ValueT (&arr)[count]) const {
     auto copied = std::min(size(), count);
