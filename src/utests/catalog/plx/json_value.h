@@ -48,6 +48,9 @@ class JsonValue {
     Destroy();
   }
 
+  JsonValue(nullptr_t) : type_(JsonType::NULLT) {
+  }
+
   JsonValue(bool b) : type_(JsonType::BOOL) {
     u_.bolv = b;
   }
