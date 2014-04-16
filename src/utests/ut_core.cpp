@@ -38,6 +38,12 @@ void Test_Range::Exec() {
   CheckEQ(range4.size(), 8);
   CheckEQ(range4[0], '1');
   CheckEQ(range4[7], '8');
+
+  unsigned char data[] = {0x11, 0x22, 0x33};
+  auto range5 = plx::RangeFromArray(data);
+  CheckEQ(range5.size(), 3);
+  CheckEQ(range5[0], 0x11);
+  CheckEQ(range5[2], 0x33);
 }
 
 void Test_CpuId::Exec() {
@@ -439,4 +445,7 @@ void Test_Hex::Exec() {
     }
     oo = oo + _countof(res) -1 ;
   } while (--times);
+
+  const uint8_t data[] = {0xFF, 0xFE, 0xAA, 0xBB};
+  CheckEQ(plx::HexASCIIStr(plx::RangeFromArray(data), '-'), "FF-FE-AA-BB");
 }

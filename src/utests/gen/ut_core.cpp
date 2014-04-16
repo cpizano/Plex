@@ -221,6 +221,11 @@ ItRange<U*> RangeFromLitStr(U (&str)[count]) {
   return ItRange<U*>(str, str + count - 1);
 }
 
+template <typename U, size_t count>
+ItRange<U*> RangeFromArray(U (&str)[count]) {
+  return ItRange<U*>(str, str + count);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Range
 template <typename T>
@@ -235,6 +240,20 @@ char* HexASCII(uint8_t byte, char* out) {
   *out++ = HexASCIITable[(byte >> 4) & 0x0F];
   *out++ = HexASCIITable[byte & 0x0F];
   return out;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
+  if (r.empty())
+    return std::string();
+
+  std::string str((r.size() * 3) - 1, separator);
+  char* data = &str[0];
+  for (size_t ix = 0; ix != r.size(); ++ix) {
+    data = plx::HexASCII(r[ix], data);
+    ++data;
+  }
+  return str;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -780,6 +799,12 @@ void Test_Range::Exec() {
   CheckEQ(range4.size(), 8);
   CheckEQ(range4[0], '1');
   CheckEQ(range4[7], '8');
+
+  unsigned char data[] = {0x11, 0x22, 0x33};
+  auto range5 = plx::RangeFromArray(data);
+  CheckEQ(range5.size(), 3);
+  CheckEQ(range5[0], 0x11);
+  CheckEQ(range5[2], 0x33);
 }
 
 void Test_CpuId::Exec() {
@@ -1181,4 +1206,7 @@ void Test_Hex::Exec() {
     }
     oo = oo + _countof(res) -1 ;
   } while (--times);
+
+  const uint8_t data[] = {0xFF, 0xFE, 0xAA, 0xBB};
+  CheckEQ(plx::HexASCIIStr(plx::RangeFromArray(data), '-'), "FF-FE-AA-BB");
 }

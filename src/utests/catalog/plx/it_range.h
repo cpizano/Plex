@@ -94,4 +94,9 @@ ItRange<U*> RangeFromLitStr(U (&str)[count]) {
   return ItRange<U*>(str, str + count - 1);
 }
 
+template <typename U, size_t count>
+ItRange<U*> RangeFromArray(U (&str)[count]) {
+  return ItRange<U*>(str, str + count);
+}
+
 }

@@ -27,6 +27,7 @@ cen(std::array, in, <array>, 1);
 cen(std::initializer_list, in, <initializer_list>, 1);
 cen(std::move, in, <utility>, 1);
 cen(uint32_t, in, <stdint.h>, 1);
+cen(std::unique_ptr, in, <memory>, 1);
 
 cen(wmain, in, <SDKDDKVer.h>, 1);
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
@@ -65,4 +66,6 @@ cen(plx::JsonValue,
     cs, plx\json_value.h, 1);
 cen(plx::HexASCII,
     cs, plx\hex_ascii.h, 1);
+cen(plx::HexASCIIStr,
+    cs, plx\hex_ascii_str.h, 1);
 end();
