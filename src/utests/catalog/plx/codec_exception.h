@@ -4,7 +4,7 @@
 // bytes_ : The 16 bytes or less that caused the issue.
 namespace plx {
 class CodecException : public plx::Exception {
-  unsigned char bytes_[16];
+  uint8_t bytes_[16];
   size_t count_;
 
 public:
@@ -13,6 +13,10 @@ public:
     if (br)
       count_ = br->CopyToArray(bytes_);
     PostCtor();
+  }
+
+  std::string bytes() const {
+    return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
   }
 };
 }

@@ -260,7 +260,7 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
 // plx::CodecException
 // bytes_ : The 16 bytes or less that caused the issue.
 class CodecException : public plx::Exception {
-  unsigned char bytes_[16];
+  uint8_t bytes_[16];
   size_t count_;
 
 public:
@@ -272,10 +272,7 @@ public:
   }
 
   std::string bytes() const {
-    //if (!count)
-      return std::string();
-    //std::unique_ptr<char[]> str(new char[count_]);
-
+    return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
   }
 };
 
@@ -1089,14 +1086,14 @@ void Test_Utf8decode::Exec() {
   }
 
   {
-    const unsigned char t[] = "the lazy";
+    const unsigned char t[] = "the lazy.";
     plx::Range<const unsigned char> r(t, sizeof(t) - 1);
     std::u32string result;
     while (r.size()) {
       auto c = plx::DecodeUTF8(r);
       result.push_back(c);
     }
-    std::u32string expected = { 't','h','e',' ','l','a','z','y' };
+    std::u32string expected = { 't','h','e',' ','l','a','z','y','.'};
     CheckEQ(result == expected, true);
   }
 
@@ -1154,23 +1151,52 @@ void Test_Utf8decode::Exec() {
   }
 
    {
-    // overlong form 0xC0 0x8A
+    // overlong form #1 for U+000A (line feed) 0xC0 0x8A
     const unsigned char t[] = {0xC0, 0x8A};
     plx::Range<const unsigned char> r(t, sizeof(t));
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
-    } catch (plx::CodecException&) {
-      //CheckEQ()
+    } catch (plx::CodecException& e) {
+      CheckEQ(e.bytes(), "C0,8A");
     }
   }
 
-  // overlong forms for U+000A (line feed)
-  //   0xC0 0x8A
-  //   0xE0 0x80 0x8A
-  //   0xF0 0x80 0x80 0x8A
-  //   0xF8 0x80 0x80 0x80 0x8A
-  //   0xFC 0x80 0x80 0x80 0x80 0x8A
+  {
+    // overlong form #2 for U+000A (line feed) 0xE0 0x80 0x8A
+    const unsigned char t[] = {0xE0, 0x80, 0x8A};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    try {
+      auto c = plx::DecodeUTF8(r);
+      __debugbreak();
+    } catch (plx::CodecException& e) {
+      CheckEQ(e.bytes(), "E0,80,8A");
+    }
+  }
+
+  {
+    // overlong form #3 for U+000A (line feed) 0xF0 0x80 0x80 0x8A
+    const unsigned char t[] = {0xF0, 0x80, 0x80, 0x8A};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    try {
+      auto c = plx::DecodeUTF8(r);
+      __debugbreak();
+    } catch (plx::CodecException& e) {
+      CheckEQ(e.bytes(), "F0,80,80,8A");
+    }
+  }
+
+  {
+    // overlong form #4 for U+000A (line feed) 0xF8 0x80 0x80 0x80 0x8A
+    const unsigned char t[] = {0xF8, 0x80, 0x80, 0x80, 0x8A};
+    plx::Range<const unsigned char> r(t, sizeof(t));
+    try {
+      auto c = plx::DecodeUTF8(r);
+      __debugbreak();
+    } catch (plx::CodecException& e) {
+      CheckEQ(e.bytes(), "F8,80,80,80,8A");
+    }
+  }
 }
 
 void Test_JsonValue::Exec() {
