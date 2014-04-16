@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <intrin.h>
+#include <string.h>
 #include <array>
 #include <functional>
 #include <initializer_list>
@@ -187,6 +188,12 @@ public:
 
   RefT operator[](size_t i) const {
     return s_[i];
+  }
+
+  bool equals(const ItRange<It>& o) const {
+    if (o.size() != size())
+      return false;
+    return (memcmp(s_, o.s_, size()) == 0);
   }
 
   template <size_t count>
@@ -818,6 +825,12 @@ void Test_Range::Exec() {
   CheckEQ(range5.size(), 3);
   CheckEQ(range5[0], 0x11);
   CheckEQ(range5[2], 0x33);
+
+  auto range6 = range4;
+  CheckEQ(range4.equals(range6), true);
+  CheckEQ(range6.equals(range4), true);
+  range6.advance(1);
+  CheckEQ(range6.equals(range4), false);
 }
 
 void Test_CpuId::Exec() {

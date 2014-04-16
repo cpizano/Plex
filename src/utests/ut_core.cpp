@@ -44,6 +44,12 @@ void Test_Range::Exec() {
   CheckEQ(range5.size(), 3);
   CheckEQ(range5[0], 0x11);
   CheckEQ(range5[2], 0x33);
+
+  auto range6 = range4;
+  CheckEQ(range4.equals(range6), true);
+  CheckEQ(range6.equals(range4), true);
+  range6.advance(1);
+  CheckEQ(range6.equals(range4), false);
 }
 
 void Test_CpuId::Exec() {
