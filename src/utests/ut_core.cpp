@@ -463,6 +463,8 @@ void Test_JsonValue::Exec() {
   obj2["lava"] = 333;
   plx::JsonValue obj3 = {22, 34, 77, 11, 55};
   plx::JsonValue obj4 = { "sun", 12, false, "rum", obj2 };
+  plx::JsonValue obj5 = 12.0002;
+  plx::JsonValue obj6 = nullptr;
 }
 
 void Test_Hex::Exec() {
@@ -508,3 +510,12 @@ void Test_Whitespace::Exec() {
   r = plx::SkipWhitespace(r);
   CheckEQ(r.size(), 0);
 }
+
+void Test_Parse_JSON::Exec() {
+  {
+    auto json = plx::RangeFromLitStr(" true");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::BOOL);
+  }
+}
+

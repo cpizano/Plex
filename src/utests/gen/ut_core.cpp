@@ -351,6 +351,9 @@ class JsonValue {
     Destroy();
   }
 
+  JsonValue(nullptr_t) : type_(JsonType::NULLT) {
+  }
+
   JsonValue(bool b) : type_(JsonType::BOOL) {
     u_.bolv = b;
   }
@@ -639,6 +642,21 @@ long long NextInt(unsigned long long value) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
+typename std::enable_if<
+    sizeof(T) == 1,
+    plx::Range<T>>::type
+SkipWhitespace(const plx::Range<T>& r) {
+  auto wr = r;
+  while (!wr.empty()) {
+    if (!std::isspace(wr.front()))
+      break;
+    wr.advance(1);
+  }
+  return wr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::DecodeUTF8
 //
 // bits encoding
@@ -703,18 +721,29 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-template <typename T>
-typename std::enable_if<
-    sizeof(T) == 1,
-    plx::Range<T>>::type
-SkipWhitespace(const plx::Range<T>& r) {
-  auto wr = r;
-  while (!wr.empty()) {
-    if (!std::isspace(wr.front()))
-      break;
-    wr.advance(1);
+namespace imp {
+template <typename StrT>
+bool Consume(plx::Range<const char>& r, StrT&& str) {
+  auto c = r.starts_with(plx::RangeFromLitStr(str));
+  if (c) {
+    r.advance(c);
+    return true;
   }
-  return wr;
+  else {
+    return (c != 0);
+  }
+}
+} // namespace imp
+
+plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
+  range = plx::SkipWhitespace(range);
+  if (imp::Consume(range, "true"))
+    return true;
+  if (imp::Consume(range, "false"))
+    return false;
+  if (imp::Consume(range, "null"))
+    return nullptr;
+  throw 5;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1250,6 +1279,8 @@ void Test_JsonValue::Exec() {
   obj2["lava"] = 333;
   plx::JsonValue obj3 = {22, 34, 77, 11, 55};
   plx::JsonValue obj4 = { "sun", 12, false, "rum", obj2 };
+  plx::JsonValue obj5 = 12.0002;
+  plx::JsonValue obj6 = nullptr;
 }
 
 void Test_Hex::Exec() {
@@ -1294,4 +1325,12 @@ void Test_Whitespace::Exec() {
   r.advance(1);
   r = plx::SkipWhitespace(r);
   CheckEQ(r.size(), 0);
+}
+
+void Test_Parse_JSON::Exec() {
+  {
+    auto json = plx::RangeFromLitStr(" true");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::BOOL);
+  }
 }
