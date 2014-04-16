@@ -478,3 +478,22 @@ void Test_Hex::Exec() {
   const uint8_t data[] = {0xFF, 0xFE, 0xAA, 0xBB};
   CheckEQ(plx::HexASCIIStr(plx::RangeFromArray(data), '-'), "FF-FE-AA-BB");
 }
+
+void Test_Whitespace::Exec() {
+  auto r = plx::RangeFromLitStr("  a\t cde f ");
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.front(), 'a');
+  CheckEQ(r.size(), 9);
+  r.advance(1);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.front(), 'c');
+  CheckEQ(r.size(), 6);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 6);
+  r.advance(3);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 2);
+  r.advance(1);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 0);
+}

@@ -65,4 +65,5 @@ TEST(Test_ScopeGuard);
 TEST(Test_Utf8decode);
 TEST(Test_JsonValue);
 TEST(Test_Hex);
+TEST(Test_Whitespace);
 #undef TEST

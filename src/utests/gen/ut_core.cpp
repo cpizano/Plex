@@ -11,6 +11,7 @@
 #include <array>
 #include <functional>
 #include <initializer_list>
+#include <cctype>
 #include <iterator>
 #include <map>
 #include <algorithm>
@@ -689,6 +690,21 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+template <typename T>
+typename std::enable_if<
+    sizeof(T) == 1,
+    plx::Range<T>>::type
+SkipWhitespace(const plx::Range<T>& r) {
+  auto wr = r;
+  while (!wr.empty()) {
+    if (!std::isspace(wr.front()))
+      break;
+    wr.advance(1);
+  }
+  return wr;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::To  (integer to integer type safe cast)
 
 template <bool src_signed, bool tgt_signed>
@@ -1235,4 +1251,23 @@ void Test_Hex::Exec() {
 
   const uint8_t data[] = {0xFF, 0xFE, 0xAA, 0xBB};
   CheckEQ(plx::HexASCIIStr(plx::RangeFromArray(data), '-'), "FF-FE-AA-BB");
+}
+
+void Test_Whitespace::Exec() {
+  auto r = plx::RangeFromLitStr("  a\t cde f ");
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.front(), 'a');
+  CheckEQ(r.size(), 9);
+  r.advance(1);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.front(), 'c');
+  CheckEQ(r.size(), 6);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 6);
+  r.advance(3);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 2);
+  r.advance(1);
+  r = plx::SkipWhitespace(r);
+  CheckEQ(r.size(), 0);
 }
