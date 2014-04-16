@@ -146,6 +146,7 @@ public:
       typename std::remove_reference<It>::type
   >::value_type ValueT;
 
+
   ItRange() : s_(), e_() {
   }
 
@@ -215,6 +216,11 @@ public:
 
 };
 
+template <typename U, size_t count>
+ItRange<U*> RangeFromLitStr(U (&str)[count]) {
+  return ItRange<U*>(str, str + count - 1);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Range
 template <typename T>
@@ -244,6 +250,13 @@ public:
     if (br)
       count_ = br->CopyToArray(bytes_);
     PostCtor();
+  }
+
+  std::string bytes() const {
+    //if (!count)
+      return std::string();
+    //std::unique_ptr<char[]> str(new char[count_]);
+
   }
 };
 
@@ -762,6 +775,11 @@ void Test_Range::Exec() {
   range3.advance(3);
   CheckEQ(range3.size(), range2.size() - 3);
   CheckEQ(range3.front(), 'd');
+
+  auto range4 = plx::RangeFromLitStr("12345678");
+  CheckEQ(range4.size(), 8);
+  CheckEQ(range4[0], '1');
+  CheckEQ(range4[7], '8');
 }
 
 void Test_CpuId::Exec() {
@@ -1117,7 +1135,7 @@ void Test_Utf8decode::Exec() {
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
-    } catch (plx::CodecException& e) {
+    } catch (plx::CodecException&) {
       //CheckEQ()
     }
   }
@@ -1163,5 +1181,4 @@ void Test_Hex::Exec() {
     }
     oo = oo + _countof(res) -1 ;
   } while (--times);
-
 }

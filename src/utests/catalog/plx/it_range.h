@@ -19,6 +19,7 @@ public:
       typename std::remove_reference<It>::type
   >::value_type ValueT;
 
+
   ItRange() : s_(), e_() {
   }
 
@@ -87,5 +88,10 @@ public:
   }
 
 };
+
+template <typename U, size_t count>
+ItRange<U*> RangeFromLitStr(U (&str)[count]) {
+  return ItRange<U*>(str, str + count - 1);
+}
 
 }
