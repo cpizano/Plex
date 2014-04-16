@@ -8,34 +8,35 @@
 // td : typedef
 // in : include
 
-cen(std::string, in, <string>, 1);
-cen(std::to_string, in, <string>, 1);
-cen(std::wstring, in, <string>, 1);
-cen(std::u32string, in, <string>, 1);
-cen(std::vector, in, <vector>, 1);
-cen(std::unordered_map, in, <unordered_map>, 1);
-cen(std::remove_reference, in, <type_traits>, 1);
+cen(std::array, in, <array>, 1);
+cen(std::bind, in, <functional>, 1);
+cen(std::initializer_list, in, <initializer_list>, 1);
+cen(std::isspace, in, <cctype>, 1);
 cen(std::iterator_traits, in, <iterator>, 1);
+cen(std::map, in, <map>, 1);
+cen(std::max, in, <algorithm>, 1);
+cen(std::min, in, <algorithm>, 1);
+cen(std::move, in, <utility>, 1);
 cen(std::numeric_limits, in, <limits>, 1);
 cen(std::pair, in, <utility>, 1);
+cen(std::remove_reference, in, <type_traits>, 1);
+cen(std::string, in, <string>, 1);
 cen(std::stringstream, in, <sstream>, 1);
-cen(std::bind, in, <functional>, 1);
-cen(std::min, in, <algorithm>, 1);
-cen(std::max, in, <algorithm>, 1);
-cen(std::map, in, <map>, 1);
-cen(std::array, in, <array>, 1);
-cen(std::initializer_list, in, <initializer_list>, 1);
-cen(std::move, in, <utility>, 1);
-cen(uint32_t, in, <stdint.h>, 1);
+cen(std::to_string, in, <string>, 1);
+cen(std::u32string, in, <string>, 1);
 cen(std::unique_ptr, in, <memory>, 1);
-cen(std::isspace, in, <cctype>, 1);
+cen(std::unordered_map, in, <unordered_map>, 1);
+cen(std::vector, in, <vector>, 1);
+cen(std::wstring, in, <string>, 1);
 
+cen(uint32_t, in, <stdint.h>, 1);
 cen(wmain, in, <SDKDDKVer.h>, 1);
 cen(::IsDebuggerPresent, in, <windows.h>, 1);
 cen(::GetLastError, in, <windows.h>, 1);
 cen(DWORD, in, <windows.h>, 1);
 cen(__cpuid, in, <intrin.h>, 1);
 cen(printf, in, <stdio.h>, 1);
+cen(memcmp, in, <string.h>, 1);
 
 cen(plx::OverflowKind,
     cs, plx\overflow_kind.h, 1);
