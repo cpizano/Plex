@@ -111,4 +111,14 @@ ItRange<U*> RangeFromArray(U (&str)[count]) {
   return ItRange<U*>(str, str + count);
 }
 
+ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
+  auto s = reinterpret_cast<uint8_t*>(start);
+  return ItRange<uint8_t*>(s, s + count);
+}
+
+ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
+  auto s = reinterpret_cast<const uint8_t*>(start);
+  return ItRange<const uint8_t*>(s, s + count);
+}
+
 }
