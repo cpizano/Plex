@@ -66,5 +66,6 @@ TEST(Test_Utf8decode);
 TEST(Test_JsonValue);
 TEST(Test_Hex);
 TEST(Test_Whitespace);
+TEST(Test_DecodeString);
 TEST(Test_Parse_JSON);
 #undef TEST

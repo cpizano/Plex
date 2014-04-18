@@ -511,6 +511,29 @@ void Test_Whitespace::Exec() {
   CheckEQ(r.size(), 0);
 }
 
+void Test_DecodeString::Exec() {
+  {
+    auto r = plx::RangeFromLitStr(R"("jumps over the moon")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "jumps over the moon");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("ides\tof\tmarch")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "ides\tof\tmarch");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("\nreturn\n")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "\nreturn\n");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("\\\\\\\\")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "\\\\\\\\");
+  }
+}
+
 void Test_Parse_JSON::Exec() {
   {
     auto json = plx::RangeFromLitStr(" true");

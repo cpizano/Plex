@@ -74,4 +74,8 @@ cen(plx::SkipWhitespace,
     cs, plx\skip_whitespace.h, 1);
 cen(plx::ParseJsonValue,
     cs, plx\parse_json.h, 1);
+cen(plx::InvalidParamException,
+    cs, plx\invalid_param_exception.h, 1);
+cen(plx::DecodeString,
+    cs, plx\decode_string.h, 1);
 end();

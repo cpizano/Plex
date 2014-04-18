@@ -291,6 +291,84 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::IOException
+// error_code_ : The win32 error code of the last operation.
+class InvalidParamException : public plx::Exception {
+  int parameter_;
+
+public:
+  InvalidParamException(int line, int parameter)
+      : Exception(line, "Invalid parameter"), parameter_(parameter) {
+    PostCtor();
+  }
+  int Parameter() const { return parameter_; }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::DecodeUTF8
+//
+// bits encoding
+// 7    0xxxxxxx
+// 11   110xxxxx 10xxxxxx
+// 16   1110xxxx 10xxxxxx 10xxxxxx
+// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
+// max point is then U+10FFFF.
+static const uint32_t Utf8BitMask[] = {
+  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
+  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
+  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
+  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
+};
+
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+  if (!ir.valid() || (ir.size() == 0))
+    throw plx::CodecException(__LINE__, nullptr);
+
+  unsigned char fst = ir[0];
+  if (!(fst & 0x80)) {
+    // One byte sequence, so we are done.
+    ir.advance(1);
+    return fst;
+  }
+
+  if ((fst & 0xC0) != 0xC0)
+    throw plx::CodecException(__LINE__, &ir);
+
+  uint32_t d = fst;
+  fst <<= 1;
+
+  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
+    unsigned char tmp = ir[i];
+
+    if ((tmp & 0xC0) != 0x80)
+      throw plx::CodecException(__LINE__, &ir);
+
+    d = (d << 6) | (tmp & 0x3F);
+    fst <<= 1;
+
+    if (!(fst & 0x80)) {
+      d &= Utf8BitMask[i];
+
+      // overlong check.
+      if ((d & ~Utf8BitMask[i - 1]) == 0)
+        throw plx::CodecException(__LINE__, &ir);
+
+      // surrogate check.
+      if (i == 2) {
+        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
+          throw plx::CodecException(__LINE__, &ir);
+      }
+
+      ir.advance(i + 1);
+      return d;
+    }
+
+  }
+  throw plx::CodecException(__LINE__, &ir);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::JsonType
 //
 enum class JsonType {
@@ -336,7 +414,7 @@ class JsonValue {
     else if (type_ == JsonType::OBJECT)
       new (&u_.obj) ObjectImpl();
     else
-      throw 5;
+      throw plx::InvalidParamException(__LINE__, 1);
   }
 
   JsonValue(const JsonValue& other) : type_(JsonType::NULLT) {
@@ -657,67 +735,43 @@ SkipWhitespace(const plx::Range<T>& r) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8
-//
-// bits encoding
-// 7    0xxxxxxx
-// 11   110xxxxx 10xxxxxx
-// 16   1110xxxx 10xxxxxx 10xxxxxx
-// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
-// max point is then U+10FFFF.
-static const uint32_t Utf8BitMask[] = {
-  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
-  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
-  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
-  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
-};
+std::string DecodeString(plx::Range<const char>& range) {
+  if (range.empty())
+    return std::string();
+  if (range[0] != '\"')
+    throw plx::CodecException(__LINE__, NULL);
+  std::string s;
 
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
-  if (!ir.valid() || (ir.size() == 0))
-    throw plx::CodecException(__LINE__, nullptr);
+  for (;;) {
+    auto tb = range.start();
 
-  unsigned char fst = ir[0];
-  if (!(fst & 0x80)) {
-    // One byte sequence, so we are done.
-    ir.advance(1);
-    return fst;
-  }
-
-  if ((fst & 0xC0) != 0xC0)
-    throw plx::CodecException(__LINE__, &ir);
-
-  uint32_t d = fst;
-  fst <<= 1;
-
-  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
-
-    if ((tmp & 0xC0) != 0x80)
-      throw plx::CodecException(__LINE__, &ir);
-
-    d = (d << 6) | (tmp & 0x3F);
-    fst <<= 1;
-
-    if (!(fst & 0x80)) {
-      d &= Utf8BitMask[i];
-
-      // overlong check.
-      if ((d & ~Utf8BitMask[i - 1]) == 0)
-        throw plx::CodecException(__LINE__, &ir);
-
-      // surrogate check.
-      if (i == 2) {
-        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
-          throw plx::CodecException(__LINE__, &ir);
+    while (range.advance(1)) {
+      switch (range.front()) {
+        case '\"' : break;
+        case '\\' : goto escape;
+        default: continue;
       }
-
-      ir.advance(i + 1);
-      return d;
+      s.append(++tb, range.start());
+      return s;
     }
 
+  escape:
+    s.append(++tb, range.start());
+    range.advance(1);
+    switch (range.front()) {
+      case '\"':  s.push_back('\"'); break;
+      case '\\':  s.push_back('\\'); break;
+      case '/':   s.push_back('/');  break;
+      case 'b':   s.push_back('\b'); break;
+      case 'f':   s.push_back('\f'); break;
+      case 'n':   s.push_back('\n'); break;
+      case 'r':   s.push_back('\r'); break;
+      case 't':   s.push_back('\t'); break;
+      default: {
+        throw 5;
+      }
+    }
   }
-  throw plx::CodecException(__LINE__, &ir);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1325,6 +1379,29 @@ void Test_Whitespace::Exec() {
   r.advance(1);
   r = plx::SkipWhitespace(r);
   CheckEQ(r.size(), 0);
+}
+
+void Test_DecodeString::Exec() {
+  {
+    auto r = plx::RangeFromLitStr(R"("jumps over the moon")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "jumps over the moon");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("ides\tof\tmarch")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "ides\tof\tmarch");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("\nreturn\n")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "\nreturn\n");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("\\\\\\\\")");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "\\\\\\\\");
+  }
 }
 
 void Test_Parse_JSON::Exec() {

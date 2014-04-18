@@ -33,7 +33,7 @@ class JsonValue {
     else if (type_ == JsonType::OBJECT)
       new (&u_.obj) ObjectImpl();
     else
-      throw 5;
+      throw plx::InvalidParamException(__LINE__, 1);
   }
 
   JsonValue(const JsonValue& other) : type_(JsonType::NULLT) {
