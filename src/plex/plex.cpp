@@ -34,7 +34,7 @@
 // Medium term
 // ---------------------------
 // 102 truly manage insert dependencies.
-// 103 compilation tests.
+// 103 32-bit compilation tests.
 // 104 more useful catalog entities.
 // 105 control x64 vs ia32 constructs.
 //
@@ -52,6 +52,7 @@
 //     foo("error: no space") -> foo(error_no_space);
 // 405 partial catalog classes, for example not all methods
 //     of plx::CpuId need to be copied.
+// 406 annotation to add __LINE__ to user code.
 
 #include <SDKDDKVer.h>
 
