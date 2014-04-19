@@ -1355,12 +1355,26 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
         case CppToken::double_quote : {
           // Handle coalesing all tokens inside a string.
           auto it2 = it + 1;
-          while (*it2->range.Start() != '"') {
-            if (it2->line != it->line)
-              throw TokenizerException(path, __LINE__, it->line);   // $$ fix multiline.
-            if (*it2->range.Start() == '\\') 
+
+          if (IsCppTokenChar(it - 1, 'R') && (it + 1)->type == CppToken::open_paren) {
+            // c++11 raw string, basic case only.
+            while (it2->type != CppToken::close_paren) {
+              if (it2->type == CppToken::eos)
+                throw TokenizerException(path, __LINE__, it2->line);
               ++it2;
-            ++it2; 
+            }
+            if ((++it2)->type != CppToken::double_quote)
+              throw TokenizerException(path, __LINE__, it2->line);
+          } else {
+            // classic c string.
+            while (it2->type != CppToken::double_quote) {
+              if (it2->type == CppToken::eos)
+                throw TokenizerException(path, __LINE__, it2->line);
+
+              if (it2->type == CppToken::backlash) 
+                ++it2;
+              ++it2; 
+            }
           }
           CoaleseToken(it, it2, CppToken::const_str);
           tokens.erase(it + 1, it2 + 1);

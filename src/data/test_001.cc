@@ -8,4 +8,4 @@ const char name[] = "fooo bar";
 const wchar_t the_surname[] = L"soft \"masato";
 const double dable = .33335671e-12;
 const char x[] = "one"; // two "yes"
-
+const char r[] = R"(this is " raw)";
