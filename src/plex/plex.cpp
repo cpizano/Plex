@@ -30,6 +30,7 @@
 // 020 handle namespace alias 'namespace foo = bar::doo'.
 // 021 handle enum <type> class.
 // 023 add NOMINMAX macro when required.
+// 024 plx::DecodeString missing features
 //
 // Medium term
 // ---------------------------

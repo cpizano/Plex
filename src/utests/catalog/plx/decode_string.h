@@ -6,23 +6,29 @@ std::string DecodeString(plx::Range<const char>& range) {
     return std::string();
   if (range[0] != '\"') {
     auto r = plx::RangeFromBytes(range.start(), 1);
-    throw plx::CodecException(__LINE__, &r);
+    throw plx::CodecException(__LINE__, &r);  //#~ln(plx.ds.mis)
   }
 
   std::string s;
-
   for (;;) {
     auto text_start = range.start();
-    // Advance until an escape or until the end of string.
     while (range.advance(1)) {
-      switch (range.front()) {
-        case '\"' : break;
-        case '\\' : goto escape;
-        default: continue;
+      auto c = range.front();
+      if (c < 32) {
+        throw plx::CodecException(__LINE__, nullptr);  //#~ln(plx.ds.zer)
+      } else {
+        switch (c) {
+          case '\"' : break;
+          case '\\' : goto escape;
+          default: continue;
+        }
       }
       s.append(++text_start, range.start());
+      range.advance(1);
       return s;
     }
+    // Reached the end of range before a (").
+    throw plx::CodecException(__LINE__, nullptr);  //#~ln(plx.ds.eor)
 
   escape:
     s.append(++text_start, range.start());

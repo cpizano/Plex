@@ -532,6 +532,29 @@ void Test_DecodeString::Exec() {
     auto dec = plx::DecodeString(r);
     CheckEQ(dec, "\\\\\\\\");
   }
+  {
+    auto r = plx::RangeFromLitStr(R"("some\rone"$1000)");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "some\rone");
+    CheckEQ(r[0], '$');
+    CheckEQ(r.size(), 5);
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("missing end)");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
+  }
+  {
+    auto r = plx::RangeFromLitStr("\"a \0 b\"");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
+  }
 }
 
 void Test_Parse_JSON::Exec() {

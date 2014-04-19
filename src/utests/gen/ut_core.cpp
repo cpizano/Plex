@@ -754,19 +754,25 @@ std::string DecodeString(plx::Range<const char>& range) {
   }
 
   std::string s;
-
   for (;;) {
     auto text_start = range.start();
-    // Advance until an escape or until the end of string.
     while (range.advance(1)) {
-      switch (range.front()) {
-        case '\"' : break;
-        case '\\' : goto escape;
-        default: continue;
+      auto c = range.front();
+      if (c < 32) {
+        throw plx::CodecException(__LINE__, nullptr);
+      } else {
+        switch (c) {
+          case '\"' : break;
+          case '\\' : goto escape;
+          default: continue;
+        }
       }
       s.append(++text_start, range.start());
+      range.advance(1);
       return s;
     }
+    // Reached the end of range before a (").
+    throw plx::CodecException(__LINE__, nullptr);
 
   escape:
     s.append(++text_start, range.start());
@@ -1415,6 +1421,29 @@ void Test_DecodeString::Exec() {
     auto r = plx::RangeFromLitStr(R"("\\\\\\\\")");
     auto dec = plx::DecodeString(r);
     CheckEQ(dec, "\\\\\\\\");
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("some\rone"$1000)");
+    auto dec = plx::DecodeString(r);
+    CheckEQ(dec, "some\rone");
+    CheckEQ(r[0], '$');
+    CheckEQ(r.size(), 5);
+  }
+  {
+    auto r = plx::RangeFromLitStr(R"("missing end)");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
+  }
+  {
+    auto r = plx::RangeFromLitStr("\"a \0 b\"");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
   }
 }
 
