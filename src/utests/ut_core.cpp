@@ -562,6 +562,24 @@ void Test_Parse_JSON::Exec() {
     auto json = plx::RangeFromLitStr(" true");
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::BOOL);
+    CheckEQ(value.get_bool(), true);
+  }
+  {
+    auto json = plx::RangeFromLitStr("false ");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::BOOL);
+    CheckEQ(value.get_bool(), false);
+  }
+  {
+    auto json = plx::RangeFromLitStr("\"some string\"");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::STRING);
+    CheckEQ(value.get_string(), "some string");
+  }
+  {
+    auto json = plx::RangeFromLitStr("null");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::NULL);
   }
 }
 
