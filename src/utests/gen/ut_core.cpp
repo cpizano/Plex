@@ -812,7 +812,7 @@ bool Consume(plx::Range<const char>& r, StrT&& str) {
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   range = plx::SkipWhitespace(range);
   if (range.empty())
-    throw 5;
+    throw plx::CodecException(__LINE__, NULL);
   if (range.front() == '\"')
     return plx::DecodeString(range);
   if (imp::Consume(range, "true"))
@@ -821,7 +821,8 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
     return false;
   if (imp::Consume(range, "null"))
     return nullptr;
-  throw 5;
+  auto r = plx::RangeFromBytes(range.start(), range.size());
+  throw plx::CodecException(__LINE__, &r);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1469,5 +1470,10 @@ void Test_Parse_JSON::Exec() {
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::STRING);
     CheckEQ(value.get_string(), "some string");
+  }
+  {
+    auto json = plx::RangeFromLitStr("null");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::NULLT);
   }
 }

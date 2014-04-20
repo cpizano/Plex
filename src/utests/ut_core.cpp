@@ -579,7 +579,7 @@ void Test_Parse_JSON::Exec() {
   {
     auto json = plx::RangeFromLitStr("null");
     auto value = plx::ParseJsonValue(json);
-    CheckEQ(value.type(), plx::JsonType::NULL);
+    CheckEQ(value.type(), plx::JsonType::NULLT);
   }
 }
 
