@@ -32,7 +32,9 @@ std::string DecodeString(plx::Range<const char>& range) {
 
   escape:
     s.append(++text_start, range.start());
-    range.advance(1);
+    if (!range.advance(1))
+      throw plx::CodecException(__LINE__, nullptr);  //#~ln(plx.ds.mes)
+
     switch (range.front()) {
       case '\"':  s.push_back('\"'); break;
       case '\\':  s.push_back('\\'); break;
