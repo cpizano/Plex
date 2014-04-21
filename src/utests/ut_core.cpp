@@ -555,6 +555,14 @@ void Test_DecodeString::Exec() {
     } catch (plx::CodecException& ) {
     }
   }
+  {
+    auto r = plx::RangeFromLitStr(R"("one \)");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
+  }
 }
 
 void Test_Parse_JSON::Exec() {
@@ -580,6 +588,23 @@ void Test_Parse_JSON::Exec() {
     auto json = plx::RangeFromLitStr("null");
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::NULLT);
+  }
+
+  {
+    auto json = plx::RangeFromLitStr(R"([true])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 1);
+    CheckEQ(value[0].type(), plx::JsonType::BOOL);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"(["novus", "ordo", "seclorum"])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 3);
+    for (size_t ix = 0; ix != 3; ++ix) {
+      CheckEQ(value[ix].type(), plx::JsonType::STRING);
+    }
   }
 }
 

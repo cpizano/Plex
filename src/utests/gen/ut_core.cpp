@@ -419,8 +419,8 @@ class JsonValue {
   }
 
   JsonValue(const plx::JsonType& type) : type_(type) {
-    if (type_ == JsonType::NULLT)
-      return;
+    if (type_ == JsonType::ARRAY)
+      new (&u_.arr) ArrayImpl;
     else if (type_ == JsonType::OBJECT)
       new (&u_.obj) ObjectImpl();
     else
@@ -545,6 +545,10 @@ class JsonValue {
 
   std::string get_string() const {
     return *GetString();
+  }
+
+  void push_back(JsonValue&& value) {
+    GetArray()->push_back(value);
   }
 
   size_t size() const {
@@ -776,7 +780,9 @@ std::string DecodeString(plx::Range<const char>& range) {
 
   escape:
     s.append(++text_start, range.start());
-    range.advance(1);
+    if (!range.advance(1))
+      throw plx::CodecException(__LINE__, nullptr);
+
     switch (range.front()) {
       case '\"':  s.push_back('\"'); break;
       case '\\':  s.push_back('\\'); break;
@@ -795,7 +801,9 @@ std::string DecodeString(plx::Range<const char>& range) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-namespace imp {
+plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
+
+namespace JsonImp {
 template <typename StrT>
 bool Consume(plx::Range<const char>& r, StrT&& str) {
   auto c = r.starts_with(plx::RangeFromLitStr(str));
@@ -807,20 +815,55 @@ bool Consume(plx::Range<const char>& r, StrT&& str) {
     return (c != 0);
   }
 }
+
+plx::JsonValue ParseArray(plx::Range<const char>& range) {
+  if (range.empty())
+    throw plx::CodecException(__LINE__, NULL);
+  if (range.front() != '[')
+    throw plx::CodecException(__LINE__, NULL);
+
+  JsonValue value(plx::JsonType::ARRAY);
+  range.advance(1);
+
+  for (;!range.empty();) {
+    range = plx::SkipWhitespace(range);
+
+    if (range.front() == ',') {
+      if (!range.advance(1))
+        break;
+      range = plx::SkipWhitespace(range);
+    }
+
+    if (range.front() == ']') {
+      range.advance(1);
+      return value;
+    }
+
+    value.push_back(ParseJsonValue(range));
+  }
+
+  auto r = plx::RangeFromBytes(range.start(), range.size());
+  throw plx::CodecException(__LINE__, &r);
+}
+
 } // namespace imp
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   range = plx::SkipWhitespace(range);
   if (range.empty())
     throw plx::CodecException(__LINE__, NULL);
+
   if (range.front() == '\"')
     return plx::DecodeString(range);
-  if (imp::Consume(range, "true"))
+  if (range.front() == '[')
+    return JsonImp::ParseArray(range);
+  if (JsonImp::Consume(range, "true"))
     return true;
-  if (imp::Consume(range, "false"))
+  if (JsonImp::Consume(range, "false"))
     return false;
-  if (imp::Consume(range, "null"))
+  if (JsonImp::Consume(range, "null"))
     return nullptr;
+
   auto r = plx::RangeFromBytes(range.start(), range.size());
   throw plx::CodecException(__LINE__, &r);
 }
@@ -1450,6 +1493,14 @@ void Test_DecodeString::Exec() {
     } catch (plx::CodecException& ) {
     }
   }
+  {
+    auto r = plx::RangeFromLitStr(R"("one \)");
+    try {
+      auto dec = plx::DecodeString(r);
+      __debugbreak();
+    } catch (plx::CodecException& ) {
+    }
+  }
 }
 
 void Test_Parse_JSON::Exec() {
@@ -1475,5 +1526,22 @@ void Test_Parse_JSON::Exec() {
     auto json = plx::RangeFromLitStr("null");
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::NULLT);
+  }
+
+  {
+    auto json = plx::RangeFromLitStr(R"([true])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 1);
+    CheckEQ(value[0].type(), plx::JsonType::BOOL);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"(["novus", "ordo", "seclorum"])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 3);
+    for (size_t ix = 0; ix != 3; ++ix) {
+      CheckEQ(value[ix].type(), plx::JsonType::STRING);
+    }
   }
 }
