@@ -219,8 +219,11 @@ public:
   }
 
   bool advance(size_t count) {
-    s_ += count;
-    return (s_ < e_);
+    auto ns = s_ + count;
+    if (ns > e_)
+      return false;
+    s_ = ns;
+    return true;
   }
 
   void clear() {
