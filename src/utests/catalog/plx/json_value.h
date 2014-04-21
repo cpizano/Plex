@@ -28,8 +28,8 @@ class JsonValue {
   }
 
   JsonValue(const plx::JsonType& type) : type_(type) {
-    if (type_ == JsonType::NULLT)
-      return;
+    if (type_ == JsonType::ARRAY)
+      new (&u_.arr) ArrayImpl;
     else if (type_ == JsonType::OBJECT)
       new (&u_.obj) ObjectImpl();
     else
@@ -154,6 +154,10 @@ class JsonValue {
 
   std::string get_string() const {
     return *GetString();
+  }
+
+  void push_back(JsonValue&& value) {
+    GetArray()->push_back(value);
   }
 
   size_t size() const {
