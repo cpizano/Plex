@@ -202,6 +202,18 @@ public:
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0;
   }
 
+  bool contains(ValueT x, size_t* pos) const {
+    auto c = s_;
+    while (c != e_) {
+      if (*c == x) {
+        *pos = c - s_;
+        return true;
+      }
+      ++c;
+    }
+    return false;
+  }
+
   template <size_t count>
   size_t CopyToArray(ValueT (&arr)[count]) const {
     auto copied = std::min(size(), count);
@@ -251,6 +263,11 @@ ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
 ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
   auto s = reinterpret_cast<const uint8_t*>(start);
   return ItRange<const uint8_t*>(s, s + count);
+}
+
+template <typename U>
+std::string StringFromRange(const ItRange<U>& r) {
+  return std::string(r.start(), r.end());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -819,6 +836,16 @@ bool Consume(plx::Range<const char>& r, StrT&& str) {
   }
 }
 
+bool IsNumber(plx::Range<const char>&r) {
+  if ((r.front() >= '0') && (r.front() <= '9'))
+    return true;
+  if ((r.front() == '-') || (r.front() == '+'))
+    return true;
+  if (r.front() == '.')
+    return true;
+  return false;
+}
+
 plx::JsonValue ParseArray(plx::Range<const char>& range) {
   if (range.empty())
     throw plx::CodecException(__LINE__, NULL);
@@ -849,7 +876,26 @@ plx::JsonValue ParseArray(plx::Range<const char>& range) {
   throw plx::CodecException(__LINE__, &r);
 }
 
-} // namespace imp
+plx::JsonValue ParseNumber(plx::Range<const char>& range) {
+  size_t pos = 0;
+  auto num = plx::StringFromRange(range);
+
+  auto iv = std::stoll(num, &pos);
+  if (pos > range.size())
+    throw plx::CodecException(__LINE__, nullptr);
+  if ((range[pos] != 'e') && (range[pos] != 'E') && (range[pos] != '.')) {
+    range.advance(pos);
+    return iv;
+  }
+
+  auto dv = std::stod(num, &pos);
+  if (pos > range.size())
+    throw plx::CodecException(__LINE__, nullptr);
+  range.advance(pos);
+  return dv;
+}
+
+} // namespace JsonImp
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   range = plx::SkipWhitespace(range);
@@ -866,6 +912,8 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
     return false;
   if (JsonImp::Consume(range, "null"))
     return nullptr;
+  if (JsonImp::IsNumber(range))
+    return JsonImp::ParseNumber(range);
 
   auto r = plx::RangeFromBytes(range.start(), range.size());
   throw plx::CodecException(__LINE__, &r);
@@ -1546,5 +1594,15 @@ void Test_Parse_JSON::Exec() {
     for (size_t ix = 0; ix != 3; ++ix) {
       CheckEQ(value[ix].type(), plx::JsonType::STRING);
     }
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"([ 3.1415,0,2.999,30000000 ])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 4);
+    CheckEQ(value[0].type(), plx::JsonType::DOUBLE);
+    CheckEQ(value[1].type(), plx::JsonType::INT64);
+    CheckEQ(value[2].type(), plx::JsonType::DOUBLE);
+    CheckEQ(value[3].type(), plx::JsonType::INT64);
   }
 }

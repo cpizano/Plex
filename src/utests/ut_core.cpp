@@ -606,5 +606,15 @@ void Test_Parse_JSON::Exec() {
       CheckEQ(value[ix].type(), plx::JsonType::STRING);
     }
   }
+  {
+    auto json = plx::RangeFromLitStr(R"([ 3.1415,0,2.999,30000000 ])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 4);
+    CheckEQ(value[0].type(), plx::JsonType::DOUBLE);
+    CheckEQ(value[1].type(), plx::JsonType::INT64);
+    CheckEQ(value[2].type(), plx::JsonType::DOUBLE);
+    CheckEQ(value[3].type(), plx::JsonType::INT64);
+  }
 }
 

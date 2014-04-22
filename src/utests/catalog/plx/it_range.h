@@ -73,6 +73,18 @@ public:
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0; 
   }
 
+  bool contains(ValueT x, size_t* pos) const {
+    auto c = s_;
+    while (c != e_) {
+      if (*c == x) {
+        *pos = c - s_;
+        return true;
+      }
+      ++c;
+    }
+    return false;
+  }
+
   template <size_t count>
   size_t CopyToArray(ValueT (&arr)[count]) const {
     auto copied = std::min(size(), count);
@@ -122,6 +134,11 @@ ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
 ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
   auto s = reinterpret_cast<const uint8_t*>(start);
   return ItRange<const uint8_t*>(s, s + count);
+}
+
+template <typename U>
+std::string StringFromRange(const ItRange<U>& r) {
+  return std::string(r.start(), r.end());
 }
 
 }

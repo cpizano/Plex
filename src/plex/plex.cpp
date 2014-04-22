@@ -53,7 +53,8 @@
 //     foo("error: no space") -> foo(error_no_space);
 // 405 partial catalog classes, for example not all methods
 //     of plx::CpuId need to be copied.
-// 406 annotation to add __LINE__ to user code.
+// 406 annotation to add __LINE__ to user code. See #~ln()
+// 407 check_return for example range.advance(x) + range.front().
 
 #include <SDKDDKVer.h>
 

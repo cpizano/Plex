@@ -16,6 +16,16 @@ bool Consume(plx::Range<const char>& r, StrT&& str) {
   }
 }
 
+bool IsNumber(plx::Range<const char>&r) {
+  if ((r.front() >= '0') && (r.front() <= '9'))
+    return true;
+  if ((r.front() == '-') || (r.front() == '+'))
+    return true;
+  if (r.front() == '.')
+    return true;
+  return false;
+}
+
 plx::JsonValue ParseArray(plx::Range<const char>& range) {
   if (range.empty())
     throw plx::CodecException(__LINE__, NULL);
@@ -46,7 +56,26 @@ plx::JsonValue ParseArray(plx::Range<const char>& range) {
   throw plx::CodecException(__LINE__, &r);
 }
 
-} // namespace imp
+plx::JsonValue ParseNumber(plx::Range<const char>& range) {
+  size_t pos = 0;
+  auto num = plx::StringFromRange(range);
+
+  auto iv = std::stoll(num, &pos);
+  if (pos > range.size())
+    throw plx::CodecException(__LINE__, nullptr);
+  if ((range[pos] != 'e') && (range[pos] != 'E') && (range[pos] != '.')) {
+    range.advance(pos);
+    return iv;
+  }
+
+  auto dv = std::stod(num, &pos);
+  if (pos > range.size())
+    throw plx::CodecException(__LINE__, nullptr);
+  range.advance(pos);
+  return dv;  
+}
+
+} // namespace JsonImp
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   range = plx::SkipWhitespace(range);
@@ -63,6 +92,8 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
     return false;
   if (JsonImp::Consume(range, "null"))
     return nullptr;
+  if (JsonImp::IsNumber(range))
+    return JsonImp::ParseNumber(range);
 
   auto r = plx::RangeFromBytes(range.start(), range.size());
   throw plx::CodecException(__LINE__, &r);
