@@ -71,6 +71,43 @@ plx::JsonValue ParseNumber(plx::Range<const char>& range) {
   return dv;  
 }
 
+plx::JsonValue ParseObject(plx::Range<const char>& range) {
+  if (range.empty())
+    throw plx::CodecException(__LINE__, NULL);
+  if (range.front() != '{')
+    throw plx::CodecException(__LINE__, NULL);
+
+  JsonValue obj(plx::JsonType::OBJECT);
+  range.advance(1);
+
+  for (;!range.empty();) {
+    if (range.front() == '}') {
+      range.advance(1);
+      return obj;
+    }
+
+    range = plx::SkipWhitespace(range);
+    auto key = plx::DecodeString(range);
+
+    range = plx::SkipWhitespace(range);
+    if (range.front() != ':')
+      throw plx::CodecException(__LINE__, nullptr);
+    if (range.advance(1) <= 0)
+      throw plx::CodecException(__LINE__, nullptr);
+    
+    range = plx::SkipWhitespace(range);
+    obj[key] = ParseJsonValue(range);
+
+    range = plx::SkipWhitespace(range);
+    if (range.front() == ',') {
+      if (range.advance(1) <= 0)
+        break;
+      range = plx::SkipWhitespace(range);
+    }
+  }
+  throw plx::CodecException(__LINE__, nullptr);
+}
+
 } // namespace JsonImp
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
@@ -78,6 +115,8 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   if (range.empty())
     throw plx::CodecException(__LINE__, NULL);
 
+  if (range.front() == '{')
+    return JsonImp::ParseObject(range);
   if (range.front() == '\"')
     return plx::DecodeString(range);
   if (range.front() == '[')

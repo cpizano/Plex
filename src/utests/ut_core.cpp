@@ -643,5 +643,31 @@ void Test_Parse_JSON::Exec() {
     CheckEQ(value[2].type(), plx::JsonType::DOUBLE);
     CheckEQ(value[3].type(), plx::JsonType::INT64);
   }
+
+  {
+    auto json = plx::RangeFromLitStr(R"({})");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"({"ip": "8.8.8.8"})");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+    CheckEQ(value.size(), 1);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"(
+      {
+         "object_or_array": "object",
+         "empty": false,
+         "parse_time_nanoseconds": 19608,
+         "validate": true,
+         "size": 1
+      }
+    )");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+    CheckEQ(value.size(), 5);
+  }
 }
 

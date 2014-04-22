@@ -909,6 +909,43 @@ plx::JsonValue ParseNumber(plx::Range<const char>& range) {
   return dv;
 }
 
+plx::JsonValue ParseObject(plx::Range<const char>& range) {
+  if (range.empty())
+    throw plx::CodecException(__LINE__, NULL);
+  if (range.front() != '{')
+    throw plx::CodecException(__LINE__, NULL);
+
+  JsonValue obj(plx::JsonType::OBJECT);
+  range.advance(1);
+
+  for (;!range.empty();) {
+    if (range.front() == '}') {
+      range.advance(1);
+      return obj;
+    }
+
+    range = plx::SkipWhitespace(range);
+    auto key = plx::DecodeString(range);
+
+    range = plx::SkipWhitespace(range);
+    if (range.front() != ':')
+      throw plx::CodecException(__LINE__, nullptr);
+    if (range.advance(1) <= 0)
+      throw plx::CodecException(__LINE__, nullptr);
+
+    range = plx::SkipWhitespace(range);
+    obj[key] = ParseJsonValue(range);
+
+    range = plx::SkipWhitespace(range);
+    if (range.front() == ',') {
+      if (range.advance(1) <= 0)
+        break;
+      range = plx::SkipWhitespace(range);
+    }
+  }
+  throw plx::CodecException(__LINE__, nullptr);
+}
+
 } // namespace JsonImp
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
@@ -916,6 +953,8 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   if (range.empty())
     throw plx::CodecException(__LINE__, NULL);
 
+  if (range.front() == '{')
+    return JsonImp::ParseObject(range);
   if (range.front() == '\"')
     return plx::DecodeString(range);
   if (range.front() == '[')
@@ -1645,5 +1684,39 @@ void Test_Parse_JSON::Exec() {
     CheckEQ(value[1].type(), plx::JsonType::INT64);
     CheckEQ(value[2].type(), plx::JsonType::DOUBLE);
     CheckEQ(value[3].type(), plx::JsonType::INT64);
+  }
+
+  {
+    auto json = plx::RangeFromLitStr(R"({})");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"({"ip": "8.8.8.8"})");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+    CheckEQ(value.size(), 1);
+  }
+  {
+    auto json = plx::RangeFromLitStr(R"(
+      {
+         "object_or_array": "object",
+         "empty": false,
+         "parse_time_nanoseconds": 19608,
+         "validate": true,
+         "size": 1
+      }
+    )"
+
+
+
+
+
+
+
+      );
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::OBJECT);
+    CheckEQ(value.size(), 5);
   }
 }
