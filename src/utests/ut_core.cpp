@@ -589,7 +589,24 @@ void Test_Parse_JSON::Exec() {
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::NULLT);
   }
-
+  {
+    auto json = plx::RangeFromLitStr("555555555555");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::INT64);
+    CheckEQ(value.get_int64(), 555555555555LL);
+  }
+  {
+    auto json = plx::RangeFromLitStr("-2");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::INT64);
+    CheckEQ(value.get_int64(), -2LL);
+  }
+  {
+    auto json = plx::RangeFromLitStr("-22.01");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::DOUBLE);
+    CheckEQ(value.get_double(), -22.01);
+  }
   {
     auto json = plx::RangeFromLitStr(R"([true])");
     auto value = plx::ParseJsonValue(json);

@@ -881,16 +881,12 @@ plx::JsonValue ParseNumber(plx::Range<const char>& range) {
   auto num = plx::StringFromRange(range);
 
   auto iv = std::stoll(num, &pos);
-  if (pos > range.size())
-    throw plx::CodecException(__LINE__, nullptr);
   if ((range[pos] != 'e') && (range[pos] != 'E') && (range[pos] != '.')) {
     range.advance(pos);
     return iv;
   }
 
   auto dv = std::stod(num, &pos);
-  if (pos > range.size())
-    throw plx::CodecException(__LINE__, nullptr);
   range.advance(pos);
   return dv;
 }
@@ -1578,7 +1574,24 @@ void Test_Parse_JSON::Exec() {
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::NULLT);
   }
-
+  {
+    auto json = plx::RangeFromLitStr("555555555555");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::INT64);
+    CheckEQ(value.get_int64(), 555555555555LL);
+  }
+  {
+    auto json = plx::RangeFromLitStr("-2");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::INT64);
+    CheckEQ(value.get_int64(), -2LL);
+  }
+  {
+    auto json = plx::RangeFromLitStr("-22.01");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::DOUBLE);
+    CheckEQ(value.get_double(), -22.01);
+  }
   {
     auto json = plx::RangeFromLitStr(R"([true])");
     auto value = plx::ParseJsonValue(json);

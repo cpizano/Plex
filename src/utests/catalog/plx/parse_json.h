@@ -61,16 +61,12 @@ plx::JsonValue ParseNumber(plx::Range<const char>& range) {
   auto num = plx::StringFromRange(range);
 
   auto iv = std::stoll(num, &pos);
-  if (pos > range.size())
-    throw plx::CodecException(__LINE__, nullptr);
   if ((range[pos] != 'e') && (range[pos] != 'E') && (range[pos] != '.')) {
     range.advance(pos);
     return iv;
   }
 
   auto dv = std::stod(num, &pos);
-  if (pos > range.size())
-    throw plx::CodecException(__LINE__, nullptr);
   range.advance(pos);
   return dv;  
 }
