@@ -12,7 +12,7 @@ std::string DecodeString(plx::Range<const char>& range) {
   std::string s;
   for (;;) {
     auto text_start = range.start();
-    while (range.advance(1)) {
+    while (range.advance(1) > 0) {
       auto c = range.front();
       if (c < 32) {
         throw plx::CodecException(__LINE__, nullptr);  //#~ln(plx.ds.zer)
@@ -32,7 +32,7 @@ std::string DecodeString(plx::Range<const char>& range) {
 
   escape:
     s.append(++text_start, range.start());
-    if (!range.advance(1))
+    if (range.advance(1) <= 0)
       throw plx::CodecException(__LINE__, nullptr);  //#~ln(plx.ds.mes)
 
     switch (range.front()) {
@@ -43,7 +43,7 @@ std::string DecodeString(plx::Range<const char>& range) {
       case 'f':   s.push_back('\f'); break;
       case 'n':   s.push_back('\n'); break;
       case 'r':   s.push_back('\r'); break;
-      case 't':   s.push_back('\t'); break;
+      case 't':   s.push_back('\t'); break;   //$$ missing \u (unicode).
       default: {
         auto r = plx::RangeFromBytes(range.start() - 1, 2);
         throw plx::CodecException(__LINE__, &r);

@@ -130,6 +130,22 @@ class CpuId {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::RangeException
+//
+class RangeException : public plx::Exception {
+  void* ptr_;
+public:
+  RangeException(int line, void* ptr)
+      : Exception(line, "Invalid Range"), ptr_(ptr) {
+    PostCtor();
+  }
+
+  void* pointer() const {
+    return ptr_;
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::ItRange
 // s_ : first element
 // e_ : one past the last element
@@ -179,6 +195,8 @@ public:
   }
 
   RefT front() const {
+    if (s_ >= e_)
+      throw plx::RangeException(__LINE__, nullptr);
     return s_[0];
   }
 
@@ -230,12 +248,12 @@ public:
     return copied;
   }
 
-  bool advance(size_t count) {
+  intptr_t advance(size_t count) {
     auto ns = s_ + count;
     if (ns > e_)
-      return false;
+      return (e_ - ns);
     s_ = ns;
-    return true;
+    return size();
   }
 
   void clear() {
@@ -301,6 +319,20 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::IOException
+// error_code_ : The win32 error code of the last operation.
+class InvalidParamException : public plx::Exception {
+  int parameter_;
+
+public:
+  InvalidParamException(int line, int parameter)
+      : Exception(line, "Invalid parameter"), parameter_(parameter) {
+    PostCtor();
+  }
+  int Parameter() const { return parameter_; }
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::CodecException
 // bytes_ : The 16 bytes or less that caused the issue.
 class CodecException : public plx::Exception {
@@ -319,84 +351,6 @@ public:
     return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
   }
 };
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::IOException
-// error_code_ : The win32 error code of the last operation.
-class InvalidParamException : public plx::Exception {
-  int parameter_;
-
-public:
-  InvalidParamException(int line, int parameter)
-      : Exception(line, "Invalid parameter"), parameter_(parameter) {
-    PostCtor();
-  }
-  int Parameter() const { return parameter_; }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8
-//
-// bits encoding
-// 7    0xxxxxxx
-// 11   110xxxxx 10xxxxxx
-// 16   1110xxxx 10xxxxxx 10xxxxxx
-// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
-// max point is then U+10FFFF.
-static const uint32_t Utf8BitMask[] = {
-  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
-  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
-  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
-  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
-};
-
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
-  if (!ir.valid() || (ir.size() == 0))
-    throw plx::CodecException(__LINE__, nullptr);
-
-  unsigned char fst = ir[0];
-  if (!(fst & 0x80)) {
-    // One byte sequence, so we are done.
-    ir.advance(1);
-    return fst;
-  }
-
-  if ((fst & 0xC0) != 0xC0)
-    throw plx::CodecException(__LINE__, &ir);
-
-  uint32_t d = fst;
-  fst <<= 1;
-
-  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
-
-    if ((tmp & 0xC0) != 0x80)
-      throw plx::CodecException(__LINE__, &ir);
-
-    d = (d << 6) | (tmp & 0x3F);
-    fst <<= 1;
-
-    if (!(fst & 0x80)) {
-      d &= Utf8BitMask[i];
-
-      // overlong check.
-      if ((d & ~Utf8BitMask[i - 1]) == 0)
-        throw plx::CodecException(__LINE__, &ir);
-
-      // surrogate check.
-      if (i == 2) {
-        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
-          throw plx::CodecException(__LINE__, &ir);
-      }
-
-      ir.advance(i + 1);
-      return d;
-    }
-
-  }
-  throw plx::CodecException(__LINE__, &ir);
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::JsonType
@@ -780,7 +734,7 @@ std::string DecodeString(plx::Range<const char>& range) {
   std::string s;
   for (;;) {
     auto text_start = range.start();
-    while (range.advance(1)) {
+    while (range.advance(1) > 0) {
       auto c = range.front();
       if (c < 32) {
         throw plx::CodecException(__LINE__, nullptr);
@@ -800,7 +754,7 @@ std::string DecodeString(plx::Range<const char>& range) {
 
   escape:
     s.append(++text_start, range.start());
-    if (!range.advance(1))
+    if (range.advance(1) <= 0)
       throw plx::CodecException(__LINE__, nullptr);
 
     switch (range.front()) {
@@ -811,13 +765,77 @@ std::string DecodeString(plx::Range<const char>& range) {
       case 'f':   s.push_back('\f'); break;
       case 'n':   s.push_back('\n'); break;
       case 'r':   s.push_back('\r'); break;
-      case 't':   s.push_back('\t'); break;
+      case 't':   s.push_back('\t'); break;   //$$ missing \u (unicode).
       default: {
         auto r = plx::RangeFromBytes(range.start() - 1, 2);
         throw plx::CodecException(__LINE__, &r);
       }
     }
   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::DecodeUTF8
+//
+// bits encoding
+// 7    0xxxxxxx
+// 11   110xxxxx 10xxxxxx
+// 16   1110xxxx 10xxxxxx 10xxxxxx
+// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
+// max point is then U+10FFFF.
+static const uint32_t Utf8BitMask[] = {
+  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
+  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
+  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
+  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
+};
+
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+  if (!ir.valid() || (ir.size() == 0))
+    throw plx::CodecException(__LINE__, nullptr);
+
+  unsigned char fst = ir[0];
+  if (!(fst & 0x80)) {
+    // One byte sequence, so we are done.
+    ir.advance(1);
+    return fst;
+  }
+
+  if ((fst & 0xC0) != 0xC0)
+    throw plx::CodecException(__LINE__, &ir);
+
+  uint32_t d = fst;
+  fst <<= 1;
+
+  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
+    unsigned char tmp = ir[i];
+
+    if ((tmp & 0xC0) != 0x80)
+      throw plx::CodecException(__LINE__, &ir);
+
+    d = (d << 6) | (tmp & 0x3F);
+    fst <<= 1;
+
+    if (!(fst & 0x80)) {
+      d &= Utf8BitMask[i];
+
+      // overlong check.
+      if ((d & ~Utf8BitMask[i - 1]) == 0)
+        throw plx::CodecException(__LINE__, &ir);
+
+      // surrogate check.
+      if (i == 2) {
+        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
+          throw plx::CodecException(__LINE__, &ir);
+      }
+
+      ir.advance(i + 1);
+      return d;
+    }
+
+  }
+  throw plx::CodecException(__LINE__, &ir);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -859,7 +877,7 @@ plx::JsonValue ParseArray(plx::Range<const char>& range) {
     range = plx::SkipWhitespace(range);
 
     if (range.front() == ',') {
-      if (!range.advance(1))
+      if (range.advance(1) <= 0)
         break;
       range = plx::SkipWhitespace(range);
     }

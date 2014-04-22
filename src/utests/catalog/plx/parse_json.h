@@ -39,7 +39,7 @@ plx::JsonValue ParseArray(plx::Range<const char>& range) {
     range = plx::SkipWhitespace(range);
 
     if (range.front() == ',') {
-      if (!range.advance(1))
+      if (range.advance(1) <= 0)
         break;
       range = plx::SkipWhitespace(range);
     }
