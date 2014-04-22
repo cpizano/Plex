@@ -30,8 +30,11 @@ void Test_Range::Exec() {
   CheckEQ(copied, 3UL);
 
   plx::Range<const char> range3(range2);
-  range3.advance(3);
+  CheckEQ(range3.advance(3) > 0, true);
   CheckEQ(range3.size(), range2.size() - 3);
+  CheckEQ(range3.front(), 'd');
+
+  CheckEQ(range3.advance(50) < 0, true);
   CheckEQ(range3.front(), 'd');
 
   auto range4 = plx::RangeFromLitStr("12345678");
@@ -55,6 +58,13 @@ void Test_Range::Exec() {
   auto range7 = plx::RangeFromLitStr("12");
   CheckEQ(range4.starts_with(range7), 2);
   CheckEQ(range7.starts_with(range4), 0);
+
+  CheckEQ(range7.advance(2), 0);
+  try {
+    auto c = range7.front();
+    __debugbreak();
+  } catch (plx::RangeException&) {
+  }
 }
 
 void Test_CpuId::Exec() {
