@@ -49,7 +49,9 @@ public:
     return (e_ >= s_);
   }
 
-  RefT front() const {                 //#~ assert(s_ < e_)
+  RefT front() const {
+    if (s_ >= e_)
+      throw plx::RangeException(__LINE__, nullptr);
     return s_[0];
   }
 
@@ -101,12 +103,12 @@ public:
     return copied;
   }
 
-  bool advance(size_t count) {
+  intptr_t advance(size_t count) {
     auto ns = s_ + count;
     if (ns > e_)
-      return false;
+      return (e_ - ns);
     s_ = ns;
-    return true;
+    return size();
   }
 
   void clear() {

@@ -57,6 +57,8 @@ cen(plx::ItRange,
     cs, plx\it_range.h, 1);
 cen(plx::Range,
     cs, plx\range.h, 1);
+cen(plx::RangeException,
+    cs, plx\range_exception.h, 1);
 cen(plx::NextInt,
     cs, plx\next_int.h, 1);
 cen(plx::To,
