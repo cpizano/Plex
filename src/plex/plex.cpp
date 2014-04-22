@@ -1780,6 +1780,8 @@ int GetExternalDefinitions(CppTokenVector& tv,
     return false;
   };
 
+  auto path = tv[0].kelems->src_path;
+
   // Here we assume that the code file consists of a series
   // of statement that can be definitions or declarations.
   // Inside definitions we can have more definitions or 
@@ -1908,7 +1910,11 @@ int GetExternalDefinitions(CppTokenVector& tv,
           }
           if (entity) {
             if (found_xdef.type != XternDef::kInclude) {
-              if (found_xdef.entity == entity) __debugbreak();
+              if (found_xdef.entity == entity) {
+                // self reference, probably full name in the same file. Could ignore
+                // it but best to have the user to fix the reference.
+                throw TokenizerException(path.Raw(), __LINE__, it->line);
+              }
               entity->deps.push_back(found_xdef.entity);
             }
           }
