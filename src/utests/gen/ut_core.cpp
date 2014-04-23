@@ -1707,13 +1707,6 @@ void Test_Parse_JSON::Exec() {
          "size": 1
       }
     )"
-
-
-
-
-
-
-
       );
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::OBJECT);

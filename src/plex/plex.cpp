@@ -2190,6 +2190,20 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 
 }
 
+int CountInnerLFs(Range<char> range) {
+  if (!range.Size())
+    return 0;
+
+  int count = 0; 
+  auto r = range.Start();
+  while(r) {
+    if (*r == '\n')
+      ++count;
+    range.Next(r);
+  }
+  return count;
+}
+
 void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
   int line = 1;
   size_t column = 1;
@@ -2205,6 +2219,13 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
 
     std::string out;
     int ldiff = it->line - line;
+
+    if ((ldiff > 2) && (it->line > 1)) {
+      int innlf = CountInnerLFs((it-1)->range);
+      if (innlf)
+        ldiff = ldiff + 1 - innlf;
+    }
+    
     size_t cdiff =  ldiff ? it->col - 1 : it->col - column;
 
     out.append(ldiff, '\n');
