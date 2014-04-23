@@ -658,9 +658,9 @@ void Test_Parse_JSON::Exec() {
   {
     auto json = plx::RangeFromLitStr(R"(
       {
-         "object_or_array": "object",
+         "kind": "object",
          "empty": false,
-         "parse_time_nanoseconds": 19608,
+         "parse_time_ns": 19608,
          "validate": true,
          "size": 1
       }
@@ -668,6 +668,9 @@ void Test_Parse_JSON::Exec() {
     auto value = plx::ParseJsonValue(json);
     CheckEQ(value.type(), plx::JsonType::OBJECT);
     CheckEQ(value.size(), 5);
+    CheckEQ(value.has_key("kind"), true);
+    CheckEQ(value.has_key("color"), false);
+    CheckEQ(value.has_key("size"), true);
   }
 }
 

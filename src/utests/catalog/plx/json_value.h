@@ -156,6 +156,10 @@ class JsonValue {
     return *GetString();
   }
 
+  bool has_key(const std::string& k) {
+    return (GetObject()->find(k) != end(*GetObject()));
+  }
+
   void push_back(JsonValue&& value) {
     GetArray()->push_back(value);
   }
