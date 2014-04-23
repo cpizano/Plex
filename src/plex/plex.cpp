@@ -2220,14 +2220,16 @@ void WriteOutputFile(File& file, CppTokenVector& src, bool top = true) {
     std::string out;
     int ldiff = it->line - line;
 
-    if ((ldiff > 2) && (it->line > 1)) {
-      int innlf = CountInnerLFs((it-1)->range);
-      if (innlf)
-        ldiff = ldiff + 1 - innlf;
-    }
-    
     size_t cdiff =  ldiff ? it->col - 1 : it->col - column;
 
+    if ((ldiff > 2) && (it->line > 1)) {
+      int innlf = CountInnerLFs((it-1)->range);
+      if (innlf) {
+        ldiff = ldiff - innlf;
+        cdiff = 0;
+      }
+    }
+    
     out.append(ldiff, '\n');
     out.append(cdiff, ' ');
     out.append(ToString(it->range));
