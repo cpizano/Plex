@@ -1,7 +1,8 @@
 //#~def plx::OverflowException
 ///////////////////////////////////////////////////////////////////////////////
-// plx::OverflowException
+// plx::OverflowException (thrown by some numeric converters)
 // kind_ : Type of overflow, positive or negative.
+//
 namespace plx {
 class OverflowException : public plx::Exception {
   plx::OverflowKind kind_;

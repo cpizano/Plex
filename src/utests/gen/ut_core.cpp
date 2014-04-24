@@ -27,6 +27,7 @@
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
+//
 namespace plx {
 class Exception {
   int line_;
@@ -130,7 +131,7 @@ class CpuId {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::RangeException
+// plx::RangeException (thrown by ItRange and others)
 //
 class RangeException : public plx::Exception {
   void* ptr_;
@@ -289,12 +290,15 @@ std::string StringFromRange(const ItRange<U>& r) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Range
+// plx::Range  (alias for ItRange<T*>)
+//
 template <typename T>
 using Range = plx::ItRange<T*>;
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// HexASCII (converts a byte into a two-char readable representation.
+//
 static const char HexASCIITable[] =
     { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -321,6 +325,7 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
 ///////////////////////////////////////////////////////////////////////////////
 // plx::IOException
 // error_code_ : The win32 error code of the last operation.
+//
 class InvalidParamException : public plx::Exception {
   int parameter_;
 
@@ -333,8 +338,9 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CodecException
+// plx::CodecException (thrown by some decoders)
 // bytes_ : The 16 bytes or less that caused the issue.
+//
 class CodecException : public plx::Exception {
   uint8_t bytes_[16];
   size_t count_;
@@ -367,7 +373,8 @@ enum class JsonType {
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::JsonValue
-//
+// type_ : the actual type from the Data union.
+// u_ : the storage for all the possible values.
 template <typename T> using AligedStore =
     std::aligned_storage<sizeof(T), __alignof(T)>;
 
@@ -594,6 +601,8 @@ class JsonValue {
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::ScopeGuardBase
+// dismissed_ : wether or not function_ will be called.
+// function_  : the cleanup function (user defined).
 class ScopeGuardBase {
  protected:
   bool dismissed_;
@@ -646,6 +655,7 @@ MakeGuard(TFunc&& fn) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowKind
+//
 enum class OverflowKind {
   None,
   Positive,
@@ -653,8 +663,9 @@ enum class OverflowKind {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::OverflowException
+// plx::OverflowException (thrown by some numeric converters)
 // kind_ : Type of overflow, positive or negative.
+//
 class OverflowException : public plx::Exception {
   plx::OverflowKind kind_;
 
@@ -712,6 +723,8 @@ long long NextInt(unsigned long long value) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// SkipWhitespace (advances a range as long isspace() is false.
+//
 template <typename T>
 typename std::enable_if<
     sizeof(T) == 1,
@@ -727,6 +740,8 @@ SkipWhitespace(const plx::Range<T>& r) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::DecodeString (decodes a json-style encoded string)
+//
 std::string DecodeString(plx::Range<const char>& range) {
   if (range.empty())
     return std::string();
@@ -779,7 +794,7 @@ std::string DecodeString(plx::Range<const char>& range) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8
+// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
 //
 // bits encoding
 // 7    0xxxxxxx
@@ -788,6 +803,7 @@ std::string DecodeString(plx::Range<const char>& range) {
 // 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
 // The 5 and 6 bytes encoding are no longer valid since RFC 3629.
 // max point is then U+10FFFF.
+//
 static const uint32_t Utf8BitMask[] = {
   (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
   (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
@@ -843,6 +859,8 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::ParseJsonValue
+//
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
 
 namespace JsonImp {
@@ -978,6 +996,7 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::To  (integer to integer type safe cast)
+//
 
 template <bool src_signed, bool tgt_signed>
 struct ToCastHelper;

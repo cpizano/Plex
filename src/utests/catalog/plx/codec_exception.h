@@ -1,7 +1,8 @@
 //#~def plx::CodecException
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CodecException
+// plx::CodecException (thrown by some decoders)
 // bytes_ : The 16 bytes or less that caused the issue.
+//
 namespace plx {
 class CodecException : public plx::Exception {
   uint8_t bytes_[16];

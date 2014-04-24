@@ -1,6 +1,8 @@
 //#~def plx::ScopeGuardBase
 ///////////////////////////////////////////////////////////////////////////////
 // plx::ScopeGuardBase
+// dismissed_ : wether or not function_ will be called.
+// function_  : the cleanup function (user defined).
 namespace plx {
 class ScopeGuardBase {
  protected:

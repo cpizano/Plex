@@ -1,6 +1,8 @@
 //#~def plx::HexASCIITable
 //#~def plx::HexASCII
 ///////////////////////////////////////////////////////////////////////////////
+// HexASCII (converts a byte into a two-char readable representation.
+//
 namespace plx {
 static const char HexASCIITable[] =
     { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };

@@ -1,5 +1,7 @@
 //#~def plx::SkipWhitespace
 ///////////////////////////////////////////////////////////////////////////////
+// SkipWhitespace (advances a range as long isspace() is false.
+//
 namespace plx {
 template <typename T>
 typename std::enable_if<

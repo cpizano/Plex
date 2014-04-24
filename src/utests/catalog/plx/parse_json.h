@@ -1,5 +1,7 @@
-//#~def plx::ParseJson
+//#~def plx::ParseJsonValue
 ///////////////////////////////////////////////////////////////////////////////
+// plx::ParseJsonValue (converts a JSON string into a JsonValue)
+// 
 namespace plx {
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
 

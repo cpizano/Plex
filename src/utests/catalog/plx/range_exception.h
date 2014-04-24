@@ -1,6 +1,6 @@
 //#~def plx::RangeException
 ///////////////////////////////////////////////////////////////////////////////
-// plx::RangeException
+// plx::RangeException (thrown by ItRange and others)
 //
 namespace plx {
 class RangeException : public plx::Exception {

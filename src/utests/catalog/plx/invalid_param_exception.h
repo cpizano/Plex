@@ -1,7 +1,8 @@
 //#~def plx::InvalidParamException
 ///////////////////////////////////////////////////////////////////////////////
-// plx::IOException
-// error_code_ : The win32 error code of the last operation.
+// plx::InvalidParamException
+// parameter_ : the position of the offending parameter, zero if unknown.
+//
 namespace plx {
 class InvalidParamException : public plx::Exception {
   int parameter_;

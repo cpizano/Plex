@@ -1,5 +1,7 @@
 //#~def plx::DecodeString
 ///////////////////////////////////////////////////////////////////////////////
+// plx::DecodeString (decodes a json-style encoded string)
+//
 namespace plx {
 std::string DecodeString(plx::Range<const char>& range) {
   if (range.empty())

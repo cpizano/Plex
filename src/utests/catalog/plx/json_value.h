@@ -1,7 +1,8 @@
 //#~def plx::JsonValue
 ///////////////////////////////////////////////////////////////////////////////
 // plx::JsonValue
-//
+// type_ : the actual type from the Data union.
+// u_ : the storage for all the possible values.
 namespace plx {
 template <typename T> using AligedStore =
     std::aligned_storage<sizeof(T), __alignof(T)>;

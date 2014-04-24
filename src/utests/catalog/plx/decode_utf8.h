@@ -1,6 +1,6 @@
 //#~def plx::DecodeUTF8
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8
+// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
 //
 // bits encoding
 // 7    0xxxxxxx
@@ -9,6 +9,7 @@
 // 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
 // The 5 and 6 bytes encoding are no longer valid since RFC 3629. 
 // max point is then U+10FFFF.
+//
 namespace plx {
 static const uint32_t Utf8BitMask[] = {
   (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
