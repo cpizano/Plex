@@ -1688,15 +1688,9 @@ struct XEntity;
 
 struct XternDef {
   enum Type {
-    kNone,
-    kInclude,  // #in
-    kStruct,   // #st
-    kClass,    // #cs
-    kUnion,    // #un
-    kEnum,     // #en
-    kFunction, // #fn
-    kTypedef,  // #td
-    kConstant, // #kt
+    none,
+    include,
+    item,
   };
 
   Type type;
@@ -1704,14 +1698,14 @@ struct XternDef {
   Range<char> path;
   XEntity* entity;
 
-  XternDef(const Range<char>& name, const Range<char>& path)
-      : type(kNone),
+  XternDef(Type type, const Range<char>& name, const Range<char>& path)
+      : type(type),
         name(name), path(path),
         entity(nullptr) {
   }
 
   XternDef()
-      : type(kNone), entity(nullptr) {
+      : type(none), entity(nullptr) {
   }
 };
 
@@ -1909,7 +1903,7 @@ int GetExternalDefinitions(CppTokenVector& tv,
             Logger::Get().AddExternDef(found_xdef.name, it->line);
           }
           if (entity) {
-            if (found_xdef.type != XternDef::kInclude) {
+            if (found_xdef.type != XternDef::include) {
               if (found_xdef.entity == entity) {
                 // self reference, probably full name in the same file. Could ignore
                 // it but best to have the user to fix the reference.
@@ -1944,62 +1938,49 @@ int GetExternalDefinitions(CppTokenVector& tv,
 
 #pragma region catalog
 
-XternDef MakeXDef(const char* type,
-                  const Range<char>& name,
-                  const Range<char>& path) {
-  XternDef::Type xdt;
-  if (type[0] == 'c' && type[1] == 's')
-    xdt = XternDef::kClass;
-  else if (type[0] == 's' && type[1] == 't')
-    xdt = XternDef::kStruct;
-  else if (type[0] == 'u' && type[1] == 'n')
-    xdt = XternDef::kUnion;
-  else if (type[0] == 'f' && type[1] == 'n')
-    xdt = XternDef::kFunction;
-  else if (type[0] == 'e' && type[1] == 'n')
-    xdt = XternDef::kEnum;
-  else if (type[0] == 'k' && type[1] == 't')
-    xdt = XternDef::kConstant;
-  else if (type[0] == 'i' && type[1] == 'n')
-    xdt = XternDef::kInclude;
-  else
-    throw CatalogException(__LINE__, 0);
-
-  XternDef xdef(name, path);
-  xdef.type = xdt;
-  return xdef;
-}
-
 void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
-  for(auto it = begin(tv); it->type != CppToken::eos; ++it) {
-    if (it->type == CppToken::identifier) {
-      if (EqualToStr(*it, "end"))
-        break;
-      if (!EqualToStr(*it, "cen"))
-        continue;
-      ++it;
-      if (it->type != CppToken::open_paren)
-        throw CatalogException(__LINE__, it->line);
-      ++it;
+  auto it = begin(tv);
+  auto kind = XternDef::none;
+
+  for (;;) {
+    // find block.
+    for( ; it->type != CppToken::open_cur_bracket; ++it) {
+      if (it->type == CppToken::eos) {
+        if (defs.empty())
+          throw CatalogException(__LINE__, 0);
+        else
+          return;
+      }  
+    }
+    // find block kind.
+    if (EqualToStr(*(it - 2), "include")) {
+      kind = XternDef::include;
+    } else if (EqualToStr(*(it - 2), "catalog")) {
+      kind = XternDef::item;
+    } else {
+      throw CatalogException(__LINE__, it->line);
+    }
+    
+    ++it;
+    // process block.    
+    for( ; it->type != CppToken::close_cur_bracket; ++it) {
       if (it->type != CppToken::identifier)
         throw CatalogException(__LINE__, it->line);
-      auto it2 = it + 1;
-      if (it2->type != CppToken::comma)
-        throw CatalogException(__LINE__, it->line);
-      ++it2;
-      auto it3 = it2 + 1;
-      if (it3->type != CppToken::comma)
-        throw CatalogException(__LINE__, it->line);
-      ++it3;
-      auto it4 = it3;
-      for (; it4->type != CppToken::comma; ++it4) {}
-      CoaleseToken(it3, it4 - 1, CppToken::const_str);
-      tv.erase(it3 + 1, it4);
-
-      defs[ToString(*it)] = MakeXDef(it2->range.Start(), it->range, it3->range);
-      it = ++it3;
+      auto key = it;
+      ++it;
+      auto val = it;
+      for (; it->type != CppToken::semicolon; ++it) {
+        if (it->type ==  CppToken::eos)
+          throw CatalogException(__LINE__, it->line);
+      }
+      // insert one entry.
+      CoaleseToken(val, it - 1, CppToken::const_str);
+      it = tv.erase(val + 1, it);
+      defs[ToString(*key)] = XternDef(kind, key->range, val->range);
     }
+    ++it;
   }
+
 }
 
 #pragma endregion
@@ -2038,7 +2019,7 @@ XEntities LoadEntities(XternDefs& xdefs, const FilePath& path) {
     if (def.entity->tv)
       continue;
     // Load, tokenize and lex.
-    if (it->second.type == XternDef::kInclude) {
+    if (it->second.type == XternDef::include) {
       ents.includes.push_back(XInclude(def));
     } else {
       auto tok = new CppTokenVector(TokenizeCpp(path.Append(AsciiToUTF16(def.path))));

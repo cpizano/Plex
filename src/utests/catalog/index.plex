@@ -1,86 +1,62 @@
-// #index.plex [index v1].
-// cs : class
-// st : struct
-// fn : function
-// un : union
-// en : enum
-// kt : constant
-// td : typedef
-// in : include
+// #index.plex [index v2].
 
-cen(std::array, in, <array>, 1);
-cen(std::bind, in, <functional>, 1);
-cen(std::initializer_list, in, <initializer_list>, 1);
-cen(std::isspace, in, <cctype>, 1);
-cen(std::isdigit, in, <cctype>, 1);
-cen(std::iterator_traits, in, <iterator>, 1);
-cen(std::map, in, <map>, 1);
-cen(std::max, in, <algorithm>, 1);
-cen(std::min, in, <algorithm>, 1);
-cen(std::move, in, <utility>, 1);
-cen(std::numeric_limits, in, <limits>, 1);
-cen(std::pair, in, <utility>, 1);
-cen(std::remove_reference, in, <type_traits>, 1);
-cen(std::stod, in, <string>, 1);
-cen(std::stoll, in, <string>, 1);
-cen(std::string, in, <string>, 1);
-cen(std::stringstream, in, <sstream>, 1);
-cen(std::to_string, in, <string>, 1);
-cen(std::u32string, in, <string>, 1);
-cen(std::unique_ptr, in, <memory>, 1);
-cen(std::unordered_map, in, <unordered_map>, 1);
-cen(std::vector, in, <vector>, 1);
-cen(std::wstring, in, <string>, 1);
+include 1 {
+  std::array <array>;
+  std::bind <functional>;
+  std::initializer_list <initializer_list>;
+  std::isspace <cctype>;
+  std::isdigit <cctype>;
+  std::iterator_traits <iterator>;
+  std::map <map>;
+  std::max <algorithm>;
+  std::min <algorithm>;
+  std::move <utility>;
+  std::numeric_limits <limits>;
+  std::pair <utility>;
+  std::remove_reference <type_traits>;
+  std::stod <string>;
+  std::stoll <string>;
+  std::string <string>;
+  std::stringstream <sstream>;
+  std::to_string <string>;
+  std::u32string <string>;
+  std::unique_ptr <memory>;
+  std::unordered_map <unordered_map>;
+  std::vector <vector>;
+  std::wstring <string>;
+}
 
-cen(uint32_t, in, <stdint.h>, 1);
-cen(wmain, in, <SDKDDKVer.h>, 1);
-cen(::IsDebuggerPresent, in, <windows.h>, 1);
-cen(::GetLastError, in, <windows.h>, 1);
-cen(DWORD, in, <windows.h>, 1);
-cen(__cpuid, in, <intrin.h>, 1);
-cen(printf, in, <stdio.h>, 1);
-cen(memcmp, in, <string.h>, 1);
+include 2 {
+  uint32_t <stdint.h>;
+  wmain <SDKDDKVer.h>;
+  ::IsDebuggerPresent <windows.h>;
+  ::GetLastError <windows.h>;
+  DWORD <windows.h>;
+  __cpuid <intrin.h>;
+  printf <stdio.h>;
+  memcmp <string.h>;
+}
 
-cen(plx::OverflowKind,
-    cs, plx\overflow_kind.h, 1);
-cen(plx::Exception,
-    cs, plx\exception.h, 1);
-cen(plx::IOException,
-    cs, plx\io_exception.h, 1);
-cen(plx::OverflowException,
-    cs, plx\overflow_exception.h, 1);
-cen(plx::CodecException,
-    cs, plx\codec_exception.h, 1);
-cen(plx::CpuId,
-    cs, plx\cpu_id.h, 1);
-cen(plx::ItRange,
-    cs, plx\it_range.h, 1);
-cen(plx::Range,
-    cs, plx\range.h, 1);
-cen(plx::RangeException,
-    cs, plx\range_exception.h, 1);
-cen(plx::NextInt,
-    cs, plx\next_int.h, 1);
-cen(plx::To,
-    cs, plx\to.h, 1);
-cen(plx::MakeGuard,
-    cs, plx\scope_guard.h, 1);
-cen(plx::DecodeUTF8,
-    cs, plx\decode_utf8.h, 1);
-cen(plx::JsonType,
-    cs, plx\json_type.h, 1);
-cen(plx::JsonValue,
-    cs, plx\json_value.h, 1);
-cen(plx::HexASCII,
-    cs, plx\hex_ascii.h, 1);
-cen(plx::HexASCIIStr,
-    cs, plx\hex_ascii_str.h, 1);
-cen(plx::SkipWhitespace,
-    cs, plx\skip_whitespace.h, 1);
-cen(plx::ParseJsonValue,
-    cs, plx\parse_json.h, 1);
-cen(plx::InvalidParamException,
-    cs, plx\invalid_param_exception.h, 1);
-cen(plx::DecodeString,
-    cs, plx\decode_string.h, 1);
-end();
+catalog 1 {
+  plx::OverflowKind plx\overflow_kind.h;
+  plx::Exception plx\exception.h;
+  plx::IOException plx\io_exception.h;
+  plx::OverflowException plx\overflow_exception.h;
+  plx::CodecException plx\codec_exception.h;
+  plx::CpuId plx\cpu_id.h;
+  plx::ItRange plx\it_range.h;
+  plx::Range plx\range.h;
+  plx::RangeException plx\range_exception.h;
+  plx::NextInt plx\next_int.h;
+  plx::To plx\to.h;
+  plx::MakeGuard plx\scope_guard.h;
+  plx::DecodeUTF8 plx\decode_utf8.h;
+  plx::JsonType plx\json_type.h;
+  plx::JsonValue plx\json_value.h;
+  plx::HexASCII plx\hex_ascii.h;
+  plx::HexASCIIStr plx\hex_ascii_str.h;
+  plx::SkipWhitespace plx\skip_whitespace.h;
+  plx::ParseJsonValue plx\parse_json.h;
+  plx::InvalidParamException plx\invalid_param_exception.h;
+  plx::DecodeString plx\decode_string.h;
+}
