@@ -35,6 +35,7 @@ include 2 {
   __cpuid <intrin.h>;
   printf <stdio.h>;
   memcmp <string.h>;
+  _mm_crc32_u8 <nmmintrin.h>;
 }
 
 catalog 1 {
@@ -59,4 +60,5 @@ catalog 1 {
   plx::ParseJsonValue plx\parse_json.h;
   plx::InvalidParamException plx\invalid_param_exception.h;
   plx::DecodeString plx\decode_string.h;
+  plx::CRC32C plx\crc32_sse4.h;
 }

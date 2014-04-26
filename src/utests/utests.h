@@ -68,4 +68,5 @@ TEST(Test_Hex);
 TEST(Test_Whitespace);
 TEST(Test_DecodeString);
 TEST(Test_Parse_JSON);
+TEST(Test_CRC32C);
 #undef TEST

@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <intrin.h>
+#include <nmmintrin.h>
 #include <string.h>
 #include <array>
 #include <functional>
@@ -24,11 +25,35 @@
 #include <stdint.h>
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::CRC32C (computes CRC-32 checksum, SSE4 accelerated)
+// Polinomal 0x1EDC6F41 aka iSCSI CRC. This gives a 10^-41 probabilty of not
+// detecting a 3-bit burst error and 10^-40 for sporadic one bit errors.
+//
+namespace plx {
+uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
+  if (len == 0)
+    return crc;
+  crc ^= 0xFFFFFFFF;
+  // Process one byte at a time until aligned.
+  for (; (len > 0) && (reinterpret_cast<uintptr_t>(buf) & 0x07); len--, buf++) {
+    crc = _mm_crc32_u8(crc, *buf);
+  }
+  // Then operate 4 bytes at a time.
+  for (; len >= sizeof(uint32_t); len -= sizeof(uint32_t), buf += sizeof(uint32_t)) {
+    crc = _mm_crc32_u32(crc, *(uint32_t *) (buf));
+  }
+  // Then process at most 3 more bytes.
+  for (; len >= sizeof(uint8_t); len -= sizeof(uint8_t), buf += sizeof(uint8_t)) {
+    crc = _mm_crc32_u8(crc, *(uint32_t *) (buf));
+  }
+  return (crc ^= 0xFFFFFFFF);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
 //
-namespace plx {
 class Exception {
   int line_;
   const char* message_;
@@ -1760,5 +1785,23 @@ void Test_Parse_JSON::Exec() {
     CheckEQ(me0.size(), 0);
     CheckEQ(me1.type(), plx::JsonType::OBJECT);
     CheckEQ(me1.size(), 0);
+  }
+}
+
+void Test_CRC32C::Exec() {
+  plx::CpuId cpu_id;
+  CheckEQ(cpu_id.sse42(), true);
+
+  {
+    char ts[] = "123456789";
+    CheckEQ(plx::CRC32C(0, ts, sizeof(ts) - 1), 0xE3069283);
+  }
+  {
+    char ts[] = " the lazy fox jumps over";
+    CheckEQ(plx::CRC32C(0, ts + 1, sizeof(ts) - 2), 0xEFB0976C);
+  }
+  {
+    char ts[] = "0";
+    CheckEQ(plx::CRC32C(0, ts, sizeof(ts) - 1), 0x629E1AE0);
   }
 }
