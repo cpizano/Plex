@@ -1737,4 +1737,28 @@ void Test_Parse_JSON::Exec() {
     CheckEQ(value.has_key("color"), false);
     CheckEQ(value.has_key("size"), true);
   }
+  {
+    auto json = plx::RangeFromLitStr(R"([{"":[{}]},{"":[{}]}])");
+    auto value = plx::ParseJsonValue(json);
+    CheckEQ(value.type(), plx::JsonType::ARRAY);
+    CheckEQ(value.size(), 2);
+    auto& e0 = value[0];
+    auto& e1 = value[1];
+    CheckEQ(e0.type(), plx::JsonType::OBJECT);
+    CheckEQ(e0.size(), 1);
+    CheckEQ(e1.type(), plx::JsonType::OBJECT);
+    CheckEQ(e1.size(), 1);
+    auto& ne0 = e0[""];
+    auto& ne1 = e1[""];
+    CheckEQ(ne0.type(), plx::JsonType::ARRAY);
+    CheckEQ(ne0.size(), 1);
+    CheckEQ(ne1.type(), plx::JsonType::ARRAY);
+    CheckEQ(ne1.size(), 1);
+    auto& me0 = ne0[0];
+    auto& me1 = ne1[0];
+    CheckEQ(me0.type(), plx::JsonType::OBJECT);
+    CheckEQ(me0.size(), 0);
+    CheckEQ(me1.type(), plx::JsonType::OBJECT);
+    CheckEQ(me1.size(), 0);
+  }
 }
