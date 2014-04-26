@@ -323,8 +323,8 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::IOException
-// error_code_ : The win32 error code of the last operation.
+// plx::InvalidParamException
+// parameter_ : the position of the offending parameter, zero if unknown.
 //
 class InvalidParamException : public plx::Exception {
   int parameter_;
@@ -859,7 +859,7 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::ParseJsonValue
+// plx::ParseJsonValue (converts a JSON string into a JsonValue)
 //
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
 
