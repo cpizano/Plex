@@ -35,7 +35,7 @@ uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
     return crc;
   crc ^= 0xFFFFFFFF;
   // Process one byte at a time until aligned.
-  for (; (len > 0) && (reinterpret_cast<uintptr_t>(buf) & 0x07); len--, buf++) {
+  for (; (len > 0) && (reinterpret_cast<uintptr_t>(buf) & 0x03); len--, buf++) {
     crc = _mm_crc32_u8(crc, *buf);
   }
   // Then operate 4 bytes at a time.
