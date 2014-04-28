@@ -1587,7 +1587,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           if (!ss)
             throw TokenizerException(path, __LINE__, it->line);
           size_t np = ss.tellg();
-          if (np != -1) {
+          if (np != ~0ULL) {
             // failed to fully consume the number. See if we have a
             // base or float or size specificator.
             switch (number[np]) {
@@ -1606,8 +1606,17 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                 if (!ss)
                   throw TokenizerException(path, __LINE__, it->line);
                 np = ss.tellg();
-                if (np != -1)
-                  throw TokenizerException(path, __LINE__, it->line);
+                if ((np > 1) && (np != ~0ULL)) {
+                  switch (number[np]) {
+                    case 'l':
+                    case 'u':
+                    case 'L':
+                    case 'U':
+                      break;
+                    default:
+                      throw TokenizerException(path, __LINE__, it->line);
+                  }
+                }
               }
               break;
               // $$$ handle better the f, l ul u and ll cases.
