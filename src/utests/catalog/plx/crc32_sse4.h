@@ -8,9 +8,9 @@ namespace plx {
 uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
   if (len == 0)
     return crc;
-  crc ^= 0xFFFFFFFF;
+  crc = ~crc;
   // Process one byte at a time until aligned.
-  for (; (len > 0) && (reinterpret_cast<uintptr_t>(buf) & 0x03); len--, buf++) {
+  for (; (len > 0) && (reinterpret_cast<uintptr_t>(buf) & 0x03UL); len--, buf++) {
     crc = _mm_crc32_u8(crc, *buf);
   }
   // Then operate 4 bytes at a time.
@@ -21,6 +21,6 @@ uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
   for (; len >= sizeof(uint8_t); len -= sizeof(uint8_t), buf += sizeof(uint8_t)) {
     crc = _mm_crc32_u8(crc, *(uint32_t *) (buf));
   }
-  return (crc ^= 0xFFFFFFFF);
+  return ~crc;
 }
 }
