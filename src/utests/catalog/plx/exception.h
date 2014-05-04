@@ -3,6 +3,7 @@
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
+//
 namespace plx {
 class Exception {         //#~base class
   int line_;              //#~warn negative
@@ -11,7 +12,7 @@ class Exception {         //#~base class
 protected:
   void PostCtor() {       //#~should derived
     if (::IsDebuggerPresent()) {
-      __debugbreak();
+      //__debugbreak();
     }
   }
 
