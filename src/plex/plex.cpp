@@ -2157,7 +2157,7 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
     }
   }
 
-  // Insert code after the last include.
+  // Insert code after the integer definitions.
   auto lik = kel.includes.find(Range<char>(last_include_key));
   const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
 
