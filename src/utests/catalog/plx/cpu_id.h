@@ -3,6 +3,8 @@
 // plx::CpuId
 // id_ : the four integers returned by the 'cpuid' instruction.
 namespace plx {
+#pragma comment(user, "plex.define=plex_cpuid_support")
+
 class CpuId {
   int id_[4];
 

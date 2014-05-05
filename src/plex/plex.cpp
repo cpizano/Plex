@@ -850,7 +850,7 @@ struct KeyElements {
   FilePath src_path;
   RangeHashTable<size_t> includes;
   std::vector<ScopeBlock> scopes;
-  std::unordered_map<std::string, std::string> properties;
+  std::unordered_map<std::string, std::vector<std::string>> properties;
 
   KeyElements(const FilePath& path) : src_path(path) {
     scopes.reserve(20);
@@ -1190,8 +1190,8 @@ typedef std::vector<CppToken> CppTokenVector;
 
 #pragma region tokenizer
 
-CppTokenVector TokenizeCpp(const FilePath& path) {
-  Range<char> range = LoadFileOnce(path);
+CppTokenVector TokenizeCpp(const FilePath& path, Range<char>* e_range = nullptr) {
+  Range<char> range = e_range ? *e_range : LoadFileOnce(path);
   CppTokenVector tv;
   tv.reserve(range.Size() / 3);
 
@@ -1446,7 +1446,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                 std::string key(ToString(*pit));
                 if ((++pit)->type != CppToken::equal) break;
                 if ((++pit)->type != CppToken::string) break;
-                kelem.properties[key] = ToString(*pit);
+                kelem.properties[key].push_back(ToString(*pit));
                 if ((++pit)->type != CppToken::double_quote)
                   throw TokenizerException(path, __LINE__, it->line);
               } while (false);
@@ -2135,6 +2135,28 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
     kel.includes[incl.src] = pos_include;
   }
 
+  // collect all the plex metadata from #pragma annotations of all dependents.
+  for (auto& e : ent.code) {
+    auto x = e->tv->at(0).kelems;
+    if (!x)
+      continue;
+    for (auto& p : x->properties) {
+      auto& kp = kel.properties[p.first];
+      kp.insert(end(kp), begin(p.second), end(p.second));
+    }
+  }
+
+  // Insert the integer definitions resulting from "plex.define" pragma.
+  auto& idefs = kel.properties["define"];
+  if (!idefs.empty()) {
+    for (auto& idef : idefs) {
+      idef = "const int " + idef + " = 1;";
+      auto idr = FromString(idef);
+      auto idr_tok = TokenizeCpp(FilePath(L"@define@"), &idr);
+      InsertAtToken(in_src[pos_include], Insert::keep_original, idr_tok);
+    }
+  }
+
   // Insert code after the last include.
   auto lik = kel.includes.find(Range<char>(last_include_key));
   const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
@@ -2295,11 +2317,19 @@ void DumpTokens(const CppTokenVector& src, std::ostream& oss) {
   }
 }
 
+void DumpPropertyArray(const std::vector<std::string>& vos, std::ostream& oss) {
+  for (auto& e : vos) {
+    oss << e << ", ";
+  }
+  oss << std::endl;
+}
+
 void DumpKeyElements(const KeyElements& kel, std::ostream& oss) {
   if (kel.properties.size())
     oss << "properties: " << kel.properties.size() << std::endl;
-  for (auto e : kel.properties) {
-    oss << e.first << " = " << e.second << std::endl;
+  for (auto& e : kel.properties) {
+    oss << e.first << " = ";
+    DumpPropertyArray(e.second, oss);
   }
 }
 

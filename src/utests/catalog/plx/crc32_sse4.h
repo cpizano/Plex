@@ -4,8 +4,9 @@
 // Polinomal 0x1EDC6F41 aka iSCSI CRC. This gives a 10^-41 probabilty of not
 // detecting a 3-bit burst error and 10^-40 for sporadic one bit errors.
 //
-// #~req sse4.2
 namespace plx {
+#pragma comment(user, "plex.define=plex_sse42_support")
+
 uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
   if (len == 0)
     return crc;
