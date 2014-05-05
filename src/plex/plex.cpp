@@ -10,12 +10,27 @@
 // like #includes and to allow expressing in code that today requires bespoke tools
 // and auxiliary files in json or xml.
 //
-// There are 2 main phases of operation on a single CPP:
-// 1- tokenization: basically generate a vector of CppTokens that
-//    represent string runs, numbers, parens and such.
-// 2- lexical lift: a second pass on the vector of step 1 converts the
-//    tokens in place into c++ elements, like pragmas and c++ reserved
-//    words, c++ literals, etc.
+// Phases of operation
+// 1. Tokenize and lex (lexical lift) the input .cc file
+// 2. Load the index.plex file
+// 3. Find the input dependencies can be resolved by the items in the index.plex
+// 4. For each dependency do:
+//    4.1 Tokenize and lex the file that contains it.
+//    4.2 Find the dependencies of it that can be resolved by the index.plex
+//    4.3 Add the dependencies to the dependency list.
+// 5. At this point there is a dependency graph, rooted at the input file then:
+//    5.1 Confirm that there are no circular dependencies.
+//    5.2 Arrange the #include dependencies in alphabetical order. 
+//    5.3 Arrange the other depencies in a reasonable order.
+// 6. Inject the dependencies into the input token stream.
+// 7. Stream to a file the modified input stream.
+//
+// Terminology:
+// Tokenization: basically generate a vector of CppTokens that represent string
+// runs, numbers, keywords, parens and such.
+//
+// Lexical lift: a second pass on the vector of step 1 converts the tokens in
+// place into c++ elements, like pragmas, defines, comments, c++ literals, etc.
 //
 // For example of phase 2:
 // a c++ comment '// blah blah' is represented as a single token and so are the
