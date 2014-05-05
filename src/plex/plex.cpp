@@ -2162,9 +2162,9 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   }
 
   // Insert the integer definitions resulting from "plex.define" pragma.
-  auto& idefs = kel.properties["define"];
-  if (!idefs.empty()) {
-    for (auto& idef : idefs) {
+  auto idefs = kel.properties.find("define");
+  if (idefs != end(kel.properties)) {
+    for (auto& idef : idefs->second) {
       idef = "const int " + idef + " = 1;";
       auto idr = FromString(idef);
       auto idr_tok = TokenizeCpp(FilePath(L"@define@"), &idr);
@@ -2343,7 +2343,7 @@ void DumpKeyElements(const KeyElements& kel, std::ostream& oss) {
   if (kel.properties.size())
     oss << "properties: " << kel.properties.size() << std::endl;
   for (auto& e : kel.properties) {
-    oss << e.first << " = ";
+    oss << "  +" << e.first << " = ";
     DumpPropertyArray(e.second, oss);
   }
 }
