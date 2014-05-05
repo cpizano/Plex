@@ -952,6 +952,7 @@ struct CppToken {
     ass_right_shift,
     // All c++ keywords must be alphabetically arranged in the kw_start --> kw_end block.
     kw_start,
+    kw_if_exists,   // Microsoft specific __if_exists
     kw_alignas,     // new in c++11
     kw_alignof,     // new in c++11
     kw_and,
@@ -1124,6 +1125,7 @@ size_t FindToken(T (&kw)[count], const Range<char>& r) {
 CppToken::Type GetCppKeywordType(const Range<char>& r) {
   // The 86 c++11 keywords.
   const char* kw[] = {
+    "__if_exists",
     "alignas", "alignof", "and", "and_eq",
     "asm", "auto", "bitand", "bitor",
     "bool", "break", "case", "catch",
