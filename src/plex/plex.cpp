@@ -45,7 +45,8 @@
 // 020 handle namespace alias 'namespace foo = bar::doo'.
 // 021 handle enum <type> class.
 // 023 add NOMINMAX macro when required.
-// 024 plx::DecodeString missing features
+// 024 plx::DecodeString missing features.
+// 025 is_drive if filepath is buggy.
 //
 // Medium term
 // ---------------------------
@@ -2142,7 +2143,7 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
   // is wrong. Easy to detect but hard to fix completely. We try
   // several times exchanging the order.
   if (ent.code.size() > 1) {
-    int tries = 14;
+    int tries = 20;
     bool go_again = true;
     while ((--tries != 0) && go_again) {
       go_again = false;
