@@ -720,4 +720,32 @@ void Test_CRC32C::Exec() {
   }
 }
 
+void Test_FilePath::Exec() {
+  plx::FilePath fp1(L"C:\\1\\2\\file.ext");
+  CheckEQ(std::wstring(L"C:\\1\\2\\file.ext"), fp1.raw());
+  CheckEQ(std::wstring(L"file.ext"), fp1.leaf());
+  CheckEQ(fp1.has_drive(), true);
+  CheckEQ(fp1.is_drive(), false);
 
+  auto fp2 = fp1.parent();
+  CheckEQ(std::wstring(L"C:\\1\\2"), fp2.raw());
+  CheckEQ(std::wstring(L"2"), fp2.leaf());
+
+  auto fp3 = fp2.parent();
+  CheckEQ(std::wstring(L"C:\\1"), fp3.raw());
+  CheckEQ(std::wstring(L"1"), fp3.leaf());
+
+  auto fp4 = fp3.parent();
+  CheckEQ(std::wstring(L"C:"), fp4.raw());
+  CheckEQ(fp4.is_drive(), true);
+  CheckEQ(std::wstring(L""), fp4.leaf());
+
+  auto fp5 = fp4.parent();
+  CheckEQ(std::wstring(L""), fp5.raw());
+
+  auto fp6 = fp4.append(L"one").append(L"two");
+  CheckEQ(std::wstring(L"C:\\one\\two"), fp6.raw());
+
+  auto fp7 = fp5.append(L"4\\5");
+  CheckEQ(std::wstring(L"4\\5"), fp7.raw());
+}

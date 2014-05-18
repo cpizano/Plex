@@ -45,6 +45,7 @@ catalog 1 {
   plx::CodecException plx\exceptions\codec.h;
   plx::RangeException plx\exceptions\range.h;
   plx::InvalidParamException plx\exceptions\invalid_param.h;
+  plx::FilePath plx\io\file_path.h;
   plx::OverflowKind plx\overflow_kind.h;
   plx::CpuId plx\cpu_id.h;
   plx::ItRange plx\it_range.h;

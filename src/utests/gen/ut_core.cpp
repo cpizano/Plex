@@ -326,6 +326,26 @@ std::string StringFromRange(const ItRange<U>& r) {
 template <typename T>
 using Range = plx::ItRange<T*>;
 
+///////////////////////////////////////////////////////////////////////////////
+// plx::IOException
+// error_code_ : The win32 error code of the last operation.
+// name_ : The file or pipe in question.
+//
+class IOException : public plx::Exception {
+  DWORD error_code_;
+  const std::wstring name_;
+
+public:
+  IOException(int line, const wchar_t* name)
+      : Exception(line, "IO problem"),
+        error_code_(::GetLastError()),
+        name_(name) {
+    PostCtor();
+  }
+  DWORD ErrorCode() const { return error_code_; }
+  const wchar_t* Name() const { return name_.c_str(); }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // HexASCII (converts a byte into a two-char readable representation.
@@ -352,6 +372,78 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
   }
   return str;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::FilePath
+// line_ : The line of code, usually __LINE__.
+// message_ : Whatever useful text.
+//
+class FilePath {
+private:
+  std::wstring path_;
+  friend class File;
+
+public:
+  explicit FilePath(const wchar_t* path)
+    : path_(path) {
+  }
+
+  explicit FilePath(const std::wstring& path)
+    : path_(path) {
+  }
+
+  FilePath parent() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos)
+      return FilePath();
+    return FilePath(path_.substr(0, pos));
+  }
+
+  std::wstring leaf() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos) {
+      return is_drive() ? std::wstring() : path_;
+    }
+    return path_.substr(pos + 1);
+  }
+
+  FilePath append(const std::wstring& name) const {
+    if (name.empty())
+      throw plx::IOException(__LINE__, path_.c_str());
+
+    std::wstring full(path_);
+    if (!path_.empty())
+      full.append(1, L'\\');
+    full.append(name);
+    return FilePath(full);
+  }
+
+  bool is_drive() const {
+    return (path_.size() != 2) ? false : drive_impl();
+  }
+
+  bool has_drive() const {
+    return (path_.size() < 2) ? false : drive_impl();
+  }
+
+  const wchar_t* raw() const {
+    return path_.c_str();
+  }
+
+private:
+  FilePath() {}
+
+  bool drive_impl() const {
+    if (path_[1] != L':')
+      return false;
+    auto dl = path_[0];
+    if ((dl >= L'A') && (dl <= L'Z'))
+      return true;
+    if ((dl >= L'a') && (dl <= L'z'))
+      return true;
+    return false;
+  }
+};
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::InvalidParamException
@@ -1825,4 +1917,34 @@ void Test_CRC32C::Exec() {
     char ts[] = "0";
     CheckEQ(plx::CRC32C(0, ts, sizeof(ts) - 1), 0x629E1AE0);
   }
+}
+
+void Test_FilePath::Exec() {
+  plx::FilePath fp1(L"C:\\1\\2\\file.ext");
+  CheckEQ(std::wstring(L"C:\\1\\2\\file.ext"), fp1.raw());
+  CheckEQ(std::wstring(L"file.ext"), fp1.leaf());
+  CheckEQ(fp1.has_drive(), true);
+  CheckEQ(fp1.is_drive(), false);
+
+  auto fp2 = fp1.parent();
+  CheckEQ(std::wstring(L"C:\\1\\2"), fp2.raw());
+  CheckEQ(std::wstring(L"2"), fp2.leaf());
+
+  auto fp3 = fp2.parent();
+  CheckEQ(std::wstring(L"C:\\1"), fp3.raw());
+  CheckEQ(std::wstring(L"1"), fp3.leaf());
+
+  auto fp4 = fp3.parent();
+  CheckEQ(std::wstring(L"C:"), fp4.raw());
+  CheckEQ(fp4.is_drive(), true);
+  CheckEQ(std::wstring(L""), fp4.leaf());
+
+  auto fp5 = fp4.parent();
+  CheckEQ(std::wstring(L""), fp5.raw());
+
+  auto fp6 = fp4.append(L"one").append(L"two");
+  CheckEQ(std::wstring(L"C:\\one\\two"), fp6.raw());
+
+  auto fp7 = fp5.append(L"4\\5");
+  CheckEQ(std::wstring(L"4\\5"), fp7.raw());
 }

@@ -11,7 +11,7 @@ class IOException : public plx::Exception {
 
 public:
   IOException(int line, const wchar_t* name)
-      : PlexException(line, "IO problem"),
+      : Exception(line, "IO problem"),
         error_code_(::GetLastError()),
         name_(name) {
     PostCtor();

@@ -41,6 +41,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_DecodeString().Run();
     Test_Parse_JSON().Run();
     Test_CRC32C().Run();
+    Test_FilePath().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
