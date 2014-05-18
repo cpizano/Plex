@@ -39,15 +39,16 @@ include 2 {
 }
 
 catalog 1 {
+  plx::Exception plx\exceptions\exception.h;
+  plx::IOException plx\exceptions\io.h;
+  plx::OverflowException plx\exceptions\overflow.h;
+  plx::CodecException plx\exceptions\codec.h;
+  plx::RangeException plx\exceptions\range.h;
+  plx::InvalidParamException plx\exceptions\invalid_param.h;
   plx::OverflowKind plx\overflow_kind.h;
-  plx::Exception plx\exception.h;
-  plx::IOException plx\io_exception.h;
-  plx::OverflowException plx\overflow_exception.h;
-  plx::CodecException plx\codec_exception.h;
   plx::CpuId plx\cpu_id.h;
   plx::ItRange plx\it_range.h;
   plx::Range plx\range.h;
-  plx::RangeException plx\range_exception.h;
   plx::NextInt plx\next_int.h;
   plx::To plx\to.h;
   plx::MakeGuard plx\scope_guard.h;
@@ -58,7 +59,6 @@ catalog 1 {
   plx::HexASCIIStr plx\hex_ascii_str.h;
   plx::SkipWhitespace plx\skip_whitespace.h;
   plx::ParseJsonValue plx\parse_json.h;
-  plx::InvalidParamException plx\invalid_param_exception.h;
   plx::DecodeString plx\decode_string.h;
   plx::CRC32C plx\crc32_sse4.h;
   plx::PlatformCheck plx\platform_check.h;
