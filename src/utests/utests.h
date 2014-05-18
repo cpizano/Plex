@@ -58,6 +58,7 @@ private:\
   virtual void Exec() override;\
 }
 
+TEST(Test_PlatformCheck);
 TEST(Test_Range);
 TEST(Test_CpuId);
 TEST(Test_To_Integer);

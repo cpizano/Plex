@@ -866,6 +866,7 @@ struct KeyElements {
   RangeHashTable<size_t> includes;
   std::vector<ScopeBlock> scopes;
   std::unordered_map<std::string, std::vector<std::string>> properties;
+  std::unordered_map<size_t, size_t> if_exists;
 
   KeyElements(const FilePath& path) : src_path(path) {
     scopes.reserve(20);
@@ -1555,7 +1556,6 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           scopes.pop_back();
         }
         break;
-
         default : {
           // Handle the two char token case
           auto tt_type = GetTwoTokenType(*it, *(it + 1));
@@ -1801,6 +1801,15 @@ int GetExternalDefinitions(CppTokenVector& tv,
   };
 
   auto path = tv[0].kelems->src_path;
+  auto& scopes = tv[0].kelems->scopes;
+
+  auto GetEndScope = [&scopes](size_t start) -> size_t {
+    for (auto& s : scopes) {
+      if (s.start == start)
+        return s.end;
+    }
+    return 0;
+  };
 
   // Here we assume that the code file consists of a series
   // of statement that can be definitions or declarations.
@@ -1851,6 +1860,31 @@ int GetExternalDefinitions(CppTokenVector& tv,
         enclosing_definition.pop_back();
       }
       continue;
+      
+    } else if (it->type == CppToken::kw_if_exists) {
+      // Skip everything inside a __if_exists block.
+      size_t d = end(tv) - it;
+      if (d < 7)
+        throw TokenizerException(path.Raw(), __LINE__, it->line);
+      auto it2 = it + 1;
+      if (it2->type == CppToken::open_paren) {
+        ++it2;
+        if (it2->type == CppToken::identifier) {
+          ++it2;
+          if (it2->type == CppToken::close_paren) {
+            ++it2;
+            if (it2->type == CppToken::open_cur_bracket) {
+              size_t pos = it2 - begin(tv);
+              size_t close = GetEndScope(pos);
+              if (close > pos) {
+                it = begin(tv) + close;
+                continue;
+              }
+            }
+          }
+        } 
+      }
+      throw TokenizerException(path.Raw(), __LINE__, it->line);
       
     } else if (it->type == CppToken::identifier) {
       if (prev.type == CppToken::kw_namespace) {

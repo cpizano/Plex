@@ -61,4 +61,5 @@ catalog 1 {
   plx::InvalidParamException plx\invalid_param_exception.h;
   plx::DecodeString plx\decode_string.h;
   plx::CRC32C plx\crc32_sse4.h;
+  plx::PlatformCheck plx\platform_check.h;
 }

@@ -771,6 +771,17 @@ SkipWhitespace(const plx::Range<T>& r) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::PlatformCheck : checks if the code can be run in this setting.
+//
+bool PlatformCheck() {
+  __if_exists(plex_sse42_support) {
+    if (!plx::CpuId().sse42())
+      return false;
+  }
+  return true;
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::DecodeString (decodes a json-style encoded string)
 //
 std::string DecodeString(plx::Range<const char>& range) {
@@ -1097,6 +1108,10 @@ To(const Src & value) {
   return ToCastHelper<std::numeric_limits<Src>::is_signed,
                       std::numeric_limits<Tgt>::is_signed>::cast<Tgt>(value);
 }
+}
+
+void Test_PlatformCheck::Exec() {
+  CheckEQ(plx::PlatformCheck(), true);
 }
 
 void Test_Range::Exec() {

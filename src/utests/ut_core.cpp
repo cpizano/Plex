@@ -3,6 +3,10 @@
 
 #include "../utests.h"
 
+void Test_PlatformCheck::Exec() {
+  CheckEQ(plx::PlatformCheck(), true);
+}
+
 void Test_Range::Exec() {
   // Empty iterator is empty.
   plx::Range<const char> range1;
