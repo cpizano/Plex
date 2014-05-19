@@ -1,0 +1,18 @@
+//#~def plx::FileSecurity
+///////////////////////////////////////////////////////////////////////////////
+// plx::FileSecurity
+//
+//#~def plx::FileSecurity
+///////////////////////////////////////////////////////////////////////////////
+//
+namespace plx {
+class FileSecurity {
+private:
+  SECURITY_ATTRIBUTES* sattr_;
+  friend class File;
+public:
+  FileSecurity()
+    : sattr_(nullptr) {
+  }
+};
+}

@@ -762,4 +762,11 @@ void Test_File::Exec() {
   auto par3 = plx::FileParams::Read_SharedRead();
   CheckEQ(par3.can_modify(), false);
   CheckEQ(par3.exclusive(), false);
+
+  // Current directory should be $(ProjectDir) which is src\utests.
+  plx::FilePath fp1(L"data\\file_io\\data_001.txt");
+  plx::File f1 = plx::File::Create(fp1, par3, plx::FileSecurity());
+  CheckEQ(f1.is_valid(), true);
+  CheckEQ(f1.status(), plx::File::existing);
+
 }

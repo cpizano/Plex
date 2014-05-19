@@ -64,4 +64,6 @@ catalog 1 {
   plx::CRC32C plx\crc32_sse4.h;
   plx::PlatformCheck plx\platform_check.h;
   plx::FileParams plx\io\file_params.h;
+  plx::FileSecurity plx\io\file_security.h;
+  plx::File plx\io\file.h;
 }
