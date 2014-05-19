@@ -47,6 +47,7 @@
 // 023 add NOMINMAX macro when required.
 // 024 plx::DecodeString missing features.
 // 025 is_drive if filepath is buggy.
+// 025 plx::FileParams::Append_SharedRead factory does not cause dependency.
 //
 // Medium term
 // ---------------------------
