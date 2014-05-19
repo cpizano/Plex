@@ -71,4 +71,5 @@ TEST(Test_DecodeString);
 TEST(Test_Parse_JSON);
 TEST(Test_CRC32C);
 TEST(Test_FilePath);
+TEST(Test_File);
 #undef TEST

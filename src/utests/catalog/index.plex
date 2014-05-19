@@ -63,4 +63,5 @@ catalog 1 {
   plx::DecodeString plx\decode_string.h;
   plx::CRC32C plx\crc32_sse4.h;
   plx::PlatformCheck plx\platform_check.h;
+  plx::FileParams plx\io\file_params.h;
 }

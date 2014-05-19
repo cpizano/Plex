@@ -749,3 +749,17 @@ void Test_FilePath::Exec() {
   auto fp7 = fp5.append(L"4\\5");
   CheckEQ(std::wstring(L"4\\5"), fp7.raw());
 }
+
+void Test_File::Exec() {
+  plx::FileParams par1;
+  CheckEQ(par1.can_modify(), false);
+  CheckEQ(par1.exclusive(), false);
+
+  auto par2 = plx::FileParams::Append_SharedRead();
+  CheckEQ(par2.can_modify(), true);
+  CheckEQ(par2.exclusive(), false);
+
+  auto par3 = plx::FileParams::Read_SharedRead();
+  CheckEQ(par3.can_modify(), false);
+  CheckEQ(par3.exclusive(), false);
+}
