@@ -76,6 +76,12 @@ public:
                       disposition,
                       FILE_ATTRIBUTE_NORMAL, 0, 0);
   }
+
+  static FileParams Directory_ShareAll() {
+    return FileParams(FILE_GENERIC_READ, kShareAll,
+                     OPEN_EXISTING,
+                     0, FILE_FLAG_BACKUP_SEMANTICS, 0);
+  }
 };
 }
 

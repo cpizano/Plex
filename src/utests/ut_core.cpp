@@ -765,8 +765,17 @@ void Test_File::Exec() {
 
   // Current directory should be $(ProjectDir) which is src\utests.
   plx::FilePath fp1(L"data\\file_io\\data_001.txt");
-  plx::File f1 = plx::File::Create(fp1, par3, plx::FileSecurity());
-  CheckEQ(f1.is_valid(), true);
-  CheckEQ(f1.status(), plx::File::existing);
+  {
+    plx::File f = plx::File::Create(fp1, par3, plx::FileSecurity());
+    CheckEQ(f.is_valid(), true);
+    CheckEQ(f.status(), plx::File::existing);
+    CheckEQ(f.size_in_bytes(), 2048UL);
+  }
+  {
+    auto par = plx::FileParams::Directory_ShareAll();
+    plx::File f = plx::File::Create(fp1.parent(), par, plx::FileSecurity());
+    CheckEQ(f.is_valid(), true);
+    CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+  }
 
 }
