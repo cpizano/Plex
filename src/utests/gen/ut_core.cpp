@@ -15,6 +15,7 @@
 #include <initializer_list>
 #include <cctype>
 #include <iterator>
+#include <memory>
 #include <map>
 #include <algorithm>
 #include <utility>
@@ -25,6 +26,7 @@
 #include <stdint.h>
 const int plex_sse42_support = 1;
 const int plex_cpuid_support = 1;
+const int plex_vista_support = 1;
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CRC32C (computes CRC-32 checksum, SSE4 accelerated)
@@ -448,33 +450,6 @@ public:
   }
 };
 
-
-///////////////////////////////////////////////////////////////////////////////
-// HexASCII (converts a byte into a two-char readable representation.
-//
-static const char HexASCIITable[] =
-    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-
-char* HexASCII(uint8_t byte, char* out) {
-  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
-  *out++ = HexASCIITable[byte & 0x0F];
-  return out;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
-  if (r.empty())
-    return std::string();
-
-  std::string str((r.size() * 3) - 1, separator);
-  char* data = &str[0];
-  for (size_t ix = 0; ix != r.size(); ++ix) {
-    data = plx::HexASCII(r[ix], data);
-    ++data;
-  }
-  return str;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // plx::FileParams
 // access_  : operations allowed to the file.
@@ -559,13 +534,40 @@ public:
   }
 };
 
+
+///////////////////////////////////////////////////////////////////////////////
+// HexASCII (converts a byte into a two-char readable representation.
+//
+static const char HexASCIITable[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+char* HexASCII(uint8_t byte, char* out) {
+  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
+  *out++ = HexASCIITable[byte & 0x0F];
+  return out;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
+  if (r.empty())
+    return std::string();
+
+  std::string str((r.size() * 3) - 1, separator);
+  char* data = &str[0];
+  for (size_t ix = 0; ix != r.size(); ++ix) {
+    data = plx::HexASCII(r[ix], data);
+    ++data;
+  }
+  return str;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::File
 //
 class File {
   HANDLE handle_;
   unsigned int  status_;
-  friend class FileView;
+  friend class FilesInfo;
 
 private:
   File(HANDLE handle,
@@ -692,6 +694,55 @@ public:
                      &written, (from < 0) ? nullptr : &ov))
       return 0;
     return written;
+  }
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::FilesInfo
+//
+#pragma comment(user, "plex.define=plex_vista_support")
+class FilesInfo {
+private:
+  FILE_ID_BOTH_DIR_INFO* info_;
+  std::unique_ptr<unsigned char[]> data_;
+  mutable bool done_;
+
+public:
+  static FilesInfo FromDir(plx::File& file) {
+    if (file.status() != (plx::File::directory | plx::File::existing))
+      throw plx::IOException(__LINE__, nullptr);
+    DWORD size = 1024 * 8;
+    auto data = std::make_unique<unsigned char[]>(size);
+    if (!::GetFileInformationByHandleEx(file.handle_, FileIdBothDirectoryInfo, &data[0], size))
+      throw plx::IOException(__LINE__, nullptr);
+    return FilesInfo(data.release());
+  }
+
+  void first() {
+    done_ = false;
+    info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(&data_[0]);
+  }
+
+  void next() {
+    info_ =reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(
+        ULONG_PTR(info_) + info_->NextEntryOffset);
+  }
+
+  bool done() const {
+    if (done_)
+      return true;
+    if (!info_->NextEntryOffset)
+      done_ = true;
+    return false;
+  }
+
+  const wchar_t* file_name() const {
+    return info_->FileName;
+  }
+
+private:
+  FilesInfo(unsigned char* data)
+      : info_(nullptr), data_(data), done_(false) {
   }
 };
 
@@ -2210,6 +2261,11 @@ void Test_File::Exec() {
     plx::File f = plx::File::Create(fp1.parent(), par, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+
+    plx::FilesInfo finf = plx::FilesInfo::FromDir(f);
+    for (finf.first(); !finf.done(); finf.next()) {
+      auto name = finf.file_name();
+    }
   }
 
 }

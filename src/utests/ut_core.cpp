@@ -776,6 +776,11 @@ void Test_File::Exec() {
     plx::File f = plx::File::Create(fp1.parent(), par, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+
+    plx::FilesInfo finf = plx::FilesInfo::FromDir(f);
+    for (finf.first(); !finf.done(); finf.next()) {
+      auto name = finf.file_name();
+    }
   }
 
 }

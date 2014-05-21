@@ -6,7 +6,7 @@ namespace plx {
 class File {
   HANDLE handle_;
   unsigned int  status_;
-  friend class FileView;
+  friend class FilesInfo;
 
 private:
   File(HANDLE handle,

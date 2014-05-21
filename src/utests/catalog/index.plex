@@ -3,10 +3,12 @@
 include 1 {
   std::array <array>;
   std::bind <functional>;
+  std::deque <deque>;
   std::initializer_list <initializer_list>;
   std::isspace <cctype>;
   std::isdigit <cctype>;
   std::iterator_traits <iterator>;
+  std::make_unique <memory>;
   std::map <map>;
   std::max <algorithm>;
   std::min <algorithm>;
@@ -66,4 +68,5 @@ catalog 1 {
   plx::FileParams plx\io\file_params.h;
   plx::FileSecurity plx\io\file_security.h;
   plx::File plx\io\file.h;
+  plx::FilesInfo plx\io\files_info.h;
 }
