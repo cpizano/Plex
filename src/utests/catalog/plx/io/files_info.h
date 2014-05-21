@@ -7,7 +7,7 @@ namespace plx {
 class FilesInfo {
 private:
   FILE_ID_BOTH_DIR_INFO* info_;
-  std::unique_ptr<unsigned char> data_;
+  std::unique_ptr<unsigned char[]> data_;
   mutable bool done_;
 
 public:
