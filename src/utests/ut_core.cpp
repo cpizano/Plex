@@ -810,7 +810,7 @@ void Test_File::Exec() {
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
       CheckGT(name.size(), 0);
-      CheckLT(name.size(), 80);
+      CheckLT(name.size(), 70);
       ++count;
     }
     CheckEQ((count > 3900) && (count < 4200), true);

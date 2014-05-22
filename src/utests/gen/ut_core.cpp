@@ -1566,7 +1566,9 @@ public:
   }
 
   const plx::ItRange<wchar_t*> file_name() const {
-    return plx::ItRange<wchar_t*>(info_->FileName, info_->FileName+ info_->FileNameLength);
+    return plx::ItRange<wchar_t*>(
+      info_->FileName,
+      info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
   }
 
   FilesInfo(FilesInfo&& other)
@@ -2391,7 +2393,7 @@ void Test_File::Exec() {
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
       CheckGT(name.size(), 0);
-      CheckLT(name.size(), 60);
+      CheckLT(name.size(), 70);
       ++count;
     }
     CheckEQ((count > 3900) && (count < 4200), true);

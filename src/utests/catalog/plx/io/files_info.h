@@ -62,7 +62,9 @@ public:
   }
 
   const plx::ItRange<wchar_t*> file_name() const {
-    return plx::ItRange<wchar_t*>(info_->FileName, info_->FileName+ info_->FileNameLength);
+    return plx::ItRange<wchar_t*>(
+      info_->FileName,
+      info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
   }
 
   FilesInfo(FilesInfo&& other)
