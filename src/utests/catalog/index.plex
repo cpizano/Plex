@@ -4,10 +4,12 @@ include 1 {
   std::array <array>;
   std::bind <functional>;
   std::deque <deque>;
+  std::forward_list <forward_list>;
   std::initializer_list <initializer_list>;
   std::isspace <cctype>;
   std::isdigit <cctype>;
   std::iterator_traits <iterator>;
+  std::list <list>;
   std::make_unique <memory>;
   std::map <map>;
   std::max <algorithm>;
@@ -69,4 +71,5 @@ catalog 1 {
   plx::FileSecurity plx\io\file_security.h;
   plx::File plx\io\file.h;
   plx::FilesInfo plx\io\files_info.h;
+  plx::LinkedBuffers plx\linked_buffers.h;
 }

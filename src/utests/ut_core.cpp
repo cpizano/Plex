@@ -93,6 +93,33 @@ void Test_CpuId::Exec() {
   CheckEQ(cpu_id.sse3(), true);
 }
 
+void Test_LinkedBuffers::Exec() {
+  plx::LinkedBuffers lb;
+  auto r1 = lb.new_buffer(40);
+  CheckEQ(r1.size(), 40UL);
+  auto r2 = lb.new_buffer(50);
+  CheckEQ(r2.size(), 50UL);
+  auto r3 = lb.new_buffer(60);
+  CheckEQ(r3.size(), 60UL);
+  r1[0] = 'a';
+  r2[0] = 'b';
+  r3[0] = 'c';
+  int ix = 0;
+  for (lb.first(); !lb.done(); lb.next()) {
+    CheckEQ(lb.get()[0], 'a' + ix);
+    ++ix;
+  }
+  CheckEQ(ix, 3);
+  int iz = 0;
+  plx::LinkedBuffers lb2 = lb;
+  for (lb2.first(); !lb2.done(); lb2.next()) {
+    CheckEQ(lb2.get()[0], 'a' + iz);
+    ++iz;
+  }
+  CheckEQ(iz, 3);
+  plx::LinkedBuffers lb3(std::move(lb2));
+}
+
 template <typename T>
 std::pair<T, T> MinMaxForType() {
   return std::make_pair(
@@ -764,23 +791,28 @@ void Test_File::Exec() {
   CheckEQ(par3.exclusive(), false);
 
   // Current directory should be $(ProjectDir) which is src\utests.
-  plx::FilePath fp1(L"data\\file_io\\data_001.txt");
   {
+    plx::FilePath fp1(L"data\\file_io\\data_001.txt");
     plx::File f = plx::File::Create(fp1, par3, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::existing);
     CheckEQ(f.size_in_bytes(), 2048UL);
   }
   {
+    plx::FilePath fp1(L"c:\\windows\\system32");
     auto par = plx::FileParams::Directory_ShareAll();
-    plx::File f = plx::File::Create(fp1.parent(), par, plx::FileSecurity());
+    plx::File f = plx::File::Create(fp1, par, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
 
-    plx::FilesInfo finf = plx::FilesInfo::FromDir(f);
+    plx::FilesInfo finf = plx::FilesInfo::FromDir(f, 100);
+    int count = 0;
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
+      CheckGT(name.size(), 0);
+      CheckLT(name.size(), 80);
+      ++count;
     }
+    CheckEQ((count > 3900) && (count < 4200), true);
   }
-
 }

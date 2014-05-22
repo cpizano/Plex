@@ -15,13 +15,14 @@
 #include <initializer_list>
 #include <cctype>
 #include <iterator>
-#include <memory>
+#include <list>
 #include <map>
 #include <algorithm>
 #include <utility>
 #include <limits>
 #include <type_traits>
 #include <string>
+#include <memory>
 #include <vector>
 #include <stdint.h>
 const int plex_sse42_support = 1;
@@ -451,6 +452,98 @@ public:
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::LinkedBuffers
+//
+class LinkedBuffers {
+  struct Item {
+    size_t size;
+    std::unique_ptr<unsigned char[]> data;
+    Item(size_t size)
+        : size(size), data(new unsigned char[size]) {
+    }
+
+    Item(const Item& other)
+        : size(other.size), data(new unsigned char[size]) {
+      memcpy(data.get(), other.data.get(), size);
+    }
+
+    Item(Item&& other) = delete;
+  };
+
+  typedef std::list<Item> BList;
+
+  BList buffers_;
+  BList::iterator loop_it_;
+
+public:
+  LinkedBuffers() {
+  }
+
+  LinkedBuffers(const LinkedBuffers& other)
+      : buffers_(other.buffers_) {
+  }
+
+  LinkedBuffers(LinkedBuffers&& other) {
+    buffers_.swap(other.buffers_);
+    std::swap(loop_it_, other.loop_it_);
+  }
+
+  plx::Range<unsigned char> new_buffer(size_t size_bytes) {
+    buffers_.emplace_back(size_bytes);
+    auto start = &(buffers_.back().data)[0];
+    return plx::Range<unsigned char>(start, start + size_bytes);
+  }
+
+  void remove_last_buffer() {
+    buffers_.pop_back();
+  }
+
+  void first() {
+    loop_it_ = begin(buffers_);
+  }
+
+  void next() {
+    ++loop_it_;
+  }
+
+  bool done() {
+    return (loop_it_ == end(buffers_));
+  }
+
+  plx::Range<unsigned char> get() {
+    auto start = &(loop_it_->data)[0];
+    return plx::Range<unsigned char>(start, start + loop_it_->size);
+  }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// HexASCII (converts a byte into a two-char readable representation.
+//
+static const char HexASCIITable[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+char* HexASCII(uint8_t byte, char* out) {
+  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
+  *out++ = HexASCIITable[byte & 0x0F];
+  return out;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
+  if (r.empty())
+    return std::string();
+
+  std::string str((r.size() * 3) - 1, separator);
+  char* data = &str[0];
+  for (size_t ix = 0; ix != r.size(); ++ix) {
+    data = plx::HexASCII(r[ix], data);
+    ++data;
+  }
+  return str;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::FileParams
 // access_  : operations allowed to the file.
 // sharing_ : operations others can do to the file.
@@ -533,33 +626,6 @@ public:
                      0, FILE_FLAG_BACKUP_SEMANTICS, 0);
   }
 };
-
-
-///////////////////////////////////////////////////////////////////////////////
-// HexASCII (converts a byte into a two-char readable representation.
-//
-static const char HexASCIITable[] =
-    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-
-char* HexASCII(uint8_t byte, char* out) {
-  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
-  *out++ = HexASCIITable[byte & 0x0F];
-  return out;
-}
-
-///////////////////////////////////////////////////////////////////////////////
-std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
-  if (r.empty())
-    return std::string();
-
-  std::string str((r.size() * 3) - 1, separator);
-  char* data = &str[0];
-  for (size_t ix = 0; ix != r.size(); ++ix) {
-    data = plx::HexASCII(r[ix], data);
-    ++data;
-  }
-  return str;
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::File
@@ -694,55 +760,6 @@ public:
                      &written, (from < 0) ? nullptr : &ov))
       return 0;
     return written;
-  }
-};
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::FilesInfo
-//
-#pragma comment(user, "plex.define=plex_vista_support")
-class FilesInfo {
-private:
-  FILE_ID_BOTH_DIR_INFO* info_;
-  std::unique_ptr<unsigned char[]> data_;
-  mutable bool done_;
-
-public:
-  static FilesInfo FromDir(plx::File& file) {
-    if (file.status() != (plx::File::directory | plx::File::existing))
-      throw plx::IOException(__LINE__, nullptr);
-    DWORD size = 1024 * 8;
-    auto data = std::make_unique<unsigned char[]>(size);
-    if (!::GetFileInformationByHandleEx(file.handle_, FileIdBothDirectoryInfo, &data[0], size))
-      throw plx::IOException(__LINE__, nullptr);
-    return FilesInfo(data.release());
-  }
-
-  void first() {
-    done_ = false;
-    info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(&data_[0]);
-  }
-
-  void next() {
-    info_ =reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(
-        ULONG_PTR(info_) + info_->NextEntryOffset);
-  }
-
-  bool done() const {
-    if (done_)
-      return true;
-    if (!info_->NextEntryOffset)
-      done_ = true;
-    return false;
-  }
-
-  const wchar_t* file_name() const {
-    return info_->FileName;
-  }
-
-private:
-  FilesInfo(unsigned char* data)
-      : info_(nullptr), data_(data), done_(false) {
   }
 };
 
@@ -1009,6 +1026,15 @@ class JsonValue {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::OverflowKind
+//
+enum class OverflowKind {
+  None,
+  Positive,
+  Negative,
+};
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::ScopeGuardBase
 // dismissed_ : wether or not function_ will be called.
 // function_  : the cleanup function (user defined).
@@ -1061,15 +1087,6 @@ MakeGuard(TFunc&& fn) {
   return ScopeGuardImpl<typename std::decay<TFunc>::type>(
       std::forward<TFunc>(fn));
 }
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::OverflowKind
-//
-enum class OverflowKind {
-  None,
-  Positive,
-  Negative,
-};
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowException (thrown by some numeric converters)
@@ -1129,6 +1146,79 @@ long long NextInt(unsigned long long value) {
   if (static_cast<long long>(value) < 0LL)
     throw plx::OverflowException(__LINE__, plx::OverflowKind::Positive);
   return long long(value);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::To  (integer to integer type safe cast)
+//
+
+template <bool src_signed, bool tgt_signed>
+struct ToCastHelper;
+
+template <>
+struct ToCastHelper<false, false> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (sizeof(Tgt) >= sizeof(Src)) {
+      return static_cast<Tgt>(value);
+    } else {
+      if (value > std::numeric_limits<Tgt>::max())
+        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+      if (value < std::numeric_limits<Tgt>::min())
+        throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+      return static_cast<Tgt>(value);
+    }
+  }
+};
+
+template <>
+struct ToCastHelper<true, true> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (sizeof(Tgt) >= sizeof(Src)) {
+      return static_cast<Tgt>(value);
+    } else {
+      if (value > std::numeric_limits<Tgt>::max())
+        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+      if (value < std::numeric_limits<Tgt>::min())
+        throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+      return static_cast<Tgt>(value);
+    }
+  }
+};
+
+template <>
+struct ToCastHelper<false, true> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (plx::NextInt(value) > std::numeric_limits<Tgt>::max())
+      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+    if (plx::NextInt(value) < std::numeric_limits<Tgt>::min())
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+    return static_cast<Tgt>(value);
+  }
+};
+
+template <>
+struct ToCastHelper<true, false> {
+  template <typename Tgt, typename Src>
+  static inline Tgt cast(Src value) {
+    if (value < Src(0))
+      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
+    if (unsigned(value) > std::numeric_limits<Tgt>::max())
+      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
+    return static_cast<Tgt>(value);
+  }
+};
+
+template <typename Tgt, typename Src>
+typename std::enable_if<
+    std::numeric_limits<Tgt>::is_integer &&
+    std::numeric_limits<Src>::is_integer,
+    Tgt>::type
+To(const Src & value) {
+  return ToCastHelper<std::numeric_limits<Src>::is_signed,
+                      std::numeric_limits<Tgt>::is_signed>::cast<Tgt>(value);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1415,77 +1505,83 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::To  (integer to integer type safe cast)
+// plx::FilesInfo
 //
+#pragma comment(user, "plex.define=plex_vista_support")
+class FilesInfo {
+private:
+  FILE_ID_BOTH_DIR_INFO* info_;
+  plx::LinkedBuffers link_buffs_;
+  mutable bool done_;
 
-template <bool src_signed, bool tgt_signed>
-struct ToCastHelper;
+public:
+  static FilesInfo FromDir(plx::File& file, long buffer_hint = 32) {
+    if (file.status() != (plx::File::directory | plx::File::existing))
+      throw plx::IOException(__LINE__, nullptr);
 
-template <>
-struct ToCastHelper<false, false> {
-  template <typename Tgt, typename Src>
-  static inline Tgt cast(Src value) {
-    if (sizeof(Tgt) >= sizeof(Src)) {
-      return static_cast<Tgt>(value);
+    FilesInfo finf;
+    // |buffer_size| controls the tradeoff between speed and memory use.
+    const size_t buffer_size = buffer_hint * 128;
+
+    plx::Range<unsigned char> data;
+    for (size_t count = 0; ;++count) {
+      data = finf.link_buffs_.new_buffer(buffer_size);
+      if (!::GetFileInformationByHandleEx(
+          file.handle_,
+          count == 0 ? FileIdBothDirectoryRestartInfo: FileIdBothDirectoryInfo,
+          data.start(), plx::To<DWORD>(data.size()))) {
+        if (::GetLastError() != ERROR_NO_MORE_FILES)
+          throw plx::IOException(__LINE__, nullptr);
+        break;
+      }
+    }
+    // The last buffer contains garbage. remove it.
+    finf.link_buffs_.remove_last_buffer();
+    return std::move(finf);
+  }
+
+  void first() {
+    done_ = false;
+    link_buffs_.first();
+    info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
+  }
+
+  void next() {
+    if (!info_->NextEntryOffset) {
+      // last entry of this buffer. Move to next buffer.
+      link_buffs_.next();
+      if (link_buffs_.done()) {
+        done_ = true;
+      } else {
+        info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
+      }
     } else {
-      if (value > std::numeric_limits<Tgt>::max())
-        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-      if (value < std::numeric_limits<Tgt>::min())
-        throw plx::OverflowException(__LINE__, OverflowKind::Negative);
-      return static_cast<Tgt>(value);
+      info_ =reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(
+          ULONG_PTR(info_) + info_->NextEntryOffset);
     }
   }
-};
 
-template <>
-struct ToCastHelper<true, true> {
-  template <typename Tgt, typename Src>
-  static inline Tgt cast(Src value) {
-    if (sizeof(Tgt) >= sizeof(Src)) {
-      return static_cast<Tgt>(value);
-    } else {
-      if (value > std::numeric_limits<Tgt>::max())
-        throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-      if (value < std::numeric_limits<Tgt>::min())
-        throw plx::OverflowException(__LINE__, OverflowKind::Negative);
-      return static_cast<Tgt>(value);
-    }
+  bool done() const {
+    return done_;
   }
-};
 
-template <>
-struct ToCastHelper<false, true> {
-  template <typename Tgt, typename Src>
-  static inline Tgt cast(Src value) {
-    if (plx::NextInt(value) > std::numeric_limits<Tgt>::max())
-      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-    if (plx::NextInt(value) < std::numeric_limits<Tgt>::min())
-      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
-    return static_cast<Tgt>(value);
+  const plx::ItRange<wchar_t*> file_name() const {
+    return plx::ItRange<wchar_t*>(info_->FileName, info_->FileName+ info_->FileNameLength);
   }
-};
 
-template <>
-struct ToCastHelper<true, false> {
-  template <typename Tgt, typename Src>
-  static inline Tgt cast(Src value) {
-    if (value < Src(0))
-      throw plx::OverflowException(__LINE__, OverflowKind::Negative);
-    if (unsigned(value) > std::numeric_limits<Tgt>::max())
-      throw plx::OverflowException(__LINE__, OverflowKind::Positive);
-    return static_cast<Tgt>(value);
+  FilesInfo(FilesInfo&& other)
+      : link_buffs_(std::move(other.link_buffs_)) {
+    std::swap(info_, other.info_);
+    std::swap(done_, other.done_);
   }
+
+private:
+  FilesInfo() : info_(nullptr), done_(false) {
+  }
+
+  FilesInfo(const FilesInfo&);
 };
 
-template <typename Tgt, typename Src>
-typename std::enable_if<
-    std::numeric_limits<Tgt>::is_integer &&
-    std::numeric_limits<Src>::is_integer,
-    Tgt>::type
-To(const Src & value) {
-  return ToCastHelper<std::numeric_limits<Src>::is_signed,
-                      std::numeric_limits<Tgt>::is_signed>::cast<Tgt>(value);
-}
 }
 
 void Test_PlatformCheck::Exec() {
@@ -1576,6 +1672,33 @@ void Test_CpuId::Exec() {
   CheckEQ(cpu_id.mmx(), true);
   CheckEQ(cpu_id.sse2(), true);
   CheckEQ(cpu_id.sse3(), true);
+}
+
+void Test_LinkedBuffers::Exec() {
+  plx::LinkedBuffers lb;
+  auto r1 = lb.new_buffer(40);
+  CheckEQ(r1.size(), 40UL);
+  auto r2 = lb.new_buffer(50);
+  CheckEQ(r2.size(), 50UL);
+  auto r3 = lb.new_buffer(60);
+  CheckEQ(r3.size(), 60UL);
+  r1[0] = 'a';
+  r2[0] = 'b';
+  r3[0] = 'c';
+  int ix = 0;
+  for (lb.first(); !lb.done(); lb.next()) {
+    CheckEQ(lb.get()[0], 'a' + ix);
+    ++ix;
+  }
+  CheckEQ(ix, 3);
+  int iz = 0;
+  plx::LinkedBuffers lb2 = lb;
+  for (lb2.first(); !lb2.done(); lb2.next()) {
+    CheckEQ(lb2.get()[0], 'a' + iz);
+    ++iz;
+  }
+  CheckEQ(iz, 3);
+  plx::LinkedBuffers lb3(std::move(lb2));
 }
 
 template <typename T>
@@ -2249,23 +2372,28 @@ void Test_File::Exec() {
   CheckEQ(par3.exclusive(), false);
 
   // Current directory should be $(ProjectDir) which is src\utests.
-  plx::FilePath fp1(L"data\\file_io\\data_001.txt");
   {
+    plx::FilePath fp1(L"data\\file_io\\data_001.txt");
     plx::File f = plx::File::Create(fp1, par3, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::existing);
     CheckEQ(f.size_in_bytes(), 2048UL);
   }
   {
+    plx::FilePath fp1(L"c:\\windows\\system32");
     auto par = plx::FileParams::Directory_ShareAll();
-    plx::File f = plx::File::Create(fp1.parent(), par, plx::FileSecurity());
+    plx::File f = plx::File::Create(fp1, par, plx::FileSecurity());
     CheckEQ(f.is_valid(), true);
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
 
-    plx::FilesInfo finf = plx::FilesInfo::FromDir(f);
+    plx::FilesInfo finf = plx::FilesInfo::FromDir(f, 100);
+    int count = 0;
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
+      CheckGT(name.size(), 0);
+      CheckLT(name.size(), 60);
+      ++count;
     }
+    CheckEQ((count > 3900) && (count < 4200), true);
   }
-
 }
