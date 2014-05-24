@@ -1542,6 +1542,8 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               block_type = ScopeBlock::block_aggregate;
             else if (it3->type == CppToken::kw_enum)
               block_type = ScopeBlock::block_enum; //$$ handle enum class.
+            else if (it3->type == CppToken::deref_ptr)
+              block_type = ScopeBlock::block_scope;
             else
               throw TokenizerException(path, __LINE__, it->line);
           }
