@@ -69,6 +69,15 @@ void Test_Range::Exec() {
     __debugbreak();
   } catch (plx::RangeException&) {
   }
+
+  {
+    plx::Range<char> r(0, 120);
+    auto mem = plx::HeapRange(r);
+    r[0] = 22;
+    r[1] = 33;
+    CheckEQ(r.start() != 0, true);
+    CheckEQ(r.size(), 120);
+  }
 }
 
 void Test_CpuId::Exec() {

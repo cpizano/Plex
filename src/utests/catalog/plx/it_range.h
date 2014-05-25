@@ -116,6 +116,12 @@ public:
     e_ = It();
   }
 
+  void reset_start(It new_start) {
+    auto sz = size();
+    s_ = new_start;
+    e_ = s_ + sz;
+  }
+
 };
 
 template <typename U, size_t count>
@@ -141,6 +147,13 @@ ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
 template <typename U>
 std::string StringFromRange(const ItRange<U>& r) {
   return std::string(r.start(), r.end());
+}
+
+template <typename U>
+std::unique_ptr<U[]> HeapRange(ItRange<U*>&r) {
+  std::unique_ptr<U[]> ptr(new U[r.size()]);
+  r.reset_start(ptr.get());
+  return ptr;
 }
 
 }
