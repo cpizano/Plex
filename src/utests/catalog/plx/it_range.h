@@ -19,8 +19,14 @@ public:
       typename std::remove_reference<It>::type
   >::value_type ValueT;
 
+  typedef typename std::remove_const<It>::type NoConstIt;
+
 
   ItRange() : s_(), e_() {
+  }
+
+  template <typename U>
+  ItRange(const ItRange<U>& other) : s_(other.start()), e_(other.end()) {
   }
 
   ItRange(It start, It end) : s_(start), e_(end) {

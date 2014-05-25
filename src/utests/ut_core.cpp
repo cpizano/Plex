@@ -78,6 +78,11 @@ void Test_Range::Exec() {
     CheckEQ(r.start() != 0, true);
     CheckEQ(r.size(), 120);
   }
+
+  {
+    plx::Range<char> r(0, 5);
+    plx::Range<const char> cr(r);
+  }
 }
 
 void Test_CpuId::Exec() {
