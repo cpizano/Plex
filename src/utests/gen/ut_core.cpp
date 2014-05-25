@@ -201,7 +201,6 @@ public:
 
   typedef typename std::remove_const<It>::type NoConstIt;
 
-
   ItRange() : s_(), e_() {
   }
 
@@ -1684,9 +1683,7 @@ void Test_Range::Exec() {
   {
     plx::Range<char> r(0, 5);
     plx::Range<const char> cr(r);
-
-    //plx::Range<const char> r1(0, 5);
-    //plx::Range<char> cr1(r1);
+    CheckEQ(cr.size(), 5);
   }
 }
 

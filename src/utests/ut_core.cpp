@@ -82,6 +82,7 @@ void Test_Range::Exec() {
   {
     plx::Range<char> r(0, 5);
     plx::Range<const char> cr(r);
+    CheckEQ(cr.size(), 5);
   }
 }
 

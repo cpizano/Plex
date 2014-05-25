@@ -21,7 +21,6 @@ public:
 
   typedef typename std::remove_const<It>::type NoConstIt;
 
-
   ItRange() : s_(), e_() {
   }
 
