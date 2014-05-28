@@ -36,6 +36,12 @@ public:
     return std::move(finf);
   }
 
+  FilesInfo(FilesInfo&& other)
+      : link_buffs_(std::move(other.link_buffs_)) {
+    std::swap(info_, other.info_);
+    std::swap(done_, other.done_);
+  }
+
   void first() {
     done_ = false;
     link_buffs_.first();
@@ -67,10 +73,12 @@ public:
       info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
   }
 
-  FilesInfo(FilesInfo&& other)
-      : link_buffs_(std::move(other.link_buffs_)) {
-    std::swap(info_, other.info_);
-    std::swap(done_, other.done_);
+  long long creation_ns1600() const {
+    return info_->CreationTime.QuadPart;
+  }
+
+  bool is_directory() const {
+    return info_->FileAttributes & FILE_ATTRIBUTE_DIRECTORY? true : false; 
   }
 
 private:

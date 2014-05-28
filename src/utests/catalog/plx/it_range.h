@@ -155,6 +155,11 @@ std::string StringFromRange(const ItRange<U>& r) {
 }
 
 template <typename U>
+std::wstring WideStringFromRange(const ItRange<U>& r) {
+  return std::wstring(r.start(), r.end());
+}
+
+template <typename U>
 std::unique_ptr<U[]> HeapRange(ItRange<U*>&r) {
   std::unique_ptr<U[]> ptr(new U[r.size()]);
   r.reset_start(ptr.get());

@@ -335,6 +335,11 @@ std::string StringFromRange(const ItRange<U>& r) {
 }
 
 template <typename U>
+std::wstring WideStringFromRange(const ItRange<U>& r) {
+  return std::wstring(r.start(), r.end());
+}
+
+template <typename U>
 std::unique_ptr<U[]> HeapRange(ItRange<U*>&r) {
   std::unique_ptr<U[]> ptr(new U[r.size()]);
   r.reset_start(ptr.get());
@@ -1558,6 +1563,12 @@ public:
     return std::move(finf);
   }
 
+  FilesInfo(FilesInfo&& other)
+      : link_buffs_(std::move(other.link_buffs_)) {
+    std::swap(info_, other.info_);
+    std::swap(done_, other.done_);
+  }
+
   void first() {
     done_ = false;
     link_buffs_.first();
@@ -1589,10 +1600,12 @@ public:
       info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
   }
 
-  FilesInfo(FilesInfo&& other)
-      : link_buffs_(std::move(other.link_buffs_)) {
-    std::swap(info_, other.info_);
-    std::swap(done_, other.done_);
+  long long creation_ns1600() const {
+    return info_->CreationTime.QuadPart;
+  }
+
+  bool is_directory() const {
+    return info_->FileAttributes & FILE_ATTRIBUTE_DIRECTORY? true : false;
   }
 
 private:
@@ -2422,13 +2435,20 @@ void Test_File::Exec() {
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
 
     plx::FilesInfo finf = plx::FilesInfo::FromDir(f, 100);
-    int count = 0;
+    int count_files = 0;
+    int count_dirs = 0;
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
+      auto ctim = finf.creation_ns1600();
       CheckGT(name.size(), 0);
       CheckLT(name.size(), 70);
-      ++count;
+      CheckGT(ctim, 4096);
+      if (finf.is_directory())
+        ++count_dirs;
+      else
+        ++count_files;
     }
-    CheckEQ((count > 3900) && (count < 4200), true);
+    CheckEQ((count_files > 3800) && (count_files < 4000), true);
+    CheckEQ((count_dirs > 100) && (count_dirs < 120), true);
   }
 }

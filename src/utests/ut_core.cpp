@@ -821,13 +821,20 @@ void Test_File::Exec() {
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
 
     plx::FilesInfo finf = plx::FilesInfo::FromDir(f, 100);
-    int count = 0;
+    int count_files = 0;
+    int count_dirs = 0;
     for (finf.first(); !finf.done(); finf.next()) {
       auto name = finf.file_name();
+      auto ctim = finf.creation_ns1600();
       CheckGT(name.size(), 0);
       CheckLT(name.size(), 70);
-      ++count;
+      CheckGT(ctim, 4096);
+      if (finf.is_directory())
+        ++count_dirs;
+      else
+        ++count_files;
     }
-    CheckEQ((count > 3900) && (count < 4200), true);
+    CheckEQ((count_files > 3800) && (count_files < 4000), true);
+    CheckEQ((count_dirs > 100) && (count_dirs < 120), true);
   }
 }
