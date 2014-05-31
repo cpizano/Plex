@@ -837,4 +837,12 @@ void Test_File::Exec() {
     CheckEQ((count_files > 3800) && (count_files < 4000), true);
     CheckEQ((count_dirs > 100) && (count_dirs < 120), true);
   }
+
+  {
+    auto fp = plx::GetExePath();
+    auto par = plx::FileParams::Directory_ShareAll();
+    plx::File f = plx::File::Create(fp, par, plx::FileSecurity());
+    CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+  }
+
 }

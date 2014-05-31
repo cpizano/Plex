@@ -8,6 +8,7 @@
 
 #include <windows.h>
 #include <intrin.h>
+#include <stdlib.h>
 #include <nmmintrin.h>
 #include <string.h>
 #include <array>
@@ -538,6 +539,15 @@ public:
     return plx::Range<unsigned char>(start, start + loop_it_->size);
   }
 };
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::ExePath
+//
+plx::FilePath GetExePath() {
+  wchar_t* pp = nullptr;
+  _get_wpgmptr(&pp);
+  return FilePath(pp).parent();
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2451,4 +2461,12 @@ void Test_File::Exec() {
     CheckEQ((count_files > 3800) && (count_files < 4000), true);
     CheckEQ((count_dirs > 100) && (count_dirs < 120), true);
   }
+
+  {
+    auto fp = plx::GetExePath();
+    auto par = plx::FileParams::Directory_ShareAll();
+    plx::File f = plx::File::Create(fp, par, plx::FileSecurity());
+    CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+  }
+
 }

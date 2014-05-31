@@ -40,6 +40,7 @@ include 2 {
   printf <stdio.h>;
   memcmp <string.h>;
   _mm_crc32_u8 <nmmintrin.h>;
+  _get_wpgmptr <stdlib.h>;
 }
 
 catalog 1 {
@@ -72,4 +73,5 @@ catalog 1 {
   plx::File plx\io\file.h;
   plx::FilesInfo plx\io\files_info.h;
   plx::LinkedBuffers plx\linked_buffers.h;
+  plx::GetExePath plx\io\exe_path.h;
 }
