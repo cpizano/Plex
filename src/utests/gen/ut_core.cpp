@@ -1068,6 +1068,17 @@ enum class OverflowKind {
 };
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::LocalUniqueId.
+// requres advapi32.lib
+//
+uint64_t LocalUniqueId() {
+  LUID luid = {0};
+  ::AllocateLocallyUniqueId(&luid);
+  ULARGE_INTEGER li = {luid.LowPart, luid.HighPart};
+  return li.QuadPart;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::ScopeGuardBase
 // dismissed_ : wether or not function_ will be called.
 // function_  : the cleanup function (user defined).
@@ -1629,6 +1640,9 @@ private:
 
 void Test_PlatformCheck::Exec() {
   CheckEQ(plx::PlatformCheck(), true);
+
+  auto luid = plx::LocalUniqueId();
+  CheckEQ(luid != 0, true);
 }
 
 void Test_Range::Exec() {

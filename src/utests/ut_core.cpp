@@ -5,6 +5,9 @@
 
 void Test_PlatformCheck::Exec() {
   CheckEQ(plx::PlatformCheck(), true);
+
+  auto luid = plx::LocalUniqueId();
+  CheckEQ(luid != 0, true);
 }
 
 void Test_Range::Exec() {

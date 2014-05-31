@@ -36,6 +36,7 @@ include 2 {
   ::IsDebuggerPresent <windows.h>;
   ::GetLastError <windows.h>;
   DWORD <windows.h>;
+  AllocateLocallyUniqueId <windows.h>;
   __cpuid <intrin.h>;
   printf <stdio.h>;
   memcmp <string.h>;
@@ -74,4 +75,5 @@ catalog 1 {
   plx::FilesInfo plx\io\files_info.h;
   plx::LinkedBuffers plx\linked_buffers.h;
   plx::GetExePath plx\io\exe_path.h;
+  plx::LocalUniqueId plx\local_unique_id.h;
 }
