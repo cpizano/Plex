@@ -2444,7 +2444,11 @@ int wmain(int argc, wchar_t* argv[]) {
   try {
     // Input file, typically a c++ file. The catalog index is also an implicit input.
     FilePath path(cmdline.Extra(0));
-    FilePath catalog = FilePath(path.Parent()).Append(L"catalog\\index.plex");
+
+    auto cv = AsciiToUTF16(cmdline.Value("catalog"));
+    FilePath catalog = cv.empty() ?
+        FilePath(path.Parent()).Append(L"catalog\\index.plex") :
+        FilePath(cv).Append(L"index.plex");
 
     auto out_path_str = AsciiToUTF16(cmdline.Value("out-dir"));
     if (!out_path_str.empty()) {
