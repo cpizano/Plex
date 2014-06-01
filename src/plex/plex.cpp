@@ -2399,12 +2399,6 @@ void GenerateDump(File& file, CppTokenVector& src) {
 
 #pragma endregion
 
-enum OpMode {
-  None       = 0,
-  TreeDump   = 1,
-  Generate   = 1 << 1,
-};
-
 File MakeOutputCodeFile(const FilePath& out_path, std::wstring name) {
   auto probe_path = out_path.Append(name);
   FilePath output_path = probe_path.Exists() ?
@@ -2427,17 +2421,27 @@ File MakeTestDumpFile(const FilePath& out_path, std::wstring name) {
 // #   plex.exe [options] cpp_file                                                                #
 // ################################################################################################
 
+enum OpMode {
+  None       = 0,
+  TreeDump   = 1,
+  Generate   = 1 << 1,
+  PCHGen     = 1 << 2,
+};
+
 int wmain(int argc, wchar_t* argv[]) {
   CmdLine cmdline(argc, argv);
 
   int op_mode = None;
   if (cmdline.HasSwitch("dump-tree")) op_mode += TreeDump;
   if (cmdline.HasSwitch("generate")) op_mode += Generate;
+  if (cmdline.HasSwitch("pch")) op_mode += PCHGen;
 
   if (op_mode == None) {
     printf("plex by carlos.pizano@gmail.com. Version "__DATE__"\n");
     wprintf(L"usage: plex.exe options cc_file\n");
     wprintf(L"options:  --dump-tree and|or --generate\n");
+    wprintf(L"          --pch --catalog=<path>\n");
+    wprintf(L"          --out-dir=<path>\n");
     return 0;
   }
 
@@ -2479,18 +2483,31 @@ int wmain(int argc, wchar_t* argv[]) {
     GetExternalDefinitions(cc_tv, xdefs);
     XEntities entities = 
         LoadEntities(xdefs, catalog.Parent());
+
     // Phase 4: process each entity augmenting the source.
-    ProcessEntities(cc_tv, entities);
+    CppTokenVector* target_tv = nullptr;
+    if (op_mode & PCHGen) {
+      auto stdafx = catalog.Parent().Append(L"stdafx.h");
+      auto pch_tv = new CppTokenVector(TokenizeCpp(stdafx));
+      LexCppTokens(LexMode::PlainCPP, *pch_tv);
+      ProcessEntities(*pch_tv, entities);
+      target_tv = pch_tv;
+    } else {
+      ProcessEntities(cc_tv, entities);
+      target_tv = &cc_tv;
+    }
 
     // Phase 5: Generate the outputs.
+    std::wstring out_name = (op_mode & PCHGen) ? L"stdafx.h" : path.Leaf();
+
     if (op_mode & Generate) {
-      File output_cc = MakeOutputCodeFile(out_path, path.Leaf());
-      WriteOutputFile(output_cc, cc_tv);
+      File output_cc = MakeOutputCodeFile(out_path, out_name);
+      WriteOutputFile(output_cc, *target_tv);
     }
 
     if (op_mode & TreeDump) {  
-      File test_dump = MakeTestDumpFile(out_path, path.Leaf());
-      GenerateDump(test_dump, cc_tv);
+      File test_dump = MakeTestDumpFile(out_path, out_name);
+      GenerateDump(test_dump, *target_tv);
     }
 
     return 0;
