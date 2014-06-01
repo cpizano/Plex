@@ -6,7 +6,7 @@ if not exist %plexbin% goto error1
 
 echo generating utests\ut_core.cpp
 del ..\utests\gen\ut_core.cpp
-%plexbin% --generate --out-dir=..\utests\gen ..\utests\ut_core.cpp
+%plexbin% --generate --out-dir=gen --catalog=..\catalog ut_core.cpp
 goto end
 
 :error1
