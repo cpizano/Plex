@@ -84,6 +84,7 @@
 #include <deque>
 #include <sstream>
 #include <string>
+#include <set>
 #include <iomanip>
 #include <vector>
 #include <unordered_map>
@@ -173,6 +174,13 @@ std::string UTF16ToAscii(const std::wstring& utf16) {
 
 std::wstring AsciiToUTF16(const std::string& ascii) {
   return std::wstring(ascii.begin(), ascii.end());
+}
+
+std::vector<std::string> SplitStdString(const std::string& str) {
+  std::stringstream strstr(str);
+  std::istream_iterator<std::string> it(strstr);
+  std::istream_iterator<std::string> end;
+  return std::vector<std::string>(it, end);
 }
 
 #pragma region memory
@@ -869,6 +877,7 @@ struct KeyElements {
   std::vector<ScopeBlock> scopes;
   std::unordered_map<std::string, std::vector<std::string>> properties;
   std::unordered_map<size_t, size_t> if_exists;
+  std::vector<std::string> plex_comments;
 
   KeyElements(const FilePath& path) : src_path(path) {
     scopes.reserve(20);
@@ -1574,8 +1583,10 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               tokens.erase(it + 1, it2);
               if (mode == LexMode::PlexCPP) {
                 if (it->range.Size() > 3) {
-                  if ((it->range[2] == '#') && (it->range[3] == '~'))
+                  if ((it->range[2] == '#') && (it->range[3] == '~')) {
                     it->type = CppToken::plex_comment;
+                    kelem.plex_comments.push_back(ToString(*it));
+                  }
                 }
               }
             } else {
@@ -2257,6 +2268,154 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 
 }
 
+void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_dest) {
+  auto& tv = ent->tv;
+  auto& comments = (*tv)[0].kelems->plex_comments;
+  auto& scopes = (*tv)[0].kelems->scopes;
+  auto& path = (*tv)[0].kelems->src_path;
+
+  std::set<std::string> defset;
+
+  for (auto& c : comments) {
+    if (c.size() < 10)
+      continue;
+    auto spl = SplitStdString(c);
+    if (spl.size() != 2)
+      continue;
+    if (spl[0] == "//#~def")
+      defset.emplace(spl[1]);
+  }
+
+  auto FindEnclosingNS = [&scopes](size_t pos) -> std::string {
+    ScopeBlock* sb;
+    size_t best = 0;
+
+    for (auto& s : scopes) {
+      if (s.type != ScopeBlock::named_namespace)
+        continue;
+      if (s.start > best) {
+        sb = &s;
+        best = s.start;
+      }
+    }
+    return sb ?  ToString(sb->name) : std::string();
+  };
+
+  for (auto it = begin(*tv); it != end(*tv); ++it) {
+    if (it->type != CppToken::open_paren)
+      continue;
+    auto it2 = it - 1;
+    if (it2->type != CppToken::identifier)
+      continue;
+    // find right above namespace.
+    auto ens = FindEnclosingNS(it2 - begin(*tv));
+    if (ens.empty())
+      throw TokenizerException(path.Raw(), __LINE__, it2->line);
+
+    auto fqname = ens + "::" + ToString(*it2);
+    if (defset.count(fqname)) {
+      // found a freestanding external function. Find out if it is a template.
+
+
+    }
+  }
+
+}
+
+void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEntities& ent) {
+  std::sort(begin(ent.includes), end(ent.includes), 
+      [] (const XInclude& e1, const XInclude& e2) {
+        return e1.Order(e2);
+      }
+  );
+
+  std::sort(begin(ent.code), end(ent.code), 
+      [] (const XEntity* e1, const XEntity* e2) {
+        return e1->Order(*e2);
+      }
+  );
+
+  // Lazy attempt to re-order the code if the dependency order
+  // is wrong. Easy to detect but hard to fix completely. We try
+  // several times exchanging the order.
+  if (ent.code.size() > 1) {
+    int tries = 30;
+    bool go_again = true;
+    while ((--tries != 0) && go_again) {
+      go_again = false;
+      for (auto ix = begin(ent.code); ix != end(ent.code); ++ix) {
+        for (auto& d : (*ix)->deps) {
+          auto xd = std::find(ix + 1, end(ent.code), d);
+          if (xd != end(ent.code)) {
+            // Sort order is wrong, a dependency is below.
+            std::swap(*ix, *xd);
+            go_again = true;
+            goto leave;
+          }
+        }
+      }
+      leave: ;
+    }  // while.
+
+    if (go_again) {
+      // we could not find an arrangement of code inserts that works.
+      throw PlexException(__LINE__, "dependency conflict");
+    }
+  }
+
+  // Insert includes after the first include.
+  auto& kel = *header_dest[0].kelems;
+  auto fik = kel.includes.find(Range<char>(first_include_key));
+  const auto pos_include = (fik != end(kel.includes)) ? fik->second : 1;
+
+  for (auto& incl : ent.includes) {
+    auto it = kel.includes.find(incl.src);
+    if (it != end(kel.includes))
+      continue;
+    // Include not found in source. We currently insert after the first include.
+    Logger::Get().ProcessInclude(incl.src);
+
+    incl.insert = std::string("#include ") + ToString(incl.src);
+    CppToken newtoken(FromString(incl.insert), CppToken::prep_include, 1, 1);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(header_dest[pos_include], Insert::keep_original, itv);
+    // insert in kels to avoid a second include of the same.
+    kel.includes[incl.src] = pos_include;
+  }
+
+  // collect all the plex metadata from #pragma annotations of all dependents.
+  for (auto& e : ent.code) {
+    auto x = e->tv->at(0).kelems;
+    if (!x)
+      continue;
+    for (auto& p : x->properties) {
+      auto& kp = kel.properties[p.first];
+      kp.insert(end(kp), begin(p.second), end(p.second));
+    }
+  }
+
+  // Insert the integer definitions resulting from "plex.define" pragma.
+  auto idefs = kel.properties.find("define");
+  if (idefs != end(kel.properties)) {
+    for (auto& idef : idefs->second) {
+      idef = "const int " + idef + " = 1;";
+      auto idr = FromString(idef);
+      auto idr_tok = TokenizeCpp(FilePath(L"@define@"), &idr);
+      InsertAtToken(cpp_dest[pos_include], Insert::keep_original, idr_tok);
+    }
+  }
+
+  // Insert code after the integer definitions.
+  auto lik = kel.includes.find(Range<char>(last_include_key));
+  const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
+
+  Range<char> curr_namespace;
+
+  for (auto& cod : ent.code) {
+    SplitEntity(cod, header_dest, cpp_dest);
+  }
+}
+
 int CountInnerLFs(Range<char> range) {
   if (!range.Size())
     return 0;
@@ -2488,10 +2647,12 @@ int wmain(int argc, wchar_t* argv[]) {
     CppTokenVector* target_tv = nullptr;
     if (op_mode & PCHGen) {
       auto stdafx = catalog.Parent().Append(L"stdafx.h");
-      auto pch_tv = new CppTokenVector(TokenizeCpp(stdafx));
-      LexCppTokens(LexMode::PlainCPP, *pch_tv);
-      ProcessEntities(*pch_tv, entities);
-      target_tv = pch_tv;
+      auto pch_cc_tv = new CppTokenVector(TokenizeCpp(stdafx));
+      auto pch_h_tv = new CppTokenVector(TokenizeCpp(stdafx));
+      LexCppTokens(LexMode::PlainCPP, *pch_cc_tv);
+      //ProcessEntities(*pch_cc_tv, entities);
+      ProcessEntities2(*pch_h_tv, *pch_cc_tv, entities);
+      target_tv = pch_cc_tv;
     } else {
       ProcessEntities(cc_tv, entities);
       target_tv = &cc_tv;
