@@ -785,6 +785,11 @@ public:
     file_.Write(FromString(text));
   }
 
+  void ProcessSplitDecl(const Range<char>& name) {
+    auto text = std::string("split target [") + ToString(name) + "]\n";
+    file_.Write(FromString(text));
+  }
+
 private:
   static File Create(FilePath path) {
     return File::Create(path, FileParams::AppendSharedRead(), FileSecurity());
@@ -2293,14 +2298,30 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
     for (auto& s : scopes) {
       if (s.type != ScopeBlock::named_namespace)
         continue;
-      if (s.start > best) {
-        sb = &s;
-        best = s.start;
+      if (s.start < pos) {
+        if (s.start > best) {
+          sb = &s;
+          best = s.start;
+        }
       }
     }
     return sb ?  ToString(sb->name) : std::string();
   };
 
+  auto InEnclosingAggregate = [&scopes](size_t pos) -> bool {
+    for (auto& s : scopes) {
+      if (s.type != ScopeBlock::block_aggregate)
+        continue;
+      if ((s.start < pos) && (s.end > pos))
+        return true;
+    }
+    return false;
+  };
+
+  // Finding freestanding functions consists of finding "(" and then looking at the previous
+  // token, if is an identifier and the identifier (full name) is in the ~def set then it is
+  // elegible, then we need to find the enclosing scope and figure out it is not a struct or
+  // class defintion.
   for (auto it = begin(*tv); it != end(*tv); ++it) {
     if (it->type != CppToken::open_paren)
       continue;
@@ -2308,16 +2329,53 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
     if (it2->type != CppToken::identifier)
       continue;
     // find right above namespace.
-    auto ens = FindEnclosingNS(it2 - begin(*tv));
+    size_t name_pos = it2 - begin(*tv);
+    auto ens = FindEnclosingNS(name_pos);
     if (ens.empty())
       throw TokenizerException(path.Raw(), __LINE__, it2->line);
 
     auto fqname = ens + "::" + ToString(*it2);
-    if (defset.count(fqname)) {
-      // found a freestanding external function. Find out if it is a template.
+    if (!defset.count(fqname))
+      continue;
 
+    // Easy check: it is not a destructor.
+    if ((it2 - 1)->type == CppToken::bitwise_not)
+      continue;
 
+    if (InEnclosingAggregate(name_pos))
+      continue;
+
+    // found a freestanding external function. Find out if it is a template.
+    // we scan backwards until "}", "{" or ";" is found.
+    auto it3 = it2 - 1;
+    for (; (it3->type != CppToken::close_cur_bracket) &&
+           (it3->type != CppToken::open_cur_bracket) &&
+           (it3->type != CppToken::semicolon) &&
+           (it3->type != CppToken::prep_pragma);
+           --it3) {
+      if (it3->type == CppToken::sos)
+        throw TokenizerException(path.Raw(), __LINE__, it2->line);
     }
+    // Now scan forward until the name is reached or template is found.
+    auto it4 = it3;
+    for (; it4 != it2; ++it4) {
+      if (it4->type == CppToken::kw_template)
+        break;
+    }
+    if (it4->type == CppToken::kw_template)
+      continue;
+    // Not a template. We need to construct a declaration out of the definition
+    // that starts at it3 + 1 and ends before "{".
+    auto it5 = it2;
+    for (; it5->type != CppToken::open_cur_bracket; ++it5) {
+      if (it5->type == CppToken::sos)
+        throw TokenizerException(path.Raw(), __LINE__, it2->line);
+    }
+    it3++;
+    it5--;
+    Range<char> decl(it3->range.Start(), it5->range.End());
+    Logger::Get().ProcessSplitDecl(decl);
+
   }
 
 }
