@@ -2298,7 +2298,7 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
     for (auto& s : scopes) {
       if (s.type != ScopeBlock::named_namespace)
         continue;
-      if (s.start < pos) {
+      if ((s.start < pos) && (s.end > pos)) {
         if (s.start > best) {
           sb = &s;
           best = s.start;
@@ -2364,13 +2364,20 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
     }
     if (it4->type == CppToken::kw_template)
       continue;
-    // Not a template. We need to construct a declaration out of the definition
+    // Not a template.
+    //We need to construct a declaration out of the definition
     // that starts at it3 + 1 and ends before "{".
     auto it5 = it2;
-    for (; it5->type != CppToken::open_cur_bracket; ++it5) {
+    for (; (it5->type != CppToken::open_cur_bracket) &&
+           (it5->type != CppToken::semicolon); 
+         ++it5) {
       if (it5->type == CppToken::sos)
         throw TokenizerException(path.Raw(), __LINE__, it2->line);
     }
+    // Make sure it is not a declaration.
+    if (it5->type == CppToken::semicolon)
+      continue;
+
     it3++;
     it5--;
     Range<char> decl(it3->range.Start(), it5->range.End());
