@@ -1,6 +1,6 @@
-//#~def plx::ExePath
+//#~def plx::GetExePath
 ///////////////////////////////////////////////////////////////////////////////
-// plx::ExePath
+// plx::GetExePath
 //
 namespace plx {
 plx::FilePath GetExePath() {

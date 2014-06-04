@@ -110,7 +110,7 @@ plx::JsonValue ParseObject(plx::Range<const char>& range) {
   throw plx::CodecException(__LINE__, nullptr);
 }
 
-} // namespace JsonImp
+}
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
   range = plx::SkipWhitespace(range);
