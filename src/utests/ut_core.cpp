@@ -1,7 +1,6 @@
 // ut_core.cpp
-#define NOMINMAX
-
-#include "../utests.h"
+#include "stdafx.h"
+#include "utests.h"
 
 void Test_PlatformCheck::Exec() {
   CheckEQ(plx::PlatformCheck(), true);

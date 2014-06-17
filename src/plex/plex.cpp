@@ -98,6 +98,8 @@ const char anonymous_namespace_mk[] = "<[anonymous]>";
 const char scope_namespace_mk[] = "<[scope]>";
 char first_include_key[] = "!~";
 char last_include_key[] = "$~";
+char handy_semicolon[] = ";";
+
 #pragma endregion
 
 #pragma region exceptions
@@ -2124,23 +2126,26 @@ void InsertAtToken(CppToken& src, Insert::Kind kind, CppTokenVector& tv) {
   // Minimal insertion has two tokens: SOS + tv[0].
   auto start = tv[0].range.Start();
   CppToken control(Range<char>(start, start), CppToken::plex_insert, 0, 0);
-  if (tv.size() == 1) {
-    tv.insert(begin(tv), control);
-  } else if (tv[0].type == CppToken::sos) {
+
+  auto& exv = src.insert->tv;
+  const int b_line = exv.empty() ? src.line : exv[exv.size()-1].line + 1;
+
+  if (tv[0].type == CppToken::sos) {
     // replace SOS for the insert token.
     tv[0] = control;
   } else {
-    throw PlexException(__LINE__, "Missing SOS token");
+    control.line += b_line;
+    src.insert->tv.push_back(control);
   }
 
   // Insert most tokens and renumber the lines as we go along.
-  auto& exv = src.insert->tv;
-  int b_line = exv.empty() ? src.line : exv[exv.size()-1].line;
+  const int start_line = tv[0].line;
+
   for (auto& tok : tv) {
     auto t = tok.type;
     if (t == CppToken::eos || t == CppToken::plex_comment)
       continue;
-    tok.line += b_line;
+    tok.line = b_line + (tok.line - start_line);
     src.insert->tv.push_back(tok);
   }
 }
@@ -2273,7 +2278,7 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 
 }
 
-void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_dest) {
+void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
   auto& tv = ent->tv;
   auto& comments = (*tv)[0].kelems->plex_comments;
   auto& scopes = (*tv)[0].kelems->scopes;
@@ -2316,6 +2321,15 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
         return true;
     }
     return false;
+  };
+
+  auto GetEndScopeFromStart = [&scopes](size_t start) -> size_t {
+    for (auto& s : scopes) {
+      if (s.start != start)
+        continue;
+      return s.end;
+    }
+    return 0;
   };
 
   // Finding freestanding functions consists of finding "(" and then looking at the previous
@@ -2382,6 +2396,30 @@ void SplitEntity(XEntity* ent, CppTokenVector& header_dest, CppTokenVector& cpp_
     it5--;
     Range<char> decl(it3->range.Start(), it5->range.End());
     Logger::Get().ProcessSplitDecl(decl);
+    ++it5;
+
+    size_t def_begin = it5 - begin(*tv);
+    auto def_end = GetEndScopeFromStart(def_begin);
+    if (!def_end)
+      throw TokenizerException(path.Raw(), __LINE__, it5->line);
+
+    // insert the definition into the cc file.
+    auto& includes = cpp_dest[0].kelems->includes;
+    auto lik = includes.find(Range<char>(last_include_key));
+    const auto pos_code = (lik != end(includes)) ? lik->second : 1;
+
+    auto it6 = begin(*tv) + def_end + 1;
+    InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(it3, it6));
+
+    // Mutate the start of definition "{" into a semicolon.
+    it5->type = CppToken::semicolon;
+    it5->range = Range<char>(handy_semicolon, handy_semicolon + 1);
+
+    // Remove the rest of the definition.
+    ++it5;
+    for (; it5 != it6; ++it5) {
+      it5->insert = Insert::TokenDeleter();
+    }
 
   }
 
@@ -2466,8 +2504,12 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
       idef = "const int " + idef + " = 1;";
       auto idr = FromString(idef);
       auto idr_tok = TokenizeCpp(FilePath(L"@define@"), &idr);
-      InsertAtToken(cpp_dest[pos_include], Insert::keep_original, idr_tok);
+      InsertAtToken(header_dest[pos_include], Insert::keep_original, idr_tok);
     }
+  }
+
+  for (auto& cod : ent.code) {
+    SplitEntity(cod, cpp_dest);
   }
 
   // Insert code after the integer definitions.
@@ -2475,10 +2517,43 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
   const auto pos_code = (lik != end(kel.includes)) ? lik->second : 1;
 
   Range<char> curr_namespace;
-
   for (auto& cod : ent.code) {
-    SplitEntity(cod, header_dest, cpp_dest);
+    Logger::Get().ProcessCode(cod->name);
+    auto& scopes = (*cod->tv)[0].kelems->scopes;
+
+    auto& top_scope = scopes.back();
+    if (top_scope.type == ScopeBlock::named_namespace) {
+      if ((curr_namespace.Size() == 0) || 
+          (!curr_namespace.Equal(top_scope.name))) {
+        // Start tracking new top namespace.
+        curr_namespace = top_scope.name;
+      } else {
+        // Insert has the same namespace as the previous one, we
+        // need to collapse them, by removing previous insert.
+        auto& exv = header_dest[pos_code].insert->tv;
+        auto revit = rbegin(exv);
+        while (revit != rend(exv)) {
+          if (revit->type == CppToken::close_cur_bracket) {
+            revit->insert = Insert::TokenDeleter();
+            break;
+          }
+        }
+        // Then remove the namespace from this insert. Which means
+        // the tree tokens "namespace xxx {".
+        size_t rp = top_scope.start;
+        (*cod->tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod->tv)[rp--].insert = Insert::TokenDeleter();
+        (*cod->tv)[rp].insert = Insert::TokenDeleter();
+
+      }
+    } else {
+      // No top level namespace.
+      curr_namespace.Reset();
+    }
+
+    InsertAtToken(header_dest[pos_code], Insert::keep_original, *cod->tv);
   }
+
 }
 
 int CountInnerLFs(Range<char> range) {
@@ -2711,29 +2786,40 @@ int wmain(int argc, wchar_t* argv[]) {
     // Phase 4: process each entity augmenting the source.
     CppTokenVector* target_tv = nullptr;
     if (op_mode & PCHGen) {
-      auto stdafx = catalog.Parent().Append(L"stdafx.h");
-      auto pch_cc_tv = new CppTokenVector(TokenizeCpp(stdafx));
-      auto pch_h_tv = new CppTokenVector(TokenizeCpp(stdafx));
-      LexCppTokens(LexMode::PlainCPP, *pch_cc_tv);
-      //ProcessEntities(*pch_cc_tv, entities);
-      ProcessEntities2(*pch_h_tv, *pch_cc_tv, entities);
-      target_tv = pch_cc_tv;
+      // PCH mode.
+      auto pch_h_tv = TokenizeCpp(catalog.Parent().Append(L"stdafx.h"));
+      LexCppTokens(LexMode::PlexCPP, pch_h_tv);
+
+      auto pch_cc_tv = TokenizeCpp(catalog.Parent().Append(L"stdafx.cpp"));
+      LexCppTokens(LexMode::PlexCPP, pch_cc_tv);
+
+      ProcessEntities2(pch_h_tv, pch_cc_tv, entities);
+
+      if (op_mode & Generate) {
+        File output_cc = MakeOutputCodeFile(out_path, L"stdafx.cpp");
+        WriteOutputFile(output_cc, pch_cc_tv);
+
+        File output_h = MakeOutputCodeFile(out_path, L"stdafx.h");
+        WriteOutputFile(output_h, pch_h_tv);
+      }
+
+      if (op_mode & TreeDump) {  
+        __debugbreak();
+      }
+
     } else {
+      // Old mode.
       ProcessEntities(cc_tv, entities);
-      target_tv = &cc_tv;
-    }
 
-    // Phase 5: Generate the outputs.
-    std::wstring out_name = (op_mode & PCHGen) ? L"stdafx.h" : path.Leaf();
+      if (op_mode & Generate) {
+        File output_cc = MakeOutputCodeFile(out_path, path.Leaf());
+        WriteOutputFile(output_cc, cc_tv);
+      }
 
-    if (op_mode & Generate) {
-      File output_cc = MakeOutputCodeFile(out_path, out_name);
-      WriteOutputFile(output_cc, *target_tv);
-    }
-
-    if (op_mode & TreeDump) {  
-      File test_dump = MakeTestDumpFile(out_path, out_name);
-      GenerateDump(test_dump, *target_tv);
+      if (op_mode & TreeDump) {  
+        File test_dump = MakeTestDumpFile(out_path, path.Leaf());
+        GenerateDump(test_dump, cc_tv);
+      }
     }
 
     return 0;

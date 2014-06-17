@@ -17,8 +17,11 @@
     <ClCompile Include="utests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="gen\ut_core.cpp">
-      <Filter>Source Files\gen</Filter>
+    <ClCompile Include="stdafx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ut_core.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
