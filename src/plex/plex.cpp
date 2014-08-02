@@ -2281,200 +2281,193 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 
 }
 
-void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
-
-  // $$$ this is an ugly hack.
-  static std::string last_namespace;
-
+void SplitEntities(std::deque<XEntity*>& code, CppTokenVector& cpp_dest) {
   auto& includes = cpp_dest[0].kelems->includes;
   auto lik = includes.find(Range<char>(last_include_key));
   const auto pos_code = (lik != end(includes)) ? lik->second : 1;
 
   auto InsertSingleBracket = [&cpp_dest, &pos_code]() -> void {
-    // need close last namespace.
     auto close_bracket =  new std::string("}");
     CppToken newtoken(FromString(*close_bracket), CppToken::close_cur_bracket, 1, 1);
     CppTokenVector itv = {newtoken};
     InsertAtToken(cpp_dest[pos_code], Insert::keep_original, itv);
   };
 
-  if (!ent) {
-    // We are being called for the last time. Here we need to finish
-    // the namespace coallesing that we have been doing.
-    if (!last_namespace.empty())
-      InsertSingleBracket();
-    return;
-  }
+  std::string last_namespace;
 
-  auto& tv = ent->tv;
-  auto& comments = (*tv)[0].kelems->plex_comments;
-  auto& scopes = (*tv)[0].kelems->scopes;
-  auto& path = (*tv)[0].kelems->src_path;
-  std::set<std::string> defset;
+  for (XEntity* ent : code) {
+    auto& tv = ent->tv;
+    auto& comments = (*tv)[0].kelems->plex_comments;
+    auto& scopes = (*tv)[0].kelems->scopes;
+    auto& path = (*tv)[0].kelems->src_path;
+    std::set<std::string> defset;
 
-  for (auto& c : comments) {
-    if (c.size() < 10)
-      continue;
-    auto spl = SplitStdString(c);
-    if (spl.size() != 2)
-      continue;
-    if (spl[0] == "//#~def")
-      defset.emplace(spl[1]);
-  }
-
-  auto FindEnclosingNS = [&scopes](size_t pos) -> ScopeBlock {
-    ScopeBlock* sb;
-    size_t best = 0;
-
-    for (auto& s : scopes) {
-      if (s.type != ScopeBlock::named_namespace)
+    for (auto& c : comments) {
+      if (c.size() < 10)
         continue;
-      if ((s.start < pos) && (s.end > pos)) {
-        if (s.start > best) {
-          sb = &s;
-          best = s.start;
+      auto spl = SplitStdString(c);
+      if (spl.size() != 2)
+        continue;
+      if (spl[0] == "//#~def")
+        defset.emplace(spl[1]);
+    }
+
+    auto FindEnclosingNS = [&scopes](size_t pos) -> ScopeBlock {
+      ScopeBlock* sb;
+      size_t best = 0;
+
+      for (auto& s : scopes) {
+        if (s.type != ScopeBlock::named_namespace)
+          continue;
+        if ((s.start < pos) && (s.end > pos)) {
+          if (s.start > best) {
+            sb = &s;
+            best = s.start;
+          }
         }
       }
-    }
-    return sb ? *sb : ScopeBlock(ScopeBlock::none);
-  };
+      return sb ? *sb : ScopeBlock(ScopeBlock::none);
+    };
 
-  auto InEnclosingAggregate = [&scopes](size_t pos) -> bool {
-    for (auto& s : scopes) {
-      if (s.type != ScopeBlock::block_aggregate)
-        continue;
-      if ((s.start < pos) && (s.end > pos))
-        return true;
-    }
-    return false;
-  };
-
-  auto GetEndScopeFromStart = [&scopes](size_t start) -> size_t {
-    for (auto& s : scopes) {
-      if (s.start != start)
-        continue;
-      return s.end;
-    }
-    return 0;
-  };
-
-  // Finding freestanding functions consists of finding "(" and then looking at the previous
-  // token, if is an identifier and the identifier (full name) is in the ~def set then it is
-  // elegible, then we need to find the enclosing scope and figure out it is not a struct or
-  // class defintion.
-  for (auto it = begin(*tv); it != end(*tv); ++it) {
-    if (it->type != CppToken::open_paren)
-      continue;
-    auto it2 = it - 1;
-    if (it2->type != CppToken::identifier)
-      continue;
-    // find right above namespace.
-    size_t name_pos = it2 - begin(*tv);
-    size_t ens_pos = 0;
-    auto ens = FindEnclosingNS(name_pos);
-    if (ens.type == ScopeBlock::none)
-      throw TokenizerException(path.Raw(), __LINE__, it2->line);
-
-    auto cns = ToString(ens.name);
-    auto fqname = cns + "::" + ToString(*it2);
-    if (!defset.count(fqname)) {
-      // Not an exportable name, but if part of a nested namespace then
-      // we should move the whole namespace block to the cc file.
-      if (ens.top) {
-        auto itA = begin(*tv) + ens.start - 2;
-        auto itB = begin(*tv) + ens.end + 1;
-        InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itA, itB));
-        for (; itA != itB; ++itA) {
-          itA->insert = Insert::TokenDeleter();
-        }
-        it = itB;
+    auto InEnclosingAggregate = [&scopes](size_t pos) -> bool {
+      for (auto& s : scopes) {
+        if (s.type != ScopeBlock::block_aggregate)
+          continue;
+        if ((s.start < pos) && (s.end > pos))
+          return true;
       }
-      continue;
-    }
+      return false;
+    };
 
-    // Easy check: it is not a destructor.
-    if ((it2 - 1)->type == CppToken::bitwise_not)
-      continue;
+    auto GetEndScopeFromStart = [&scopes](size_t start) -> size_t {
+      for (auto& s : scopes) {
+        if (s.start != start)
+          continue;
+        return s.end;
+      }
+      return 0;
+    };
 
-    if (InEnclosingAggregate(name_pos))
-      continue;
-
-    // found a freestanding external function. Find out if it is a template.
-    // we scan backwards until "}", "{" or ";" is found.
-    auto it3 = it2 - 1;
-    for (; (it3->type != CppToken::close_cur_bracket) &&
-           (it3->type != CppToken::open_cur_bracket) &&
-           (it3->type != CppToken::semicolon) &&
-           (it3->type != CppToken::prep_pragma);
-           --it3) {
-      if (it3->type == CppToken::sos)
+    // Finding freestanding functions consists of finding "(" and then looking at the previous
+    // token, if is an identifier and the identifier (full name) is in the ~def set then it is
+    // elegible, then we need to find the enclosing scope and figure out it is not a struct or
+    // class defintion.
+    for (auto it = begin(*tv); it != end(*tv); ++it) {
+      if (it->type != CppToken::open_paren)
+        continue;
+      auto it2 = it - 1;
+      if (it2->type != CppToken::identifier)
+        continue;
+      // find right above namespace.
+      size_t name_pos = it2 - begin(*tv);
+      size_t ens_pos = 0;
+      auto ens = FindEnclosingNS(name_pos);
+      if (ens.type == ScopeBlock::none)
         throw TokenizerException(path.Raw(), __LINE__, it2->line);
-    }
-    // Now scan forward until the name is reached or template is found.
-    auto it4 = it3;
-    for (; it4 != it2; ++it4) {
+
+      auto cns = ToString(ens.name);
+      auto fqname = cns + "::" + ToString(*it2);
+      if (!defset.count(fqname)) {
+        // Not an exportable name, but if part of a nested namespace then
+        // we should move the whole namespace block to the cc file.
+        if (ens.top) {
+          auto itA = begin(*tv) + ens.start - 2;
+          auto itB = begin(*tv) + ens.end + 1;
+          InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itA, itB));
+          for (; itA != itB; ++itA) {
+            itA->insert = Insert::TokenDeleter();
+          }
+          it = itB;
+        }
+        continue;
+      }
+
+      // Easy check: it is not a destructor.
+      if ((it2 - 1)->type == CppToken::bitwise_not)
+        continue;
+
+      if (InEnclosingAggregate(name_pos))
+        continue;
+
+      // found a freestanding external function. Find out if it is a template.
+      // we scan backwards until "}", "{" or ";" is found.
+      auto it3 = it2 - 1;
+      for (; (it3->type != CppToken::close_cur_bracket) &&
+             (it3->type != CppToken::open_cur_bracket) &&
+             (it3->type != CppToken::semicolon) &&
+             (it3->type != CppToken::prep_pragma);
+             --it3) {
+        if (it3->type == CppToken::sos)
+          throw TokenizerException(path.Raw(), __LINE__, it2->line);
+      }
+      // Now scan forward until the name is reached or template is found.
+      auto it4 = it3;
+      for (; it4 != it2; ++it4) {
+        if (it4->type == CppToken::kw_template)
+          break;
+      }
       if (it4->type == CppToken::kw_template)
-        break;
-    }
-    if (it4->type == CppToken::kw_template)
-      continue;
-    // Not a template.
-    // We need to construct a declaration out of the definition
-    // that starts at it3 + 1 and ends before "{".
-    auto it5 = it2;
-    for (; (it5->type != CppToken::open_cur_bracket) &&
-           (it5->type != CppToken::semicolon); 
-         ++it5) {
-      if (it5->type == CppToken::sos)
-        throw TokenizerException(path.Raw(), __LINE__, it2->line);
-    }
-    // Make sure it is not a declaration.
-    if (it5->type == CppToken::semicolon)
-      continue;
-
-    it3++;
-    it5--;
-    Range<char> decl(it3->range.Start(), it5->range.End());
-    Logger::Get().ProcessSplitDecl(decl);
-    ++it5;
-
-    size_t def_begin = it5 - begin(*tv);
-    auto def_end = GetEndScopeFromStart(def_begin);
-    if (!def_end)
-      throw TokenizerException(path.Raw(), __LINE__, it5->line);
-
-    // Before adding the code lets add the namespace if needed.
-    if (ens.top) {
-      __debugbreak();
-    } else {
-      if (last_namespace != cns) {
-        if (!last_namespace.empty())
-          InsertSingleBracket();
- 
-        auto itC = begin(*tv) + ens.start - 2;
-        auto itD = begin(*tv) + ens.start + 1;
-        InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itC, itD));
-        last_namespace = cns;
+        continue;
+      // Not a template.
+      // We need to construct a declaration out of the definition
+      // that starts at it3 + 1 and ends before "{".
+      auto it5 = it2;
+      for (; (it5->type != CppToken::open_cur_bracket) &&
+             (it5->type != CppToken::semicolon); 
+           ++it5) {
+        if (it5->type == CppToken::sos)
+          throw TokenizerException(path.Raw(), __LINE__, it2->line);
       }
+      // Make sure it is not a declaration.
+      if (it5->type == CppToken::semicolon)
+        continue;
+
+      it3++;
+      it5--;
+      Range<char> decl(it3->range.Start(), it5->range.End());
+      Logger::Get().ProcessSplitDecl(decl);
+      ++it5;
+
+      size_t def_begin = it5 - begin(*tv);
+      auto def_end = GetEndScopeFromStart(def_begin);
+      if (!def_end)
+        throw TokenizerException(path.Raw(), __LINE__, it5->line);
+
+      // Before adding the code lets add the namespace if needed.
+      if (ens.top) {
+        __debugbreak();
+      } else {
+        if (last_namespace != cns) {
+          if (!last_namespace.empty())
+            InsertSingleBracket();
+ 
+          auto itC = begin(*tv) + ens.start - 2;
+          auto itD = begin(*tv) + ens.start + 1;
+          InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itC, itD));
+          last_namespace = cns;
+        }
+      }
+
+      // insert the definition into the cc file.
+      auto it6 = begin(*tv) + def_end + 1;
+      InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(it3, it6));
+
+      // Mutate the start of definition "{" into a semicolon.
+      it5->type = CppToken::semicolon;
+      it5->range = Range<char>(handy_semicolon, handy_semicolon + 1);
+
+      // Remove the rest of the definition.
+      ++it5;
+      for (; it5 != it6; ++it5) {
+        it5->insert = Insert::TokenDeleter();
+      }
+
+      it = it6;
     }
-
-    // insert the definition into the cc file.
-    auto it6 = begin(*tv) + def_end + 1;
-    InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(it3, it6));
-
-    // Mutate the start of definition "{" into a semicolon.
-    it5->type = CppToken::semicolon;
-    it5->range = Range<char>(handy_semicolon, handy_semicolon + 1);
-
-    // Remove the rest of the definition.
-    ++it5;
-    for (; it5 != it6; ++it5) {
-      it5->insert = Insert::TokenDeleter();
-    }
-
-    it = it6;
   }
-
+  // Close any outstanding namespace.
+  if (!last_namespace.empty())
+    InsertSingleBracket();
 }
 
 void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEntities& ent) {
@@ -2560,11 +2553,7 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
     }
   }
 
-  for (auto& cod : ent.code) {
-    SplitEntity(cod, cpp_dest);
-  }
-  // Signal end to spliting.
-  SplitEntity(nullptr, cpp_dest);
+  SplitEntities(ent.code, cpp_dest);
 
   // Insert code after the integer definitions.
   auto lik = kel.includes.find(Range<char>(last_include_key));
