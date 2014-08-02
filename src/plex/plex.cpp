@@ -876,6 +876,9 @@ struct ScopeBlock {
 
   ScopeBlock(Type type, const Range<char>&name, size_t start, size_t top)
       : type(type), top(top), start(start), end(0), name(name) {}
+
+  ScopeBlock(Type type)
+    : type(type), top(0), start(0), end(0) {}
 };
 
 struct KeyElements {
@@ -2284,6 +2287,10 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
   auto& scopes = (*tv)[0].kelems->scopes;
   auto& path = (*tv)[0].kelems->src_path;
 
+  auto& includes = cpp_dest[0].kelems->includes;
+  auto lik = includes.find(Range<char>(last_include_key));
+  const auto pos_code = (lik != end(includes)) ? lik->second : 1;
+
   std::set<std::string> defset;
 
   for (auto& c : comments) {
@@ -2296,7 +2303,7 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
       defset.emplace(spl[1]);
   }
 
-  auto FindEnclosingNS = [&scopes](size_t pos) -> std::string {
+  auto FindEnclosingNS = [&scopes](size_t pos) -> ScopeBlock {
     ScopeBlock* sb;
     size_t best = 0;
 
@@ -2310,7 +2317,7 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
         }
       }
     }
-    return sb ?  ToString(sb->name) : std::string();
+    return sb ? *sb : ScopeBlock(ScopeBlock::none);
   };
 
   auto InEnclosingAggregate = [&scopes](size_t pos) -> bool {
@@ -2344,13 +2351,26 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
       continue;
     // find right above namespace.
     size_t name_pos = it2 - begin(*tv);
+    size_t ens_pos = 0;
     auto ens = FindEnclosingNS(name_pos);
-    if (ens.empty())
+    if (ens.type == ScopeBlock::none)
       throw TokenizerException(path.Raw(), __LINE__, it2->line);
 
-    auto fqname = ens + "::" + ToString(*it2);
-    if (!defset.count(fqname))
+    auto fqname = ToString(ens.name) + "::" + ToString(*it2);
+    if (!defset.count(fqname)) {
+      // Not an exportable name, but if part of a nested namespace then
+      // we should move the whole namespace block to the cc file.
+      if (ens.top) {
+        auto itA = begin(*tv) + ens.start - 2;
+        auto itB = begin(*tv) + ens.end + 1;
+        InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itA, itB));
+        for (; itA != itB; ++itA) {
+          itA->insert = Insert::TokenDeleter();
+        }
+        it = itB;
+      }
       continue;
+    }
 
     // Easy check: it is not a destructor.
     if ((it2 - 1)->type == CppToken::bitwise_not)
@@ -2403,11 +2423,8 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
     if (!def_end)
       throw TokenizerException(path.Raw(), __LINE__, it5->line);
 
-    // insert the definition into the cc file.
-    auto& includes = cpp_dest[0].kelems->includes;
-    auto lik = includes.find(Range<char>(last_include_key));
-    const auto pos_code = (lik != end(includes)) ? lik->second : 1;
 
+    // insert the definition into the cc file.
     auto it6 = begin(*tv) + def_end + 1;
     InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(it3, it6));
 
@@ -2421,6 +2438,7 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
       it5->insert = Insert::TokenDeleter();
     }
 
+    it = it6;
   }
 
 }
