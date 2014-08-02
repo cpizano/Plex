@@ -836,7 +836,7 @@ void Test_File::Exec() {
       else
         ++count_files;
     }
-    CheckEQ((count_files > 3800) && (count_files < 4000), true);
+    CheckEQ((count_files > 3800) && (count_files < 4100), true);
     CheckEQ((count_dirs > 100) && (count_dirs < 120), true);
   }
 
