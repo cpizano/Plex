@@ -2282,15 +2282,34 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 }
 
 void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
-  auto& tv = ent->tv;
-  auto& comments = (*tv)[0].kelems->plex_comments;
-  auto& scopes = (*tv)[0].kelems->scopes;
-  auto& path = (*tv)[0].kelems->src_path;
+
+  // $$$ this is an ugly hack.
+  static std::string last_namespace;
 
   auto& includes = cpp_dest[0].kelems->includes;
   auto lik = includes.find(Range<char>(last_include_key));
   const auto pos_code = (lik != end(includes)) ? lik->second : 1;
 
+  auto InsertSingleBracket = [&cpp_dest, &pos_code]() -> void {
+    // need close last namespace.
+    auto close_bracket =  new std::string("}");
+    CppToken newtoken(FromString(*close_bracket), CppToken::close_cur_bracket, 1, 1);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(cpp_dest[pos_code], Insert::keep_original, itv);
+  };
+
+  if (!ent) {
+    // We are being called for the last time. Here we need to finish
+    // the namespace coallesing that we have been doing.
+    if (!last_namespace.empty())
+      InsertSingleBracket();
+    return;
+  }
+
+  auto& tv = ent->tv;
+  auto& comments = (*tv)[0].kelems->plex_comments;
+  auto& scopes = (*tv)[0].kelems->scopes;
+  auto& path = (*tv)[0].kelems->src_path;
   std::set<std::string> defset;
 
   for (auto& c : comments) {
@@ -2356,7 +2375,8 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
     if (ens.type == ScopeBlock::none)
       throw TokenizerException(path.Raw(), __LINE__, it2->line);
 
-    auto fqname = ToString(ens.name) + "::" + ToString(*it2);
+    auto cns = ToString(ens.name);
+    auto fqname = cns + "::" + ToString(*it2);
     if (!defset.count(fqname)) {
       // Not an exportable name, but if part of a nested namespace then
       // we should move the whole namespace block to the cc file.
@@ -2399,7 +2419,7 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
     if (it4->type == CppToken::kw_template)
       continue;
     // Not a template.
-    //We need to construct a declaration out of the definition
+    // We need to construct a declaration out of the definition
     // that starts at it3 + 1 and ends before "{".
     auto it5 = it2;
     for (; (it5->type != CppToken::open_cur_bracket) &&
@@ -2423,6 +2443,20 @@ void SplitEntity(XEntity* ent, CppTokenVector& cpp_dest) {
     if (!def_end)
       throw TokenizerException(path.Raw(), __LINE__, it5->line);
 
+    // Before adding the code lets add the namespace if needed.
+    if (ens.top) {
+      __debugbreak();
+    } else {
+      if (last_namespace != cns) {
+        if (!last_namespace.empty())
+          InsertSingleBracket();
+ 
+        auto itC = begin(*tv) + ens.start - 2;
+        auto itD = begin(*tv) + ens.start + 1;
+        InsertAtToken(cpp_dest[pos_code], Insert::keep_original, CppTokenVector(itC, itD));
+        last_namespace = cns;
+      }
+    }
 
     // insert the definition into the cc file.
     auto it6 = begin(*tv) + def_end + 1;
@@ -2529,6 +2563,8 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
   for (auto& cod : ent.code) {
     SplitEntity(cod, cpp_dest);
   }
+  // Signal end to spliting.
+  SplitEntity(nullptr, cpp_dest);
 
   // Insert code after the integer definitions.
   auto lik = kel.includes.find(Range<char>(last_include_key));
