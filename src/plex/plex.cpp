@@ -2351,7 +2351,7 @@ void SplitEntities(std::deque<XEntity*>& code, CppTokenVector& cpp_dest) {
     // Finding freestanding functions consists of finding "(" and then looking at the previous
     // token, if is an identifier and the identifier (full name) is in the ~def set then it is
     // elegible, then we need to find the enclosing scope and figure out it is not a struct or
-    // class defintion.
+    // class definition.
     for (auto it = begin(*tv); it != end(*tv); ++it) {
       if (it->type != CppToken::open_paren)
         continue;
@@ -2434,8 +2434,9 @@ void SplitEntities(std::deque<XEntity*>& code, CppTokenVector& cpp_dest) {
         throw TokenizerException(path.Raw(), __LINE__, it5->line);
 
       // Before adding the code lets add the namespace if needed.
+      // $$$ this code only supports one top level namespace.
       if (ens.top) {
-        __debugbreak();
+        throw TokenizerException(path.Raw(), __LINE__, it5->line);
       } else {
         if (last_namespace != cns) {
           if (!last_namespace.empty())
