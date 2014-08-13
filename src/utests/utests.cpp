@@ -40,6 +40,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_Hex().Run();
     Test_Whitespace().Run();
     Test_DecodeString().Run();
+    Test_StringPrintf().Run();
     Test_Parse_JSON().Run();
     Test_CRC32C().Run();
     Test_FilePath().Run();

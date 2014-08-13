@@ -30,6 +30,7 @@
 #include <memory>
 #include <vector>
 #include <stdint.h>
+#include <stdarg.h>
 
 const int plex_sse42_support = 1;
 
@@ -1287,6 +1288,13 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
 
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::StringPrintf  (c-style printf for std strings)
+//
+
+std::string StringPrintf(const char* fmt, ...) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

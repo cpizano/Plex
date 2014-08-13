@@ -623,6 +623,17 @@ void Test_DecodeString::Exec() {
   }
 }
 
+void Test_StringPrintf::Exec() {
+  auto s1 = plx::StringPrintf("the %s jumped over the %d lazy %s", "fox", 3, "dogs");
+  CheckEQ(s1 == "the fox jumped over the 3 lazy dogs", true);
+
+  int n = 1073741824;
+  auto s2 = plx::StringPrintf(
+      "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d ",
+      n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n,n);
+  CheckEQ(s2.size(), 220);
+}
+
 void Test_Parse_JSON::Exec() {
   {
     auto json = plx::RangeFromLitStr(" true");
