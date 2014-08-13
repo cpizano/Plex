@@ -45,6 +45,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_CRC32C().Run();
     Test_FilePath().Run();
     Test_File().Run();
+    Test_IOCPLoop().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);

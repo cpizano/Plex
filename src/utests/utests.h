@@ -74,4 +74,5 @@ TEST(Test_Parse_JSON);
 TEST(Test_CRC32C);
 TEST(Test_FilePath);
 TEST(Test_File);
+TEST(Test_IOCPLoop);
 #undef TEST

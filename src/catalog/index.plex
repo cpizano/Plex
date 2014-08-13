@@ -5,6 +5,7 @@ include 1 {
   std::bind <functional>;
   std::deque <deque>;
   std::forward_list <forward_list>;
+  std::function <functional>;
   std::initializer_list <initializer_list>;
   std::isspace <cctype>;
   std::isdigit <cctype>;
@@ -78,4 +79,5 @@ catalog 1 {
   plx::GetExePath plx\io\exe_path.h;
   plx::LocalUniqueId plx\local_unique_id.h;
   plx::StringPrintf plx\stringprintf.h;
+  plx::IOCPLoop plx\iocp_loop.h;
 }

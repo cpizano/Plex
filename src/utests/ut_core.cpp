@@ -859,3 +859,21 @@ void Test_File::Exec() {
   }
 
 }
+
+void Test_IOCPLoop::Exec() {
+  struct Sum {
+    int value;
+    void Add(int addend) {
+      value += addend;
+    }
+  };
+
+  Sum sum = {55};
+  plx::IOCPLoop loop;
+  auto proxy = loop.MakeProxy();
+  proxy.PostTask(std::bind(&Sum::Add, &sum, 5));
+  proxy.PostTask(std::bind(&Sum::Add, &sum, 3));
+  proxy.PostQuitTask();
+  loop.Run(INFINITE);
+  CheckEQ(sum.value, 63);
+}
