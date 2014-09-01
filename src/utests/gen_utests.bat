@@ -5,8 +5,10 @@ set plexbin="..\plex\out\x64\%1\plex.exe"
 if not exist %plexbin% goto error1
 
 echo generating utests\ut_core.cpp
-del ..\utests\gen\ut_core.cpp
-%plexbin% --generate --out-dir=gen --catalog=..\catalog ut_core.cpp
+del ..\utests\stdafx.cpp
+del ..\utests\stdafx.h
+%plexbin% --generate --catalog=..\catalog --pch ut_core.cpp
+
 goto end
 
 :error1

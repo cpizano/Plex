@@ -813,7 +813,7 @@ public:
     return (handle_ != INVALID_HANDLE_VALUE);
   }
 
-  size_t size_in_bytes() const {
+  long long size_in_bytes() const {
     LARGE_INTEGER li = {0};
     ::GetFileSizeEx(handle_, &li);
     return li.QuadPart;
