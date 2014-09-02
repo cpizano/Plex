@@ -86,6 +86,11 @@ void Test_Range::Exec() {
     plx::Range<const char> cr(r);
     CheckEQ(cr.size(), 5);
   }
+
+  {
+    auto r1 = plx::RangeUntilValue<const char>("rez,pez", ',');
+    CheckEQ(r1.equals(plx::RangeFromLitStr("rez")), true);
+  }
 }
 
 void Test_CpuId::Exec() {

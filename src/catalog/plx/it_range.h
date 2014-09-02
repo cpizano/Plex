@@ -140,6 +140,15 @@ ItRange<U*> RangeFromArray(U (&str)[count]) {
   return ItRange<U*>(str, str + count);
 }
 
+template <typename U>
+ItRange<U*> RangeUntilValue(U* start, U value) {
+  auto stop = start;
+  while (*stop != value) {
+    ++stop;
+  }
+  return ItRange<U*>(start, stop);
+}
+
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
   auto s = reinterpret_cast<uint8_t*>(start);
   return ItRange<uint8_t*>(s, s + count);
