@@ -1624,8 +1624,9 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           // possible numeric constant. Being it relatively rare we can use iostream.
           std::string number(ToString(*it));
           std::istringstream ss(number);
-          long long value;
-          ss >> value;
+          unsigned long long u_value;
+          long long s_value;
+          ss >> s_value;
           if (!ss)
             throw TokenizerException(path, __LINE__, it->line);
           size_t np = ss.tellg();
@@ -1644,7 +1645,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
               case 'X' : {
                 // Hex number. Verify that iostream can consume it fully.
                 ss.seekg(0);
-                ss >> std::hex >> value;
+                ss >> std::hex >> u_value;
                 if (!ss)
                   throw TokenizerException(path, __LINE__, it->line);
                 np = ss.tellg();
