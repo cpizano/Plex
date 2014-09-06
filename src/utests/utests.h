@@ -75,4 +75,6 @@ TEST(Test_CRC32C);
 TEST(Test_FilePath);
 TEST(Test_File);
 TEST(Test_IOCPLoop);
+TEST(Test_Hashes);
+TEST(Test_CmdLine);
 #undef TEST

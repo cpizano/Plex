@@ -254,7 +254,7 @@ public:
 
   size_t starts_with(const ItRange<It>& o) const {
     if (o.size() > size())
-      return false;
+      return 0;
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0;
   }
 
@@ -325,6 +325,8 @@ ItRange<U*> RangeUntilValue(U* start, U value) {
   }
   return ItRange<U*>(start, stop);
 }
+
+
 
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) ;
 
@@ -551,6 +553,13 @@ public:
 // plx::GetExePath
 //
 plx::FilePath GetExePath() ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::Hash_FNV1a  (nice hash function for strings used by c++ std)
+//
+// Test "foobar" --> 0x85944171f73967e8ULL.
+size_t Hash_FNV1a(const plx::Range<const char>& r) ;
 
 
 

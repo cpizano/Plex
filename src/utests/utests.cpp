@@ -46,6 +46,8 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_FilePath().Run();
     Test_File().Run();
     Test_IOCPLoop().Run();
+    Test_Hashes().Run();
+    Test_CmdLine().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);

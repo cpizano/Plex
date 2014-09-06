@@ -882,3 +882,22 @@ void Test_IOCPLoop::Exec() {
   loop.Run(INFINITE);
   CheckEQ(sum.value, 63);
 }
+
+void Test_Hashes::Exec() {
+  auto r1 = plx::RangeFromLitStr("foobar");
+  size_t hash1 = plx::Hash_FNV1a(r1);
+  CheckEQ(hash1 == 0x85944171f73967e8ULL, true);
+
+  auto r2 = plx::RangeFromLitStr("a");
+  size_t hash2 = plx::Hash_FNV1a(r2);
+  CheckEQ(hash2 == 0xaf63dc4c8601ec8cULL, true);
+
+  auto r3 = plx::RangeFromLitStr("");
+  size_t hash3 = plx::Hash_FNV1a(r3);
+  CheckEQ(hash3 == 0xcbf29ce484222325ULL, true);
+}
+
+void Test_CmdLine::Exec() {
+
+}
+

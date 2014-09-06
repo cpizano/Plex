@@ -80,4 +80,5 @@ catalog 1 {
   plx::LocalUniqueId plx\local_unique_id.h;
   plx::StringPrintf plx\stringprintf.h;
   plx::IOCPLoop plx\iocp_loop.h;
+  plx::Hash_FNV1a plx\hash_fnv1a.h;
 }
