@@ -77,7 +77,7 @@ public:
 
   size_t starts_with(const ItRange<It>& o) const {
     if (o.size() > size())
-      return false;
+      return 0;
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0; 
   }
 
@@ -148,6 +148,8 @@ ItRange<U*> RangeUntilValue(U* start, U value) {
   }
   return ItRange<U*>(start, stop);
 }
+
+
 
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
   auto s = reinterpret_cast<uint8_t*>(start);
