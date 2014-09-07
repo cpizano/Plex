@@ -906,6 +906,20 @@ void Test_Hashes::Exec() {
 }
 
 void Test_CmdLine::Exec() {
+  wchar_t* args[] = {
+    L"--verbose",
+    L"sirens",
+    L"--out=c:\\foo\\bar",
+    L"-1",
+    L"mermaids-one",
+  };
 
+  plx::CmdLine cmdline(5, args);
+
+  CheckEQ(cmdline.extra_count() == 3, true);
+  CheckEQ(cmdline.has_switch(L"verbose"), true);
+  CheckEQ(cmdline.has_switch(L"sirens"), false);
+  plx::Range<const wchar_t> out;
+  CheckEQ(cmdline.has_switch(L"out", &out), true);
+  CheckEQ(out.equals(plx::RangeFromLitStr(L"c:\\foo\\bar")), true);
 }
-

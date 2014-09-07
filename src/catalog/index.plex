@@ -82,4 +82,5 @@ catalog 1 {
   plx::IOCPLoop plx\iocp_loop.h;
   plx::Hash_FNV1a_64 plx\hash_fnv1a_64.h;
   plx::Hash_FNV1a_32 plx\hash_fnv1a_32.h;
+  plx::CmdLine plx\cmd_line.h;
 }

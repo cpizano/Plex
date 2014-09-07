@@ -28,6 +28,7 @@
 #include <type_traits>
 #include <string>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include <stdint.h>
 #include <stdarg.h>
@@ -71,6 +72,23 @@ public:
   virtual ~Exception() {}
   const char* Message() const { return message_; }
   int Line() const { return line_; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::RangeException (thrown by ItRange and others)
+//
+class RangeException : public plx::Exception {
+  void* ptr_;
+public:
+  RangeException(int line, void* ptr)
+      : Exception(line, "Invalid Range"), ptr_(ptr) {
+    PostCtor();
+  }
+
+  void* pointer() const {
+    return ptr_;
+  }
 };
 
 
@@ -157,23 +175,6 @@ class CpuId {
   bool tm() const { return (id_[3] & (1 << 29)) != 0; }
 
   bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
-};
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::RangeException (thrown by ItRange and others)
-//
-class RangeException : public plx::Exception {
-  void* ptr_;
-public:
-  RangeException(int line, void* ptr)
-      : Exception(line, "Invalid Range"), ptr_(ptr) {
-    PostCtor();
-  }
-
-  void* pointer() const {
-    return ptr_;
-  }
 };
 
 
@@ -367,6 +368,16 @@ std::unique_ptr<U[]> HeapRange(ItRange<U*>&r) {
 //
 template <typename T>
 using Range = plx::ItRange<T*>;
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// HexASCII (converts a byte into a two-char readable representation.
+//
+static const char HexASCIITable[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
+
+char* HexASCII(uint8_t byte, char* out) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -581,18 +592,30 @@ uint32_t Hash_FNV1a_32(const plx::Range<const unsigned char>& r) ;
 uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) ;
 
 
-
-///////////////////////////////////////////////////////////////////////////////
-// HexASCII (converts a byte into a two-char readable representation.
-//
-static const char HexASCIITable[] =
-    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
-
-char* HexASCII(uint8_t byte, char* out) ;
-
-
 ///////////////////////////////////////////////////////////////////////////////
 std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CodecException (thrown by some decoders)
+// bytes_ : The 16 bytes or less that caused the issue.
+//
+class CodecException : public plx::Exception {
+  uint8_t bytes_[16];
+  size_t count_;
+
+public:
+  CodecException(int line, const plx::Range<const unsigned char>* br)
+      : Exception(line, "Codec exception"), count_(0) {
+    if (br)
+      count_ = br->CopyToArray(bytes_);
+    PostCtor();
+  }
+
+  std::string bytes() const {
+    return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
+  }
+};
 
 
 
@@ -887,25 +910,24 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CodecException (thrown by some decoders)
-// bytes_ : The 16 bytes or less that caused the issue.
+// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
 //
-class CodecException : public plx::Exception {
-  uint8_t bytes_[16];
-  size_t count_;
-
-public:
-  CodecException(int line, const plx::Range<const unsigned char>* br)
-      : Exception(line, "Codec exception"), count_(0) {
-    if (br)
-      count_ = br->CopyToArray(bytes_);
-    PostCtor();
-  }
-
-  std::string bytes() const {
-    return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
-  }
+// bits encoding
+// 7    0xxxxxxx
+// 11   110xxxxx 10xxxxxx
+// 16   1110xxxx 10xxxxxx 10xxxxxx
+// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
+// max point is then U+10FFFF.
+//
+static const uint32_t Utf8BitMask[] = {
+  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
+  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
+  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
+  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
 };
+
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1362,30 +1384,107 @@ bool PlatformCheck() ;;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeString (decodes a json-style encoded string)
+// plx::CmdLine (handles command line arguments)
 //
-std::string DecodeString(plx::Range<const char>& range) ;
+
+class CmdLine {
+
+  struct KeyHash {
+    size_t operator()(const plx::Range<const wchar_t>& r) const {
+      return plx::Hash_FNV1a_64(r.const_bytes());
+    }
+  };
+
+  struct KeyEqual {
+    bool operator()(const plx::Range<const wchar_t>& lhs, const plx::Range<const wchar_t>& rhs) const {
+      return lhs.equals(rhs);
+    }
+  };
+
+  std::unordered_map<plx::Range<const wchar_t>, plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
+  std::vector<plx::Range<const wchar_t>> extra_;
+  plx::Range<const wchar_t> program_;
+
+public:
+  CmdLine(int argc, wchar_t* argv[]) {
+    if (!argc)
+      return;
+
+    int start;
+    auto arg0 = plx::RangeUntilValue<wchar_t>(argv[0], 0);
+    if (is_program(arg0)) {
+      program_ = arg0;
+      start = 1;
+    } else {
+      start = 0;
+    }
+
+    for (int ix = start; ix != argc; ++ix) {
+      auto c_arg = plx::RangeUntilValue<wchar_t>(argv[ix], 0);
+      if (IsOption(c_arg)) {
+        c_arg.advance(2);
+        opts_.insert(NameValue(c_arg));
+      } else {
+        extra_.push_back(c_arg);
+      }
+    }
+  }
+
+  template <size_t count>
+  const bool has_switch(const wchar_t (&str)[count],
+                        plx::Range<const wchar_t>* value = nullptr) const {
+
+    return has_switch(plx::RangeFromLitStr<const wchar_t, count>(str), value);
+  }
+
+  const bool has_switch(const plx::Range<const wchar_t>& name,
+                        plx::Range<const wchar_t>* value = nullptr) const {
+    auto pos = opts_.find(name);
+    bool found = pos != end(opts_);
+    if (value && found) {
+      *value = pos->second;
+      return true;
+    }
+    return found;
+  }
+
+  size_t extra_count() const {
+    return extra_.size();
+  }
+
+  plx::Range<const wchar_t> extra(size_t index) const {
+    if (index >= extra_.size())
+      return plx::Range<wchar_t>();
+    return extra_[index];
+  }
+
+private:
+  bool IsOption(const plx::Range<wchar_t>& r) {
+    if (r.size() < 3)
+      return false;
+    return ((r[0] == '-') && (r[1] == '-') && (r[2] != '-') && (r[2] != '='));
+  }
+
+  bool is_program(const plx::Range<wchar_t>& r) const {
+    // $$$ todo.
+    return false;
+  }
+
+  std::pair<plx::Range<wchar_t>, plx::Range<wchar_t>> NameValue(plx::Range<wchar_t>& r) {
+    size_t pos = 0;
+    if (r.contains(L'=', &pos) && pos < (r.size() - 1))
+      return std::make_pair(
+          plx::Range<wchar_t>(r.start(), r.start() + pos),
+          plx::Range<wchar_t>(r.start() + pos + 1, r.end()));
+    return std::make_pair(r, plx::Range<wchar_t>());
+  }
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
+// plx::DecodeString (decodes a json-style encoded string)
 //
-// bits encoding
-// 7    0xxxxxxx
-// 11   110xxxxx 10xxxxxx
-// 16   1110xxxx 10xxxxxx 10xxxxxx
-// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
-// max point is then U+10FFFF.
-//
-static const uint32_t Utf8BitMask[] = {
-  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
-  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
-  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
-  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
-};
-
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
+std::string DecodeString(plx::Range<const char>& range) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

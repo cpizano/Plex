@@ -32,6 +32,11 @@ ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
   auto s = reinterpret_cast<const uint8_t*>(start);
   return ItRange<const uint8_t*>(s, s + count);
 }
+char* HexASCII(uint8_t byte, char* out) {
+  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
+  *out++ = HexASCIITable[byte & 0x0F];
+  return out;
+}
 plx::FilePath GetExePath() {
   wchar_t* pp = nullptr;
   _get_wpgmptr(&pp);
@@ -67,11 +72,6 @@ uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) {
   }
   return hval;
 }
-char* HexASCII(uint8_t byte, char* out) {
-  *out++ = HexASCIITable[(byte >> 4) & 0x0F];
-  *out++ = HexASCIITable[byte & 0x0F];
-  return out;
-}
 std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
   if (r.empty())
     return std::string();
@@ -83,6 +83,52 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
     ++data;
   }
   return str;
+}
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+  if (!ir.valid() || (ir.size() == 0))
+    throw plx::CodecException(__LINE__, nullptr);
+
+  unsigned char fst = ir[0];
+  if (!(fst & 0x80)) {
+    // One byte sequence, so we are done.
+    ir.advance(1);
+    return fst;
+  }
+
+  if ((fst & 0xC0) != 0xC0)
+    throw plx::CodecException(__LINE__, &ir);
+
+  uint32_t d = fst;
+  fst <<= 1;
+
+  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
+    unsigned char tmp = ir[i];
+
+    if ((tmp & 0xC0) != 0x80)
+      throw plx::CodecException(__LINE__, &ir);
+
+    d = (d << 6) | (tmp & 0x3F);
+    fst <<= 1;
+
+    if (!(fst & 0x80)) {
+      d &= Utf8BitMask[i];
+
+      // overlong check.
+      if ((d & ~Utf8BitMask[i - 1]) == 0)
+        throw plx::CodecException(__LINE__, &ir);
+
+      // surrogate check.
+      if (i == 2) {
+        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
+          throw plx::CodecException(__LINE__, &ir);
+      }
+
+      ir.advance(i + 1);
+      return d;
+    }
+
+  }
+  throw plx::CodecException(__LINE__, &ir);
 }
 uint64_t LocalUniqueId() {
   LUID luid = {0};
@@ -178,52 +224,6 @@ std::string DecodeString(plx::Range<const char>& range) {
       }
     }
   }
-}
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
-  if (!ir.valid() || (ir.size() == 0))
-    throw plx::CodecException(__LINE__, nullptr);
-
-  unsigned char fst = ir[0];
-  if (!(fst & 0x80)) {
-    // One byte sequence, so we are done.
-    ir.advance(1);
-    return fst;
-  }
-
-  if ((fst & 0xC0) != 0xC0)
-    throw plx::CodecException(__LINE__, &ir);
-
-  uint32_t d = fst;
-  fst <<= 1;
-
-  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
-
-    if ((tmp & 0xC0) != 0x80)
-      throw plx::CodecException(__LINE__, &ir);
-
-    d = (d << 6) | (tmp & 0x3F);
-    fst <<= 1;
-
-    if (!(fst & 0x80)) {
-      d &= Utf8BitMask[i];
-
-      // overlong check.
-      if ((d & ~Utf8BitMask[i - 1]) == 0)
-        throw plx::CodecException(__LINE__, &ir);
-
-      // surrogate check.
-      if (i == 2) {
-        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
-          throw plx::CodecException(__LINE__, &ir);
-      }
-
-      ir.advance(i + 1);
-      return d;
-    }
-
-  }
-  throw plx::CodecException(__LINE__, &ir);
 }
 namespace JsonImp {
 template <typename StrT>
