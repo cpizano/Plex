@@ -885,16 +885,24 @@ void Test_IOCPLoop::Exec() {
 
 void Test_Hashes::Exec() {
   auto r1 = plx::RangeFromLitStr("foobar");
-  size_t hash1 = plx::Hash_FNV1a(r1);
-  CheckEQ(hash1 == 0x85944171f73967e8ULL, true);
-
   auto r2 = plx::RangeFromLitStr("a");
-  size_t hash2 = plx::Hash_FNV1a(r2);
-  CheckEQ(hash2 == 0xaf63dc4c8601ec8cULL, true);
-
   auto r3 = plx::RangeFromLitStr("");
-  size_t hash3 = plx::Hash_FNV1a(r3);
-  CheckEQ(hash3 == 0xcbf29ce484222325ULL, true);
+  {
+    auto hash1 = plx::Hash_FNV1a_64(r1);
+    CheckEQ(hash1 == 0x85944171f73967e8ULL, true);
+    auto hash2 = plx::Hash_FNV1a_64(r2);
+    CheckEQ(hash2 == 0xaf63dc4c8601ec8cULL, true);
+    auto hash3 = plx::Hash_FNV1a_64(r3);
+    CheckEQ(hash3 == 0xcbf29ce484222325ULL, true);
+  }
+  {
+    auto hash1 = plx::Hash_FNV1a_32(r1);
+    CheckEQ(hash1 == 0xbf9cf968UL, true);
+    auto hash2 = plx::Hash_FNV1a_32(r2);
+    CheckEQ(hash2 == 0xe40c292cUL, true);
+    auto hash3 = plx::Hash_FNV1a_32(r3);
+    CheckEQ(hash3 == 0x811c9dc5UL, true);
+  }
 }
 
 void Test_CmdLine::Exec() {

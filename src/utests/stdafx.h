@@ -556,10 +556,17 @@ plx::FilePath GetExePath() ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Hash_FNV1a  (nice hash function for strings used by c++ std)
-//
-// Test "foobar" --> 0x85944171f73967e8ULL.
-size_t Hash_FNV1a(const plx::Range<const char>& r) ;
+// plx::Hash_FNV1a_32  (nice hash function for strings used by c++ std)
+// for short inputs is about 100 times faster than SHA1 and about 20 times
+// faster for long inputs.
+uint32_t Hash_FNV1a_32(const plx::Range<const char>& r) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::Hash_FNV1a_64  (nice hash function for strings used by c++ std)
+// for short inputs is about 100 times faster than SHA1 and about 20 times
+// faster for long inputs.
+uint64_t Hash_FNV1a_64(const plx::Range<const char>& r) ;
 
 
 

@@ -37,8 +37,22 @@ plx::FilePath GetExePath() {
   _get_wpgmptr(&pp);
   return FilePath(pp).parent();
 }
-// Test "foobar" --> 0x85944171f73967e8ULL.
-size_t Hash_FNV1a(const plx::Range<const char>& r) {
+uint32_t Hash_FNV1a_32(const plx::Range<const char>& r) {
+  auto bp = reinterpret_cast<const unsigned char*>(r.start());
+  auto be = reinterpret_cast<const unsigned char*>(r.end());
+
+  uint32_t hval = 0x811c9dc5UL;
+  while (bp < be) {
+    // xor the bottom with the current octet.
+    hval ^= (uint32_t)*bp++;
+    // multiply by the 32 bit FNV magic prime mod 2^32. In other words
+    // hval *= FNV_32_PRIME; which is 0x01000193UL;
+    hval += (hval << 1) + (hval << 4) + (hval << 7) +
+            (hval << 8) + (hval << 24);
+  }
+  return hval;
+}
+uint64_t Hash_FNV1a_64(const plx::Range<const char>& r) {
   auto bp = reinterpret_cast<const unsigned char*>(r.start());
   auto be = reinterpret_cast<const unsigned char*>(r.end());
 
@@ -51,7 +65,6 @@ size_t Hash_FNV1a(const plx::Range<const char>& r) {
     hval += (hval << 1) + (hval << 4) + (hval << 5) +
             (hval << 7) + (hval << 8) + (hval << 40);
   }
-  // Microsoft's std::string hash has: hval ^= hval >> 32;
   return hval;
 }
 char* HexASCII(uint8_t byte, char* out) {

@@ -1,10 +1,10 @@
-//#~def plx::Hash_FNV1a
+//#~def plx::Hash_FNV1a_64
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Hash_FNV1a  (nice hash function for strings used by c++ std)
-//
+// plx::Hash_FNV1a_64  (nice hash function for strings used by c++ std)
+// for short inputs is about 100 times faster than SHA1 and about 20 times
+// faster for long inputs.
 namespace plx {
-// Test "foobar" --> 0x85944171f73967e8ULL.
-size_t Hash_FNV1a(const plx::Range<const char>& r) {
+uint64_t Hash_FNV1a_64(const plx::Range<const char>& r) {
   auto bp = reinterpret_cast<const unsigned char*>(r.start());
   auto be = reinterpret_cast<const unsigned char*>(r.end());
 
@@ -17,8 +17,6 @@ size_t Hash_FNV1a(const plx::Range<const char>& r) {
     hval += (hval << 1) + (hval << 4) + (hval << 5) +
             (hval << 7) + (hval << 8) + (hval << 40);
   }
-  // Microsoft's std::string hash has: hval ^= hval >> 32;
   return hval;
 }
-
 }
