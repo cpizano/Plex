@@ -37,9 +37,9 @@ plx::FilePath GetExePath() {
   _get_wpgmptr(&pp);
   return FilePath(pp).parent();
 }
-uint32_t Hash_FNV1a_32(const plx::Range<const char>& r) {
-  auto bp = reinterpret_cast<const unsigned char*>(r.start());
-  auto be = reinterpret_cast<const unsigned char*>(r.end());
+uint32_t Hash_FNV1a_32(const plx::Range<const unsigned char>& r) {
+  auto bp = r.start();
+  auto be = r.end();
 
   uint32_t hval = 0x811c9dc5UL;
   while (bp < be) {
@@ -52,9 +52,9 @@ uint32_t Hash_FNV1a_32(const plx::Range<const char>& r) {
   }
   return hval;
 }
-uint64_t Hash_FNV1a_64(const plx::Range<const char>& r) {
-  auto bp = reinterpret_cast<const unsigned char*>(r.start());
-  auto be = reinterpret_cast<const unsigned char*>(r.end());
+uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) {
+  auto bp = r.start();
+  auto be = r.end();
 
   uint64_t hval = 0xcbf29ce484222325ULL;
   while (bp < be) {

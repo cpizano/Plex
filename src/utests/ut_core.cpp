@@ -888,19 +888,19 @@ void Test_Hashes::Exec() {
   auto r2 = plx::RangeFromLitStr("a");
   auto r3 = plx::RangeFromLitStr("");
   {
-    auto hash1 = plx::Hash_FNV1a_64(r1);
+    auto hash1 = plx::Hash_FNV1a_64(r1.const_bytes());
     CheckEQ(hash1 == 0x85944171f73967e8ULL, true);
-    auto hash2 = plx::Hash_FNV1a_64(r2);
+    auto hash2 = plx::Hash_FNV1a_64(r2.const_bytes());
     CheckEQ(hash2 == 0xaf63dc4c8601ec8cULL, true);
-    auto hash3 = plx::Hash_FNV1a_64(r3);
+    auto hash3 = plx::Hash_FNV1a_64(r3.const_bytes());
     CheckEQ(hash3 == 0xcbf29ce484222325ULL, true);
   }
   {
-    auto hash1 = plx::Hash_FNV1a_32(r1);
+    auto hash1 = plx::Hash_FNV1a_32(r1.const_bytes());
     CheckEQ(hash1 == 0xbf9cf968UL, true);
-    auto hash2 = plx::Hash_FNV1a_32(r2);
+    auto hash2 = plx::Hash_FNV1a_32(r2.const_bytes());
     CheckEQ(hash2 == 0xe40c292cUL, true);
-    auto hash3 = plx::Hash_FNV1a_32(r3);
+    auto hash3 = plx::Hash_FNV1a_32(r3.const_bytes());
     CheckEQ(hash3 == 0x811c9dc5UL, true);
   }
 }

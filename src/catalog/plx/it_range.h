@@ -128,6 +128,18 @@ public:
     e_ = s_ + sz;
   }
 
+  ItRange<const unsigned char*> const_bytes() const {
+    auto s = reinterpret_cast<const unsigned char*>(s_);
+    auto e = reinterpret_cast<const unsigned char*>(e_);
+    return ItRange<const unsigned char*>(s, e);
+  }
+
+   ItRange<unsigned char*> bytes() const {
+    auto s = reinterpret_cast<unsigned char*>(s_);
+    auto e = reinterpret_cast<unsigned char*>(e_);
+    return ItRange<unsigned char*>(s, e);
+  }
+
 };
 
 template <typename U, size_t count>
