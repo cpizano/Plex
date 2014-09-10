@@ -31,6 +31,7 @@ int wmain(int argc, wchar_t* argv[]) {
   try {
     Test_PlatformCheck().Run();
     Test_Range().Run();
+    Test_BitSlice().Run();
     Test_CpuId().Run();
     Test_LinkedBuffers().Run();
     Test_To_Integer().Run();

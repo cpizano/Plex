@@ -60,6 +60,7 @@ private:\
 
 TEST(Test_PlatformCheck);
 TEST(Test_Range);
+TEST(Test_BitSlice);
 TEST(Test_CpuId);
 TEST(Test_LinkedBuffers);
 TEST(Test_To_Integer);

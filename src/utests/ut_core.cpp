@@ -93,6 +93,46 @@ void Test_Range::Exec() {
   }
 }
 
+void Test_BitSlice::Exec() {
+  const unsigned char tv[] = {
+      // lsb - msb lsb - msb
+      // 0110 1001 0100 0100 1110 0001 0010 1000 1111 1110
+      // --+--+------+-------------------++------+----+
+      0x96, 0x22, 0x87, 0x14, 0x7f
+  };
+
+  auto r = plx::RangeFromArray(tv);
+  plx::BitSlicer slicer(r);
+  CheckEQ(slicer.past_end(), false);
+
+  auto s1 = slicer.slice(3);
+  CheckEQ(s1 == 0x06, true);
+  CheckEQ(slicer.past_end(), false);
+  auto s2 = slicer.slice(2);
+  CheckEQ(s2 == 0x02, true);
+  CheckEQ(slicer.past_end(), false);
+  auto s3 = slicer.slice(6);
+  CheckEQ(s3 == 0x14, true);
+  CheckEQ(slicer.past_end(), false);
+  auto s4 = slicer.slice(16);
+  CheckEQ(s4 == 0x90e4, true);
+  CheckEQ(slicer.past_end(), false);
+  auto s5 = slicer.slice(1);
+  CheckEQ(s5 == 0x00, true);
+  CheckEQ(slicer.past_end(), false);
+  auto s6 = slicer.slice(5);
+  CheckEQ(s6 == 0x11, true);
+  auto s7 = slicer.slice(4);
+  CheckEQ(s7 == 0x0f, true);
+  auto s8 = slicer.slice(1);
+  CheckEQ(s8 == 0x01, true);
+  bool end = false;
+  auto s9 = slicer.slice(5, &end);
+  CheckEQ(end, true);
+  CheckEQ(slicer.past_end(), true);
+}
+
+
 void Test_CpuId::Exec() {
   plx::CpuId cpu_id;
 

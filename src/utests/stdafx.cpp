@@ -37,6 +37,18 @@ char* HexASCII(uint8_t byte, char* out) {
   *out++ = HexASCIITable[byte & 0x0F];
   return out;
 }
+std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
+  if (r.empty())
+    return std::string();
+
+  std::string str((r.size() * 3) - 1, separator);
+  char* data = &str[0];
+  for (size_t ix = 0; ix != r.size(); ++ix) {
+    data = plx::HexASCII(r[ix], data);
+    ++data;
+  }
+  return str;
+}
 plx::FilePath GetExePath() {
   wchar_t* pp = nullptr;
   _get_wpgmptr(&pp);
@@ -71,109 +83,6 @@ uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) {
             (hval << 7) + (hval << 8) + (hval << 40);
   }
   return hval;
-}
-std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
-  if (r.empty())
-    return std::string();
-
-  std::string str((r.size() * 3) - 1, separator);
-  char* data = &str[0];
-  for (size_t ix = 0; ix != r.size(); ++ix) {
-    data = plx::HexASCII(r[ix], data);
-    ++data;
-  }
-  return str;
-}
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
-  if (!ir.valid() || (ir.size() == 0))
-    throw plx::CodecException(__LINE__, nullptr);
-
-  unsigned char fst = ir[0];
-  if (!(fst & 0x80)) {
-    // One byte sequence, so we are done.
-    ir.advance(1);
-    return fst;
-  }
-
-  if ((fst & 0xC0) != 0xC0)
-    throw plx::CodecException(__LINE__, &ir);
-
-  uint32_t d = fst;
-  fst <<= 1;
-
-  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
-
-    if ((tmp & 0xC0) != 0x80)
-      throw plx::CodecException(__LINE__, &ir);
-
-    d = (d << 6) | (tmp & 0x3F);
-    fst <<= 1;
-
-    if (!(fst & 0x80)) {
-      d &= Utf8BitMask[i];
-
-      // overlong check.
-      if ((d & ~Utf8BitMask[i - 1]) == 0)
-        throw plx::CodecException(__LINE__, &ir);
-
-      // surrogate check.
-      if (i == 2) {
-        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
-          throw plx::CodecException(__LINE__, &ir);
-      }
-
-      ir.advance(i + 1);
-      return d;
-    }
-
-  }
-  throw plx::CodecException(__LINE__, &ir);
-}
-uint64_t LocalUniqueId() {
-  LUID luid = {0};
-  ::AllocateLocallyUniqueId(&luid);
-  ULARGE_INTEGER li = {luid.LowPart, luid.HighPart};
-  return li.QuadPart;
-}
-short NextInt(char value) {
-  return short(value);
-}
-int NextInt(short value) {
-  return int(value);
-}
-long long NextInt(int value) {
-  return long long(value);
-}
-long long NextInt(long value) {
-  return long long(value);
-}
-long long NextInt(long long value) {
-  return value;
-}
-short NextInt(unsigned char value) {
-  return short(value);
-}
-int NextInt(unsigned short value) {
-  return int(value);
-}
-long long NextInt(unsigned int value) {
-  return long long(value);
-}
-long long NextInt(unsigned long value) {
-  return long long(value);
-}
-long long NextInt(unsigned long long value) {
-  if (static_cast<long long>(value) < 0LL)
-    throw plx::OverflowException(__LINE__, plx::OverflowKind::Positive);
-  return long long(value);
-}
-bool PlatformCheck() {
-  __if_exists(plex_sse42_support) {
-    if (!plx::CpuId().sse42())
-      return false;
-  }
-  return true;
 }
 std::string DecodeString(plx::Range<const char>& range) {
   if (range.empty())
@@ -224,6 +133,97 @@ std::string DecodeString(plx::Range<const char>& range) {
       }
     }
   }
+}
+uint64_t LocalUniqueId() {
+  LUID luid = {0};
+  ::AllocateLocallyUniqueId(&luid);
+  ULARGE_INTEGER li = {luid.LowPart, luid.HighPart};
+  return li.QuadPart;
+}
+short NextInt(char value) {
+  return short(value);
+}
+int NextInt(short value) {
+  return int(value);
+}
+long long NextInt(int value) {
+  return long long(value);
+}
+long long NextInt(long value) {
+  return long long(value);
+}
+long long NextInt(long long value) {
+  return value;
+}
+short NextInt(unsigned char value) {
+  return short(value);
+}
+int NextInt(unsigned short value) {
+  return int(value);
+}
+long long NextInt(unsigned int value) {
+  return long long(value);
+}
+long long NextInt(unsigned long value) {
+  return long long(value);
+}
+long long NextInt(unsigned long long value) {
+  if (static_cast<long long>(value) < 0LL)
+    throw plx::OverflowException(__LINE__, plx::OverflowKind::Positive);
+  return long long(value);
+}
+bool PlatformCheck() {
+  __if_exists(plex_sse42_support) {
+    if (!plx::CpuId().sse42())
+      return false;
+  }
+  return true;
+}
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+  if (!ir.valid() || (ir.size() == 0))
+    throw plx::CodecException(__LINE__, nullptr);
+
+  unsigned char fst = ir[0];
+  if (!(fst & 0x80)) {
+    // One byte sequence, so we are done.
+    ir.advance(1);
+    return fst;
+  }
+
+  if ((fst & 0xC0) != 0xC0)
+    throw plx::CodecException(__LINE__, &ir);
+
+  uint32_t d = fst;
+  fst <<= 1;
+
+  for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
+    unsigned char tmp = ir[i];
+
+    if ((tmp & 0xC0) != 0x80)
+      throw plx::CodecException(__LINE__, &ir);
+
+    d = (d << 6) | (tmp & 0x3F);
+    fst <<= 1;
+
+    if (!(fst & 0x80)) {
+      d &= Utf8BitMask[i];
+
+      // overlong check.
+      if ((d & ~Utf8BitMask[i - 1]) == 0)
+        throw plx::CodecException(__LINE__, &ir);
+
+      // surrogate check.
+      if (i == 2) {
+        if ((d >= 0xD800 && d <= 0xDFFF) || d > 0x10FFFF)
+          throw plx::CodecException(__LINE__, &ir);
+      }
+
+      ir.advance(i + 1);
+      return d;
+    }
+
+  }
+  throw plx::CodecException(__LINE__, &ir);
 }
 namespace JsonImp {
 template <typename StrT>

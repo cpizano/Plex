@@ -41,21 +41,11 @@ const int plex_vista_support = 1;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CRC32C (computes CRC-32 checksum, SSE4 accelerated)
-// Polinomal 0x1EDC6F41 aka iSCSI CRC. This gives a 10^-41 probabilty of not
-// detecting a 3-bit burst error and 10^-40 for sporadic one bit errors.
-//
-namespace plx {
-#pragma comment(user, "plex.define=plex_sse42_support")
-
-uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) ;
-
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
 //
+namespace plx {
 class Exception {
   int line_;
   const char* message_;
@@ -76,6 +66,16 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::CRC32C (computes CRC-32 checksum, SSE4 accelerated)
+// Polinomal 0x1EDC6F41 aka iSCSI CRC. This gives a 10^-41 probabilty of not
+// detecting a 3-bit burst error and 10^-40 for sporadic one bit errors.
+//
+#pragma comment(user, "plex.define=plex_sse42_support")
+
+uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::RangeException (thrown by ItRange and others)
 //
 class RangeException : public plx::Exception {
@@ -89,92 +89,6 @@ public:
   void* pointer() const {
     return ptr_;
   }
-};
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::CpuId
-// id_ : the four integers returned by the 'cpuid' instruction.
-#pragma comment(user, "plex.define=plex_cpuid_support")
-
-class CpuId {
-  int id_[4];
-
- public:
-  CpuId() {
-    __cpuid(id_, 1);
-  }
-
-  int stepping() const { return id_[0] & 0x0f; }
-  int model() const { return (id_[0] >> 4) & 0x0f; }
-  int family() const { return (id_[0] >> 8) & 0x0f; }
-  int type() const { return (id_[0] >> 12) & 0x03; }
-  int logical_procesors() const { return (id_[1] >> 16) & 0xff; }
-
-  bool sse3() const { return (id_[2] & (1 << 0)) != 0; }
-  bool pclmuldq() const { return (id_[2] & (1 << 1)) != 0; }
-  bool dtes64() const { return (id_[2] & (1 << 2)) != 0; }
-  bool monitor() const { return (id_[2] & (1 << 3)) != 0; }
-  bool dscpl() const { return (id_[2] & (1 << 4)) != 0; }
-  bool vmx() const { return (id_[2] & (1 << 5)) != 0; }
-  bool smx() const { return (id_[2] & (1 << 6)) != 0; }
-  bool eist() const { return (id_[2] & (1 << 7)) != 0; }
-  bool tm2() const { return (id_[2] & (1 << 8)) != 0; }
-  bool ssse3() const { return (id_[2] & (1 << 9)) != 0; }
-  bool cnxtid() const { return (id_[2] & (1 << 10)) != 0; }
-
-  bool fma() const { return (id_[2] & (1 << 12)) != 0; }
-  bool cx16() const { return (id_[2] & (1 << 13)) != 0; }
-  bool xtpr() const { return (id_[2] & (1 << 14)) != 0; }
-  bool pdcm() const { return (id_[2] & (1 << 15)) != 0; }
-
-  bool pcid() const { return (id_[2] & (1 << 17)) != 0; }
-  bool dca() const { return (id_[2] & (1 << 18)) != 0; }
-  bool sse41() const { return (id_[2] & (1 << 19)) != 0; }
-  bool sse42() const { return (id_[2] & (1 << 20)) != 0; }
-  bool x2apic() const { return (id_[2] & (1 << 21)) != 0; }
-  bool movbe() const { return (id_[2] & (1 << 22)) != 0; }
-  bool popcnt() const { return (id_[2] & (1 << 23)) != 0; }
-  bool tscdeadline() const { return (id_[2] & (1 << 24)) != 0; }
-  bool aes() const { return (id_[2] & (1 << 25)) != 0; }
-  bool xsave() const { return (id_[2] & (1 << 26)) != 0; }
-  bool osxsave() const { return (id_[2] & (1 << 27)) != 0; }
-  bool avx() const { return (id_[2] & (1 << 28)) != 0; }
-  bool f16c() const { return (id_[2] & (1 << 29)) != 0; }
-  bool rdrand() const { return (id_[2] & (1 << 30)) != 0; }
-
-  bool fpu() const { return (id_[3] & (1 << 0)) != 0; }
-  bool vme() const { return (id_[3] & (1 << 1)) != 0; }
-  bool de() const { return (id_[3] & (1 << 2)) != 0; }
-  bool pse() const { return (id_[3] & (1 << 3)) != 0; }
-  bool tsc() const { return (id_[3] & (1 << 4)) != 0; }
-  bool msr() const { return (id_[3] & (1 << 5)) != 0; }
-  bool pae() const { return (id_[3] & (1 << 6)) != 0; }
-  bool mce() const { return (id_[3] & (1 << 7)) != 0; }
-  bool cx8() const { return (id_[3] & (1 << 8)) != 0; }
-  bool apic() const { return (id_[3] & (1 << 9)) != 0; }
-
-  bool sep() const { return (id_[3] & (1 << 11)) != 0; }
-  bool mtrr() const { return (id_[3] & (1 << 12)) != 0; }
-  bool pge() const { return (id_[3] & (1 << 13)) != 0; }
-  bool mca() const { return (id_[3] & (1 << 14)) != 0; }
-  bool cmov() const { return (id_[3] & (1 << 15)) != 0; }
-  bool pat() const { return (id_[3] & (1 << 16)) != 0; }
-  bool pse36() const { return (id_[3] & (1 << 17)) != 0; }
-  bool psn() const { return (id_[3] & (1 << 18)) != 0; }
-  bool clfsh() const { return (id_[3] & (1 << 19)) != 0; }
-
-  bool ds() const { return (id_[3] & (1 << 21)) != 0; }
-  bool acpi() const { return (id_[3] & (1 << 22)) != 0; }
-  bool mmx() const { return (id_[3] & (1 << 23)) != 0; }
-  bool fxsr() const { return (id_[3] & (1 << 24)) != 0; }
-  bool sse() const { return (id_[3] & (1 << 25)) != 0; }
-  bool sse2() const { return (id_[3] & (1 << 26)) != 0; }
-  bool ss() const { return (id_[3] & (1 << 27)) != 0; }
-  bool htt() const { return (id_[3] & (1 << 28)) != 0; }
-  bool tm() const { return (id_[3] & (1 << 29)) != 0; }
-
-  bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
 };
 
 
@@ -364,6 +278,92 @@ std::unique_ptr<U[]> HeapRange(ItRange<U*>&r) {
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::CpuId
+// id_ : the four integers returned by the 'cpuid' instruction.
+#pragma comment(user, "plex.define=plex_cpuid_support")
+
+class CpuId {
+  int id_[4];
+
+ public:
+  CpuId() {
+    __cpuid(id_, 1);
+  }
+
+  int stepping() const { return id_[0] & 0x0f; }
+  int model() const { return (id_[0] >> 4) & 0x0f; }
+  int family() const { return (id_[0] >> 8) & 0x0f; }
+  int type() const { return (id_[0] >> 12) & 0x03; }
+  int logical_procesors() const { return (id_[1] >> 16) & 0xff; }
+
+  bool sse3() const { return (id_[2] & (1 << 0)) != 0; }
+  bool pclmuldq() const { return (id_[2] & (1 << 1)) != 0; }
+  bool dtes64() const { return (id_[2] & (1 << 2)) != 0; }
+  bool monitor() const { return (id_[2] & (1 << 3)) != 0; }
+  bool dscpl() const { return (id_[2] & (1 << 4)) != 0; }
+  bool vmx() const { return (id_[2] & (1 << 5)) != 0; }
+  bool smx() const { return (id_[2] & (1 << 6)) != 0; }
+  bool eist() const { return (id_[2] & (1 << 7)) != 0; }
+  bool tm2() const { return (id_[2] & (1 << 8)) != 0; }
+  bool ssse3() const { return (id_[2] & (1 << 9)) != 0; }
+  bool cnxtid() const { return (id_[2] & (1 << 10)) != 0; }
+
+  bool fma() const { return (id_[2] & (1 << 12)) != 0; }
+  bool cx16() const { return (id_[2] & (1 << 13)) != 0; }
+  bool xtpr() const { return (id_[2] & (1 << 14)) != 0; }
+  bool pdcm() const { return (id_[2] & (1 << 15)) != 0; }
+
+  bool pcid() const { return (id_[2] & (1 << 17)) != 0; }
+  bool dca() const { return (id_[2] & (1 << 18)) != 0; }
+  bool sse41() const { return (id_[2] & (1 << 19)) != 0; }
+  bool sse42() const { return (id_[2] & (1 << 20)) != 0; }
+  bool x2apic() const { return (id_[2] & (1 << 21)) != 0; }
+  bool movbe() const { return (id_[2] & (1 << 22)) != 0; }
+  bool popcnt() const { return (id_[2] & (1 << 23)) != 0; }
+  bool tscdeadline() const { return (id_[2] & (1 << 24)) != 0; }
+  bool aes() const { return (id_[2] & (1 << 25)) != 0; }
+  bool xsave() const { return (id_[2] & (1 << 26)) != 0; }
+  bool osxsave() const { return (id_[2] & (1 << 27)) != 0; }
+  bool avx() const { return (id_[2] & (1 << 28)) != 0; }
+  bool f16c() const { return (id_[2] & (1 << 29)) != 0; }
+  bool rdrand() const { return (id_[2] & (1 << 30)) != 0; }
+
+  bool fpu() const { return (id_[3] & (1 << 0)) != 0; }
+  bool vme() const { return (id_[3] & (1 << 1)) != 0; }
+  bool de() const { return (id_[3] & (1 << 2)) != 0; }
+  bool pse() const { return (id_[3] & (1 << 3)) != 0; }
+  bool tsc() const { return (id_[3] & (1 << 4)) != 0; }
+  bool msr() const { return (id_[3] & (1 << 5)) != 0; }
+  bool pae() const { return (id_[3] & (1 << 6)) != 0; }
+  bool mce() const { return (id_[3] & (1 << 7)) != 0; }
+  bool cx8() const { return (id_[3] & (1 << 8)) != 0; }
+  bool apic() const { return (id_[3] & (1 << 9)) != 0; }
+
+  bool sep() const { return (id_[3] & (1 << 11)) != 0; }
+  bool mtrr() const { return (id_[3] & (1 << 12)) != 0; }
+  bool pge() const { return (id_[3] & (1 << 13)) != 0; }
+  bool mca() const { return (id_[3] & (1 << 14)) != 0; }
+  bool cmov() const { return (id_[3] & (1 << 15)) != 0; }
+  bool pat() const { return (id_[3] & (1 << 16)) != 0; }
+  bool pse36() const { return (id_[3] & (1 << 17)) != 0; }
+  bool psn() const { return (id_[3] & (1 << 18)) != 0; }
+  bool clfsh() const { return (id_[3] & (1 << 19)) != 0; }
+
+  bool ds() const { return (id_[3] & (1 << 21)) != 0; }
+  bool acpi() const { return (id_[3] & (1 << 22)) != 0; }
+  bool mmx() const { return (id_[3] & (1 << 23)) != 0; }
+  bool fxsr() const { return (id_[3] & (1 << 24)) != 0; }
+  bool sse() const { return (id_[3] & (1 << 25)) != 0; }
+  bool sse2() const { return (id_[3] & (1 << 26)) != 0; }
+  bool ss() const { return (id_[3] & (1 << 27)) != 0; }
+  bool htt() const { return (id_[3] & (1 << 28)) != 0; }
+  bool tm() const { return (id_[3] & (1 << 29)) != 0; }
+
+  bool pbe() const { return (id_[3] & (1 << 31)) != 0; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::Range  (alias for ItRange<T*>)
 //
 template <typename T>
@@ -378,6 +378,10 @@ static const char HexASCIITable[] =
     { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
 char* HexASCII(uint8_t byte, char* out) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -593,10 +597,6 @@ uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) ;
-
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::CodecException (thrown by some decoders)
 // bytes_ : The 16 bytes or less that caused the issue.
 //
@@ -616,6 +616,12 @@ public:
     return plx::HexASCIIStr(plx::Range<const uint8_t>(bytes_, count_), ',');
   }
 };
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::DecodeString (decodes a json-style encoded string)
+//
+std::string DecodeString(plx::Range<const char>& range) ;
 
 
 
@@ -906,24 +912,101 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
+// plx::CmdLine (handles command line arguments)
 //
-// bits encoding
-// 7    0xxxxxxx
-// 11   110xxxxx 10xxxxxx
-// 16   1110xxxx 10xxxxxx 10xxxxxx
-// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
-// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
-// max point is then U+10FFFF.
-//
-static const uint32_t Utf8BitMask[] = {
-  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
-  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
-  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
-  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
-};
 
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
+class CmdLine {
+
+  struct KeyHash {
+    size_t operator()(const plx::Range<const wchar_t>& r) const {
+      return plx::Hash_FNV1a_64(r.const_bytes());
+    }
+  };
+
+  struct KeyEqual {
+    bool operator()(const plx::Range<const wchar_t>& lhs, const plx::Range<const wchar_t>& rhs) const {
+      return lhs.equals(rhs);
+    }
+  };
+
+  std::unordered_map<plx::Range<const wchar_t>, plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
+  std::vector<plx::Range<const wchar_t>> extra_;
+  plx::Range<const wchar_t> program_;
+
+public:
+  CmdLine(int argc, wchar_t* argv[]) {
+    if (!argc)
+      return;
+
+    int start;
+    auto arg0 = plx::RangeUntilValue<wchar_t>(argv[0], 0);
+    if (is_program(arg0)) {
+      program_ = arg0;
+      start = 1;
+    } else {
+      start = 0;
+    }
+
+    for (int ix = start; ix != argc; ++ix) {
+      auto c_arg = plx::RangeUntilValue<wchar_t>(argv[ix], 0);
+      if (IsOption(c_arg)) {
+        c_arg.advance(2);
+        opts_.insert(NameValue(c_arg));
+      } else {
+        extra_.push_back(c_arg);
+      }
+    }
+  }
+
+  template <size_t count>
+  const bool has_switch(const wchar_t (&str)[count],
+                        plx::Range<const wchar_t>* value = nullptr) const {
+
+    return has_switch(plx::RangeFromLitStr<const wchar_t, count>(str), value);
+  }
+
+  const bool has_switch(const plx::Range<const wchar_t>& name,
+                        plx::Range<const wchar_t>* value = nullptr) const {
+    auto pos = opts_.find(name);
+    bool found = pos != end(opts_);
+    if (value && found) {
+      *value = pos->second;
+      return true;
+    }
+    return found;
+  }
+
+  size_t extra_count() const {
+    return extra_.size();
+  }
+
+  plx::Range<const wchar_t> extra(size_t index) const {
+    if (index >= extra_.size())
+      return plx::Range<wchar_t>();
+    return extra_[index];
+  }
+
+private:
+  bool IsOption(const plx::Range<wchar_t>& r) {
+    if (r.size() < 3)
+      return false;
+    return ((r[0] == '-') && (r[1] == '-') && (r[2] != '-') && (r[2] != '='));
+  }
+
+  bool is_program(const plx::Range<wchar_t>& r) const {
+    // $$$ todo.
+    return false;
+  }
+
+  std::pair<plx::Range<wchar_t>, plx::Range<wchar_t>> NameValue(plx::Range<wchar_t>& r) {
+    size_t pos = 0;
+    if (r.contains(L'=', &pos) && pos < (r.size() - 1))
+      return std::make_pair(
+          plx::Range<wchar_t>(r.start(), r.start() + pos),
+          plx::Range<wchar_t>(r.start() + pos + 1, r.end()));
+    return std::make_pair(r, plx::Range<wchar_t>());
+  }
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1380,107 +1463,80 @@ bool PlatformCheck() ;;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CmdLine (handles command line arguments)
+// plx::BitSlicer allows you to slice sequential bits of a byte range.
+// bits_ : the last extracted bits not given back to caller
+// bit_count_ : how many valid bits in |bits_|.
+// pos_ : the current byte position in |r_|.
 //
 
-class CmdLine {
+class BitSlicer {
+  const plx::Range<const unsigned char>& r_;
+  unsigned long bits_;
+  size_t bit_count_;
+  size_t pos_;
 
-  struct KeyHash {
-    size_t operator()(const plx::Range<const wchar_t>& r) const {
-      return plx::Hash_FNV1a_64(r.const_bytes());
-    }
-  };
-
-  struct KeyEqual {
-    bool operator()(const plx::Range<const wchar_t>& lhs, const plx::Range<const wchar_t>& rhs) const {
-      return lhs.equals(rhs);
-    }
-  };
-
-  std::unordered_map<plx::Range<const wchar_t>, plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
-  std::vector<plx::Range<const wchar_t>> extra_;
-  plx::Range<const wchar_t> program_;
+  unsigned long range_check(bool* eor) {
+    if (!eor)
+      throw plx::RangeException(__LINE__, 0);
+    *eor = true;
+    return 0;
+  }
 
 public:
-  CmdLine(int argc, wchar_t* argv[]) {
-    if (!argc)
-      return;
+  BitSlicer(const plx::Range<const unsigned char>& r)
+      : r_(r), bits_(0), bit_count_(0), pos_(0) {
+  }
 
-    int start;
-    auto arg0 = plx::RangeUntilValue<wchar_t>(argv[0], 0);
-    if (is_program(arg0)) {
-      program_ = arg0;
-      start = 1;
-    } else {
-      start = 0;
+  unsigned long slice(int needed, bool* eor = nullptr) {
+    if (needed > 23) {
+      throw plx::RangeException(__LINE__, 0);
     }
 
-    for (int ix = start; ix != argc; ++ix) {
-      auto c_arg = plx::RangeUntilValue<wchar_t>(argv[ix], 0);
-      if (IsOption(c_arg)) {
-        c_arg.advance(2);
-        opts_.insert(NameValue(c_arg));
-      } else {
-        extra_.push_back(c_arg);
-      }
+    unsigned long value = bits_;
+
+    while (bit_count_ < needed) {
+      if (past_end())
+        return range_check(eor);
+      // accumulate 8 bits at a time.
+      value |= static_cast<unsigned long>(r_[pos_++]) << bit_count_;
+      bit_count_ += 8;
     }
+
+    // store the uneeded bits from above. We will use them
+    // for the next request.
+    bits_ = value >> needed;
+    bit_count_ -= needed;
+
+    // mask out the bits above |needed|.
+    return value & ((1L << needed) - 1);
   }
 
-  template <size_t count>
-  const bool has_switch(const wchar_t (&str)[count],
-                        plx::Range<const wchar_t>* value = nullptr) const {
-
-    return has_switch(plx::RangeFromLitStr<const wchar_t, count>(str), value);
+  bool past_end() const {
+    return (pos_ == r_.size());
   }
 
-  const bool has_switch(const plx::Range<const wchar_t>& name,
-                        plx::Range<const wchar_t>* value = nullptr) const {
-    auto pos = opts_.find(name);
-    bool found = pos != end(opts_);
-    if (value && found) {
-      *value = pos->second;
-      return true;
-    }
-    return found;
-  }
-
-  size_t extra_count() const {
-    return extra_.size();
-  }
-
-  plx::Range<const wchar_t> extra(size_t index) const {
-    if (index >= extra_.size())
-      return plx::Range<wchar_t>();
-    return extra_[index];
-  }
-
-private:
-  bool IsOption(const plx::Range<wchar_t>& r) {
-    if (r.size() < 3)
-      return false;
-    return ((r[0] == '-') && (r[1] == '-') && (r[2] != '-') && (r[2] != '='));
-  }
-
-  bool is_program(const plx::Range<wchar_t>& r) const {
-    // $$$ todo.
-    return false;
-  }
-
-  std::pair<plx::Range<wchar_t>, plx::Range<wchar_t>> NameValue(plx::Range<wchar_t>& r) {
-    size_t pos = 0;
-    if (r.contains(L'=', &pos) && pos < (r.size() - 1))
-      return std::make_pair(
-          plx::Range<wchar_t>(r.start(), r.start() + pos),
-          plx::Range<wchar_t>(r.start() + pos + 1, r.end()));
-    return std::make_pair(r, plx::Range<wchar_t>());
-  }
 };
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DecodeString (decodes a json-style encoded string)
+// plx::DecodeUTF8 (decodes a UTF8 codepoint into a 32-bit codepoint)
 //
-std::string DecodeString(plx::Range<const char>& range) ;
+// bits encoding
+// 7    0xxxxxxx
+// 11   110xxxxx 10xxxxxx
+// 16   1110xxxx 10xxxxxx 10xxxxxx
+// 21   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+// The 5 and 6 bytes encoding are no longer valid since RFC 3629.
+// max point is then U+10FFFF.
+//
+static const uint32_t Utf8BitMask[] = {
+  (1 << 7) - 1,   // 0000 0000 0000 0000 0111 1111
+  (1 << 11) - 1,  // 0000 0000 0000 0111 1111 1111
+  (1 << 16) - 1,  // 0000 0000 1111 1111 1111 1111
+  (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
+};
+
+char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
