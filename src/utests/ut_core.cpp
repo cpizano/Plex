@@ -130,6 +130,170 @@ void Test_BitSlice::Exec() {
   auto s9 = slicer.slice(5, &end);
   CheckEQ(end, true);
   CheckEQ(slicer.past_end(), true);
+
+  class Inflater {
+    int error_;
+    std::vector<unsigned char> output_;
+
+  public:
+    enum Errors {
+      success = 0,
+      not_implemented,
+      invalid_block_type,
+      invalid_length,
+      empty_block,
+      missing_data,
+    };
+
+    Inflater() : error_(success)  {
+    }
+
+    std::vector<unsigned char>& output() {
+      return output_;
+    }
+
+    Errors status() const { return Errors(error_); }
+
+    bool inflate(const plx::Range<const unsigned char>& r) {
+      if (r.empty()) {
+        error_ = empty_block;
+        return false;
+      }
+
+      
+      error_ = success;
+      plx::BitSlicer slicer(r);
+
+      while (true) {
+        auto last = slicer.slice(1) == 1;
+        auto type = slicer.slice(2);
+
+        switch (type) {
+        case 0:  error_ = stored(slicer);
+          break;
+        case 1:  error_ = fixed(slicer);
+          break;
+        case 2:  error_ = dynamic(slicer);
+          break;
+        default:
+          error_ = invalid_block_type;
+          break;
+        }
+
+        if (error_) {
+          break;
+        } else if (last) {
+          break;
+        } else if (slicer.past_end()) {
+          error_ = missing_data;
+          break;
+        }
+      }
+
+      return error_ == success;
+    }
+
+    Errors stored(plx::BitSlicer& slicer) {
+      // The size of the block comes next in two bytes and its complement.
+      slicer.discard_bits();
+      unsigned int len = slicer.slice(16);
+      unsigned int clen = slicer.slice(16);
+      // check complement.
+      if (len != ((~clen) & 0x0ffff))
+        return invalid_length;
+
+      if (!len)
+        return empty_block;
+
+      // copy |len| bytes to the output.
+      const auto& remaining = slicer.remaining_range();
+      if (remaining.size() < len)
+        return missing_data;
+
+      output_.insert(output_.end(), remaining.start(), remaining.start() + len);
+      slicer.skip(len);
+      return success;
+    }
+
+    Errors fixed(plx::BitSlicer& slicer) {
+
+      return not_implemented;
+    }
+
+    Errors dynamic(plx::BitSlicer& slicer) {
+
+      return not_implemented;
+    }
+
+  };
+ 
+  {
+    // A last block with invalid block type (11) 
+    const unsigned char deflated_data[] = {
+        0x07, 0x01, 0x00, 0xfe, 0xff, 0x55
+    };
+
+    Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, false);
+    CheckEQ(inflater.status(), Inflater::invalid_block_type);
+    CheckEQ(inflater.output().size(), 0); 
+  }
+
+  {
+    // A last block with stored block (00) with 0 bytes.
+    const unsigned char deflated_data[] = {
+        0x01, 0x00, 0x00, 0xff, 0xff
+    };
+
+    Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, false);
+    CheckEQ(inflater.status(), Inflater::empty_block);
+    CheckEQ(inflater.output().size(), 0);
+  }
+
+  {
+    // A stored block (00) with 1 byte. No final block.
+    const unsigned char deflated_data[] = {
+        0x00, 0x01, 0x00, 0xfe, 0xff, 0x55
+    };
+
+    Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, false);
+    CheckEQ(inflater.status(), Inflater::missing_data);
+    CheckEQ(inflater.output().size(), 1);
+  }
+
+  {
+    // A stored block (00) with 1 byte, but it is missing.
+    const unsigned char deflated_data[] = {
+        0x00, 0x01, 0x00, 0xfe, 0xff
+    };
+
+    Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, false);
+    CheckEQ(inflater.status(), Inflater::missing_data);
+    CheckEQ(inflater.output().size(), 0);
+  }
+
+  {
+    // 3 stored blocks (00) total of 8 bytes of payload.
+    const unsigned char deflated_data[] = {
+      0x00, 0x01, 0x00, 0xfe, 0xff, '0',
+      0x00, 0x05, 0x00, 0xfa, 0xff, '1', '2', '3', '4', '5',
+      0x01, 0x02, 0x00, 0xfd, 0xff, '6', '7',
+    };
+
+    Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, true);
+    CheckEQ(inflater.status(), Inflater::success);
+    CheckEQ(inflater.output().size(), 8);
+  }
+
 }
 
 

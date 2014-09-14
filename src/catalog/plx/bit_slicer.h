@@ -53,6 +53,24 @@ public:
     return (pos_ == r_.size());
   }
 
+  void discard_bits() {
+    bit_count_ = 0;
+    bits_ = 0;
+  }
+
+  void skip(size_t n) {
+    discard_bits();
+    pos_ += n;
+  }
+
+  plx::Range<const unsigned char> remaining_range() const {
+    return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
+  }
+
+  size_t pos() const {
+    return pos_;
+  }
+
 };
 
 }
