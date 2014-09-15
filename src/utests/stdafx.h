@@ -220,16 +220,16 @@ public:
     e_ = s_ + sz;
   }
 
-  ItRange<const unsigned char*> const_bytes() const {
-    auto s = reinterpret_cast<const unsigned char*>(s_);
-    auto e = reinterpret_cast<const unsigned char*>(e_);
-    return ItRange<const unsigned char*>(s, e);
+  ItRange<const uint8_t*> const_bytes() const {
+    auto s = reinterpret_cast<const uint8_t*>(s_);
+    auto e = reinterpret_cast<const uint8_t*>(e_);
+    return ItRange<const uint8_t*>(s, e);
   }
 
-   ItRange<unsigned char*> bytes() const {
-    auto s = reinterpret_cast<unsigned char*>(s_);
-    auto e = reinterpret_cast<unsigned char*>(e_);
-    return ItRange<unsigned char*>(s, e);
+   ItRange<uint8_t*> bytes() const {
+    auto s = reinterpret_cast<uint8_t*>(s_);
+    auto e = reinterpret_cast<uint8_t*>(e_);
+    return ItRange<uint8_t*>(s, e);
   }
 
 };
@@ -586,14 +586,14 @@ plx::FilePath GetExePath() ;
 // plx::Hash_FNV1a_32  (nice hash function for strings used by c++ std)
 // for short inputs is about 100 times faster than SHA1 and about 20 times
 // faster for long inputs.
-uint32_t Hash_FNV1a_32(const plx::Range<const unsigned char>& r) ;
+uint32_t Hash_FNV1a_32(const plx::Range<const uint8_t>& r) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Hash_FNV1a_64  (nice hash function for strings used by c++ std)
 // for short inputs is about 100 times faster than SHA1 and about 20 times
 // faster for long inputs.
-uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) ;
+uint64_t Hash_FNV1a_64(const plx::Range<const uint8_t>& r) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1554,7 +1554,7 @@ static const uint32_t Utf8BitMask[] = {
   (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
 };
 
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) ;
+char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

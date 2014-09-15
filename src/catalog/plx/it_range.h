@@ -128,16 +128,16 @@ public:
     e_ = s_ + sz;
   }
 
-  ItRange<const unsigned char*> const_bytes() const {
-    auto s = reinterpret_cast<const unsigned char*>(s_);
-    auto e = reinterpret_cast<const unsigned char*>(e_);
-    return ItRange<const unsigned char*>(s, e);
+  ItRange<const uint8_t*> const_bytes() const {
+    auto s = reinterpret_cast<const uint8_t*>(s_);
+    auto e = reinterpret_cast<const uint8_t*>(e_);
+    return ItRange<const uint8_t*>(s, e);
   }
 
-   ItRange<unsigned char*> bytes() const {
-    auto s = reinterpret_cast<unsigned char*>(s_);
-    auto e = reinterpret_cast<unsigned char*>(e_);
-    return ItRange<unsigned char*>(s, e);
+   ItRange<uint8_t*> bytes() const {
+    auto s = reinterpret_cast<uint8_t*>(s_);
+    auto e = reinterpret_cast<uint8_t*>(e_);
+    return ItRange<uint8_t*>(s, e);
   }
 
 };

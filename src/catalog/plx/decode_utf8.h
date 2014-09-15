@@ -18,11 +18,11 @@ static const uint32_t Utf8BitMask[] = {
   (1 << 21) - 1   // 0001 1111 1111 1111 1111 1111
 };
 
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) {
   if (!ir.valid() || (ir.size() == 0))
     throw plx::CodecException(__LINE__, nullptr);
 
-  unsigned char fst = ir[0];
+  uint8_t fst = ir[0];
   if (!(fst & 0x80)) {
     // One byte sequence, so we are done.
     ir.advance(1);
@@ -36,7 +36,7 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
   fst <<= 1;
 
   for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
+    uint8_t tmp = ir[i];
 
     if ((tmp & 0xC0) != 0x80)
       throw plx::CodecException(__LINE__, &ir);

@@ -4,7 +4,7 @@
 // for short inputs is about 100 times faster than SHA1 and about 20 times
 // faster for long inputs.
 namespace plx {
-uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) {
+uint64_t Hash_FNV1a_64(const plx::Range<const uint8_t>& r) {
   auto bp = r.start();
   auto be = r.end();
 

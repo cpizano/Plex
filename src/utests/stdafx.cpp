@@ -54,7 +54,7 @@ plx::FilePath GetExePath() {
   _get_wpgmptr(&pp);
   return FilePath(pp).parent();
 }
-uint32_t Hash_FNV1a_32(const plx::Range<const unsigned char>& r) {
+uint32_t Hash_FNV1a_32(const plx::Range<const uint8_t>& r) {
   auto bp = r.start();
   auto be = r.end();
 
@@ -69,7 +69,7 @@ uint32_t Hash_FNV1a_32(const plx::Range<const unsigned char>& r) {
   }
   return hval;
 }
-uint64_t Hash_FNV1a_64(const plx::Range<const unsigned char>& r) {
+uint64_t Hash_FNV1a_64(const plx::Range<const uint8_t>& r) {
   auto bp = r.start();
   auto be = r.end();
 
@@ -179,11 +179,11 @@ bool PlatformCheck() {
   }
   return true;
 }
-char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
+char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) {
   if (!ir.valid() || (ir.size() == 0))
     throw plx::CodecException(__LINE__, nullptr);
 
-  unsigned char fst = ir[0];
+  uint8_t fst = ir[0];
   if (!(fst & 0x80)) {
     // One byte sequence, so we are done.
     ir.advance(1);
@@ -197,7 +197,7 @@ char32_t DecodeUTF8(plx::Range<const unsigned char>& ir) {
   fst <<= 1;
 
   for (unsigned int i = 1; (i != 3) && (ir.size() > i); ++i) {
-    unsigned char tmp = ir[i];
+    uint8_t tmp = ir[i];
 
     if ((tmp & 0xC0) != 0x80)
       throw plx::CodecException(__LINE__, &ir);

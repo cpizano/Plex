@@ -48,7 +48,7 @@ void Test_Range::Exec() {
   CheckEQ(range4[0], '1');
   CheckEQ(range4[7], '8');
 
-  unsigned char data[] = {0x11, 0x22, 0x33};
+  uint8_t data[] = {0x11, 0x22, 0x33};
   auto range5 = plx::RangeFromArray(data);
   CheckEQ(range5.size(), 3);
   CheckEQ(range5[0], 0x11);
@@ -94,7 +94,7 @@ void Test_Range::Exec() {
 }
 
 void Test_BitSlice::Exec() {
-  const unsigned char tv[] = {
+  const uint8_t tv[] = {
       // lsb - msb lsb - msb
       // 0110 1001 0100 0100 1110 0001 0010 1000 1111 1110
       // --+--+------+-------------------++------+----+
@@ -133,7 +133,7 @@ void Test_BitSlice::Exec() {
 
   class Inflater {
     int error_;
-    std::vector<unsigned char> output_;
+    std::vector<uint8_t> output_;
 
   public:
     enum Errors {
@@ -148,13 +148,13 @@ void Test_BitSlice::Exec() {
     Inflater() : error_(success)  {
     }
 
-    std::vector<unsigned char>& output() {
+    std::vector<uint8_t>& output() {
       return output_;
     }
 
     Errors status() const { return Errors(error_); }
 
-    bool inflate(const plx::Range<const unsigned char>& r) {
+    bool inflate(const plx::Range<const uint8_t>& r) {
       if (r.empty()) {
         error_ = empty_block;
         return false;
@@ -229,7 +229,7 @@ void Test_BitSlice::Exec() {
  
   {
     // A last block with invalid block type (11) 
-    const unsigned char deflated_data[] = {
+    const uint8_t deflated_data[] = {
         0x07, 0x01, 0x00, 0xfe, 0xff, 0x55
     };
 
@@ -242,7 +242,7 @@ void Test_BitSlice::Exec() {
 
   {
     // A last block with stored block (00) with 0 bytes.
-    const unsigned char deflated_data[] = {
+    const uint8_t deflated_data[] = {
         0x01, 0x00, 0x00, 0xff, 0xff
     };
 
@@ -255,7 +255,7 @@ void Test_BitSlice::Exec() {
 
   {
     // A stored block (00) with 1 byte. No final block.
-    const unsigned char deflated_data[] = {
+    const uint8_t deflated_data[] = {
         0x00, 0x01, 0x00, 0xfe, 0xff, 0x55
     };
 
@@ -268,7 +268,7 @@ void Test_BitSlice::Exec() {
 
   {
     // A stored block (00) with 1 byte, but it is missing.
-    const unsigned char deflated_data[] = {
+    const uint8_t deflated_data[] = {
         0x00, 0x01, 0x00, 0xfe, 0xff
     };
 
@@ -281,7 +281,7 @@ void Test_BitSlice::Exec() {
 
   {
     // 3 stored blocks (00) total of 8 bytes of payload.
-    const unsigned char deflated_data[] = {
+    const uint8_t deflated_data[] = {
       0x00, 0x01, 0x00, 0xfe, 0xff, '0',
       0x00, 0x05, 0x00, 0xfa, 0xff, '1', '2', '3', '4', '5',
       0x01, 0x02, 0x00, 0xfd, 0xff, '6', '7',
@@ -599,15 +599,15 @@ void Test_ScopeGuard::Exec() {
 
 void Test_Utf8decode::Exec() {
   {
-    const unsigned char t[] = "\0";
-    plx::Range<const unsigned char> r(t, 1);
+    const uint8_t t[] = "\0";
+    plx::Range<const uint8_t> r(t, 1);
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0);
   }
 
   {
-    const unsigned char t[] = "the lazy.";
-    plx::Range<const unsigned char> r(t, sizeof(t) - 1);
+    const uint8_t t[] = "the lazy.";
+    plx::Range<const uint8_t> r(t, sizeof(t) - 1);
     std::u32string result;
     while (r.size()) {
       auto c = plx::DecodeUTF8(r);
@@ -619,49 +619,49 @@ void Test_Utf8decode::Exec() {
 
   {
     // first two byte code U+0080 is 0xC2 0x80
-    const unsigned char t[] = {0xC2, 0x80};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xC2, 0x80};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0x80);
   }
 
   {
     // unicode U+00A9 (copyright sign) is 0xC2 0xA9
-    const unsigned char t[] = {0xC2, 0xA9};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xC2, 0xA9};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0xA9);
   }
 
   {
     // first tree byte code U+0800 (samaritan alaf) is 
-    const unsigned char t[] = {0xE0, 0xA0, 0x80};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xE0, 0xA0, 0x80};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0x800);
   }
 
   {
     // last 3 byte code U+FFFF (non character) is 0xE2 0x89 0xA0
-    const unsigned char t[] = {0xEF, 0xBF, 0xBF};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xEF, 0xBF, 0xBF};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0xFFFF);
   }
 
   {
     // unicode U+2260 (not equal to) 0xE2 0x89 0xA0
-    const unsigned char t[] = {0xE2, 0x89, 0xA0};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xE2, 0x89, 0xA0};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     auto c = plx::DecodeUTF8(r);
     CheckEQ(c, 0x2260);
   }
 
   {
     // greek word 'kosme'.
-    const unsigned char t[] =
+    const uint8_t t[] =
         {0xCE,0xBA,0xE1,0xBD,0xB9,0xCF,0x83,0xCE,0xBC,0xCE,0xB5};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    plx::Range<const uint8_t> r(t, sizeof(t));
     std::u32string result;
     while (r.size()) {
       auto c = plx::DecodeUTF8(r);
@@ -672,8 +672,8 @@ void Test_Utf8decode::Exec() {
 
    {
     // overlong form #1 for U+000A (line feed) 0xC0 0x8A
-    const unsigned char t[] = {0xC0, 0x8A};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xC0, 0x8A};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
@@ -684,8 +684,8 @@ void Test_Utf8decode::Exec() {
 
   {
     // overlong form #2 for U+000A (line feed) 0xE0 0x80 0x8A
-    const unsigned char t[] = {0xE0, 0x80, 0x8A};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xE0, 0x80, 0x8A};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
@@ -696,8 +696,8 @@ void Test_Utf8decode::Exec() {
 
   {
     // overlong form #3 for U+000A (line feed) 0xF0 0x80 0x80 0x8A
-    const unsigned char t[] = {0xF0, 0x80, 0x80, 0x8A};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xF0, 0x80, 0x80, 0x8A};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
@@ -708,8 +708,8 @@ void Test_Utf8decode::Exec() {
 
   {
     // overlong form #4 for U+000A (line feed) 0xF8 0x80 0x80 0x80 0x8A
-    const unsigned char t[] = {0xF8, 0x80, 0x80, 0x80, 0x8A};
-    plx::Range<const unsigned char> r(t, sizeof(t));
+    const uint8_t t[] = {0xF8, 0x80, 0x80, 0x80, 0x8A};
+    plx::Range<const uint8_t> r(t, sizeof(t));
     try {
       auto c = plx::DecodeUTF8(r);
       __debugbreak();
