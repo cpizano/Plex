@@ -7,7 +7,7 @@
 namespace plx {
 #pragma comment(user, "plex.define=plex_sse42_support")
 
-uint32_t CRC32C(uint32_t crc, const char *buf, size_t len) {
+uint32_t CRC32C(uint32_t crc, const uint8_t *buf, size_t len) {
   if (len == 0)
     return crc;
   crc = ~crc;

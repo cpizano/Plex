@@ -6,13 +6,13 @@ namespace plx {
 class LinkedBuffers {
   struct Item {
     size_t size;
-    std::unique_ptr<unsigned char[]> data;
+    std::unique_ptr<uint8_t[]> data;
     Item(size_t size)
-        : size(size), data(new unsigned char[size]) {
+        : size(size), data(new uint8_t[size]) {
     }
 
     Item(const Item& other) 
-        : size(other.size), data(new unsigned char[size]) {
+        : size(other.size), data(new uint8_t[size]) {
       memcpy(data.get(), other.data.get(), size);
     }
 
@@ -37,10 +37,10 @@ public:
     std::swap(loop_it_, other.loop_it_);
   }
 
-  plx::Range<unsigned char> new_buffer(size_t size_bytes) {
+  plx::Range<uint8_t> new_buffer(size_t size_bytes) {
     buffers_.emplace_back(size_bytes);
     auto start = &(buffers_.back().data)[0];
-    return plx::Range<unsigned char>(start, start + size_bytes);
+    return plx::Range<uint8_t>(start, start + size_bytes);
   }
 
   void remove_last_buffer() {
@@ -59,9 +59,9 @@ public:
     return (loop_it_ == end(buffers_));
   }
 
-  plx::Range<unsigned char> get() {
+  plx::Range<uint8_t> get() {
     auto start = &(loop_it_->data)[0];
-    return plx::Range<unsigned char>(start, start + loop_it_->size);
+    return plx::Range<uint8_t>(start, start + loop_it_->size);
   }
 };
 }

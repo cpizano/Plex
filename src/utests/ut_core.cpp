@@ -971,15 +971,15 @@ void Test_CRC32C::Exec() {
   CheckEQ(cpu_id.sse42(), true);
 
   {
-    char ts[] = "123456789";
+    uint8_t ts[] = "123456789";
     CheckEQ(plx::CRC32C(0, ts, sizeof(ts) - 1), 0xE3069283);
   }
   {
-    char ts[] = " the lazy fox jumps over";
+    uint8_t ts[] = " the lazy fox jumps over";
     CheckEQ(plx::CRC32C(0, ts + 1, sizeof(ts) - 2), 0xEFB0976C);
   }
   {
-    char ts[] = "0";
+    uint8_t ts[] = "0";
     CheckEQ(plx::CRC32C(0, ts, sizeof(ts) - 1), 0x629E1AE0);
   }
 }
