@@ -1068,7 +1068,65 @@ void Test_GZIP::Exec() {
     }
 
     bool extract(plx::Range<const uint8_t>& input) {
+      plx::BitSlicer slicer(input);
+      auto magic = slicer.slice(16);
+      if (magic != 0x8b1f)
+        return false;
+      auto method = slicer.slice(8);
+      if (method != 8)
+        return false;
 
+      // The flags are defined as follows"
+      // bit 0   FTEXT : text hint. Don't care.
+      // bit 1   FHCRC : not checked.
+      // bit 2   FEXTRA : skipped.
+      // bit 3   FNAME : skipped ($$ todo fix).
+      // bit 4   FCOMMENT : skipped.
+      slicer.slice(1);
+      bool has_crc = slicer.slice(1) == 1;
+      bool has_extra = slicer.slice(1) == 1;
+      bool has_name = slicer.slice(1) == 1;
+      bool has_comment = slicer.slice(1) == 1;
+      auto reserved = slicer.slice(3);
+
+      if (reserved)
+        return false;
+
+      auto mtime = slicer.next_uint32();
+      auto xfl = slicer.slice(8);
+      auto os = slicer.slice(8);
+
+      if (has_extra) {
+        auto xlen = slicer.slice(16);
+        slicer.skip(xlen);
+      }
+
+      slicer.discard_bits();
+
+      if (has_name) {
+        auto name = slicer.remaining_range();
+        size_t pos = 0;
+        if (!name.contains(0, &pos))
+          return false;
+        slicer.skip(pos + 1);
+      }
+
+      if (has_comment) {
+        auto comment = slicer.remaining_range();
+        size_t pos = 0;
+        if (!comment.contains(0, &pos))
+          return false;
+        slicer.skip(pos + 1);
+      }
+
+      if (has_crc) {
+        auto crc = slicer.slice(16);
+      }
+
+      slicer.discard_bits();
+
+      Inflater inflater;
+      return inflater.inflate(slicer.remaining_range());
     }
 
   };
@@ -1141,5 +1199,21 @@ void Test_GZIP::Exec() {
     CheckEQ(inflater.output().size(), 8);
   }
 
+
+  {
+    // filename is 001.txt (which ends in 78, 74, 00).
+    const uint8_t gzip_data[] = {
+      0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
+      0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
+      0x74, 0x00, 0xcb, 0xc8, 0x2f, 0x2d, 0x4e, 0x55,
+      0xc8, 0x05, 0x93, 0xc9, 0x89, 0x20, 0xd2, 0xd0,
+      0xc8, 0xd8, 0xc4, 0x54, 0x21, 0xa5, 0xa8, 0x34,
+      0x37, 0x37, 0xb5, 0x48, 0x01, 0xc4, 0x86, 0xc8
+    };
+
+    GZip gzip;
+    auto rv = gzip.extract(plx::RangeFromArray(gzip_data));
+    CheckEQ(rv, true);
+  }
 
 }

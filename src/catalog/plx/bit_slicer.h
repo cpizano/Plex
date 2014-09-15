@@ -63,6 +63,12 @@ public:
     pos_ += n;
   }
 
+  uint32_t next_uint32() {
+    auto rv = *reinterpret_cast<const uint32_t*>(&r_[pos_]);
+    skip(sizeof(uint32_t));
+    return rv;
+  }
+
   plx::Range<const unsigned char> remaining_range() const {
     return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
   }
