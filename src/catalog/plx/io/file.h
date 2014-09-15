@@ -107,7 +107,7 @@ public:
     return li.QuadPart;
   }
 
-  size_t read(plx::Range<unsigned char>& mem, unsigned int from) {
+  size_t read(plx::Range<uint8_t>& mem, unsigned int from) {
     OVERLAPPED ov = {0};
     ov.Offset = from;
     DWORD read = 0;
@@ -117,11 +117,11 @@ public:
     return read;
   }
 
-  size_t write(const plx::Range<const unsigned char>& mem, int from = -1) {
+  size_t write(const plx::Range<const uint8_t>& mem, int from = -1) {
     return write(mem.start(), mem.size(), from);
   }
 
-  size_t write(const unsigned char* buf, size_t len, int from) {
+  size_t write(const uint8_t* buf, size_t len, int from) {
     OVERLAPPED ov = {0};
     ov.Offset = from;
     DWORD written = 0;
