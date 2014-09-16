@@ -1010,6 +1010,19 @@ private:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::JsonException
+//
+class JsonException : public plx::Exception {
+
+public:
+  JsonException(int line)
+      : Exception(line, "Json exception") {
+    PostCtor();
+  }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::JsonType
 //
 enum class JsonType {
@@ -1047,6 +1060,7 @@ class JsonValue {
   } u_;
 
  public:
+  typedef ObjectImpl::const_iterator KeyValueIterator;
 
   JsonValue() : type_(JsonType::NULLT) {
   }
@@ -1180,8 +1194,12 @@ class JsonValue {
     return *GetString();
   }
 
-  bool has_key(const std::string& k) {
+  bool has_key(const std::string& k) const {
     return (GetObject()->find(k) != end(*GetObject()));
+  }
+
+  std::pair<KeyValueIterator, KeyValueIterator>  get_iterator() const {
+    return std::make_pair(GetObject()->begin(), GetObject()->end());
   }
 
   void push_back(JsonValue&& value) {
@@ -1200,42 +1218,42 @@ class JsonValue {
 
   ObjectImpl* GetObject() {
     if (type_ != JsonType::OBJECT)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     void* addr = &u_.obj;
     return reinterpret_cast<ObjectImpl*>(addr);
   }
 
   const ObjectImpl* GetObject() const {
     if (type_ != JsonType::OBJECT)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     const void* addr = &u_.obj;
     return reinterpret_cast<const ObjectImpl*>(addr);
   }
 
   ArrayImpl* GetArray() {
     if (type_ != JsonType::ARRAY)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     void* addr = &u_.arr;
     return reinterpret_cast<ArrayImpl*>(addr);
   }
 
   const ArrayImpl* GetArray() const {
     if (type_ != JsonType::ARRAY)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     const void* addr = &u_.arr;
     return reinterpret_cast<const ArrayImpl*>(addr);
   }
 
   std::string* GetString() {
     if (type_ != JsonType::STRING)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     void* addr = &u_.str;
     return reinterpret_cast<StringImpl*>(addr);
   }
 
   const std::string* GetString() const {
     if (type_ != JsonType::STRING)
-      throw 1;
+      throw plx::JsonException(__LINE__);
     const void* addr = &u_.str;
     return reinterpret_cast<const StringImpl*>(addr);
   }

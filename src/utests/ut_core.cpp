@@ -775,6 +775,15 @@ void Test_Parse_JSON::Exec() {
     CheckEQ(value.has_key("kind"), true);
     CheckEQ(value.has_key("color"), false);
     CheckEQ(value.has_key("size"), true);
+
+    int count = 0;
+    auto it = value.get_iterator();
+    while (it.first != it.second) {
+      ++count;
+      ++it.first;
+    }
+    CheckEQ(count, 5);
+
   }
   {
     auto json = plx::RangeFromLitStr(R"([{"":[{}]},{"":[{}]}])");
@@ -1201,7 +1210,7 @@ void Test_GZIP::Exec() {
 
 
   {
-    // filename is 001.txt (which ends in 78, 74, 00).
+    // filename is 001.txt (which ends in 74, 78, 74, 00).
     const uint8_t gzip_data[] = {
       0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
       0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
