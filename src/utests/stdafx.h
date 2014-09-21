@@ -624,6 +624,86 @@ public:
 std::string DecodeString(plx::Range<const char>& range) ;
 
 
+///////////////////////////////////////////////////////////////////////////////
+// plx::BitSlicer allows you to slice sequential bits of a byte range.
+// bits_ : the last extracted bits not given back to caller
+// bit_count_ : how many valid bits in |bits_|.
+// pos_ : the current byte position in |r_|.
+//
+
+class BitSlicer {
+  const plx::Range<const unsigned char>& r_;
+  unsigned long bits_;
+  size_t bit_count_;
+  size_t pos_;
+
+  unsigned long range_check(bool* eor) {
+    if (!eor)
+      throw plx::RangeException(__LINE__, 0);
+    *eor = true;
+    return 0;
+  }
+
+public:
+  BitSlicer(const plx::Range<const unsigned char>& r)
+      : r_(r), bits_(0), bit_count_(0), pos_(0) {
+  }
+
+  unsigned long slice(int needed, bool* eor = nullptr) {
+    if (needed > 23) {
+      throw plx::RangeException(__LINE__, 0);
+    }
+
+    unsigned long value = bits_;
+
+    while (bit_count_ < needed) {
+      if (past_end())
+        return range_check(eor);
+      // accumulate 8 bits at a time.
+      value |= static_cast<unsigned long>(r_[pos_++]) << bit_count_;
+      bit_count_ += 8;
+    }
+
+    // store the uneeded bits from above. We will use them
+    // for the next request.
+    bits_ = value >> needed;
+    bit_count_ -= needed;
+
+    // mask out the bits above |needed|.
+    return value & ((1L << needed) - 1);
+  }
+
+  bool past_end() const {
+    return (pos_ == r_.size());
+  }
+
+  void discard_bits() {
+    bit_count_ = 0;
+    bits_ = 0;
+  }
+
+  void skip(size_t n) {
+    discard_bits();
+    pos_ += n;
+  }
+
+  uint32_t next_uint32() {
+    auto rv = *reinterpret_cast<const uint32_t*>(&r_[pos_]);
+    skip(sizeof(uint32_t));
+    return rv;
+  }
+
+  plx::Range<const unsigned char> remaining_range() const {
+    return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
+  }
+
+  size_t pos() const {
+    return pos_;
+  }
+
+};
+
+
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::IOCPLoop  (message loop basd on IO completion ports)
@@ -1481,80 +1561,78 @@ bool PlatformCheck() ;;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::BitSlicer allows you to slice sequential bits of a byte range.
-// bits_ : the last extracted bits not given back to caller
-// bit_count_ : how many valid bits in |bits_|.
-// pos_ : the current byte position in |r_|.
+// plx::HuffmanCodec : implements a huffman decoder.
+// it maps bit patterns (codes) of up to 15 bits to 16 bit symbols.
+//
+// |lengths| is the number of bits each symbol should use. With 0 bits meaning
+// that the symbol does not get a code. Based on that a huffman decoder zlib
+// compatible can be constructed like RFC1951 documents.
 //
 
-class BitSlicer {
-  const plx::Range<const unsigned char>& r_;
-  unsigned long bits_;
-  size_t bit_count_;
-  size_t pos_;
-
-  unsigned long range_check(bool* eor) {
-    if (!eor)
-      throw plx::RangeException(__LINE__, 0);
-    *eor = true;
-    return 0;
-  }
+class HuffmanCodec {
+  std::vector<uint16_t> symbols_;
+  std::vector<uint16_t> counts_;
 
 public:
-  BitSlicer(const plx::Range<const unsigned char>& r)
-      : r_(r), bits_(0), bit_count_(0), pos_(0) {
-  }
+  HuffmanCodec(size_t max_bits, const std::vector<uint16_t>& lengths) {
+    if (max_bits > 15)
+      throw plx::InvalidParamException(__LINE__, 1);
 
-  unsigned long slice(int needed, bool* eor = nullptr) {
-    if (needed > 23) {
-      throw plx::RangeException(__LINE__, 0);
+    counts_.resize(max_bits + 1);
+    for (auto len : lengths) {
+      counts_[len]++;
     }
 
-    unsigned long value = bits_;
+    // all codes taking 0 bits makes no sense.
+    if (counts_[0] == lengths.size())
+      throw plx::InvalidParamException(__LINE__, 2);
 
-    while (bit_count_ < needed) {
-      if (past_end())
-        return range_check(eor);
-      // accumulate 8 bits at a time.
-      value |= static_cast<unsigned long>(r_[pos_++]) << bit_count_;
-      bit_count_ += 8;
+    // compute how many symbols are not coded. |left| < 0 means the
+    // code is over-subscribed (error), |left| == 0 means every
+    // code maps to a symbol.
+    int left = 1;
+    for (size_t bit_len = 1; bit_len <= max_bits; ++bit_len) {
+      left *= 2;
+      left -= counts_[bit_len];
+      if (left < 0)
+        throw plx::InvalidParamException(__LINE__, 2);
     }
 
-    // store the uneeded bits from above. We will use them
-    // for the next request.
-    bits_ = value >> needed;
-    bit_count_ -= needed;
+    // Generate offsets for each bit lenght.
+    std::vector<uint16_t> offsets;
+    offsets.resize(max_bits + 1);
+    offsets[0] = 0;
+    for (size_t len = 1; len != max_bits; ++len) {
+      offsets[len + 1] = offsets[len] + counts_[len];
+    }
 
-    // mask out the bits above |needed|.
-    return value & ((1L << needed) - 1);
+    symbols_.resize(lengths.size());
+    uint16_t symbol = 0;
+    for (auto losym : lengths) {
+      if (losym)
+        symbols_[offsets[losym]++] = symbol;
+      ++symbol;
+    }
   }
 
-  bool past_end() const {
-    return (pos_ == r_.size());
-  }
-
-  void discard_bits() {
-    bit_count_ = 0;
-    bits_ = 0;
-  }
-
-  void skip(size_t n) {
-    discard_bits();
-    pos_ += n;
-  }
-
-  uint32_t next_uint32() {
-    auto rv = *reinterpret_cast<const uint32_t*>(&r_[pos_]);
-    skip(sizeof(uint32_t));
-    return rv;
-  }
-
-  plx::Range<const unsigned char> remaining_range() const {
-    return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
-  }
-
-  size_t pos() const {
-    return pos_;
+  int decode(plx::BitSlicer& slicer) {
+    const size_t max_bits = counts_.size() - 1;
+    uint16_t code = 0;
+    uint16_t first = 0;
+    size_t index = 0;
+    // $$ todo, replace for an efficient table lookup.
+    for (size_t len = 1; len <= max_bits; ++len) {
+      code |= slicer.slice(1);
+      auto count = counts_[len];
+      auto d = code - first;
+      if (count > d )
+        return symbols_[index + d];
+      index += count;
+      first += count;
+      first *= 2;
+      code <<= 1;
+    }
+    return -1;
   }
 
 };

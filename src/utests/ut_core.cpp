@@ -974,79 +974,12 @@ void Test_CmdLine::Exec() {
 }
 
 void Test_GZIP::Exec() {
-  class Huffman {
-    std::vector<uint16_t> symbols_;
-    std::vector<uint16_t> counts_;
-
-  public:
-    Huffman(size_t max_bits, const std::vector<uint16_t>& lengths) {
-      if (max_bits > 15)
-        throw plx::InvalidParamException(__LINE__, 1);
-
-      counts_.resize(max_bits + 1);
-      for (auto len : lengths) {
-        counts_[len]++;
-      }
-
-      // all codes taking 0 bits makes no sense.
-      if (counts_[0] == lengths.size())
-        throw plx::InvalidParamException(__LINE__, 2);
-
-      // compute how many symbols are not coded. |left| < 0 means the
-      // code is over-subscribed (error), |left| == 0 means every
-      // code maps to a symbol.
-      int left = 1;
-      for (size_t bit_len = 1; bit_len <= max_bits; ++bit_len) {
-        left *= 2;
-        left -= counts_[bit_len];
-        if (left < 0)
-          throw plx::InvalidParamException(__LINE__, 2);
-      }
-
-      // Generate offsets for each bit lenght.
-      std::vector<uint16_t> offsets;
-      offsets.resize(max_bits + 1);
-      offsets[0] = 0;
-      for (size_t len = 1; len != max_bits; ++len) {
-        offsets[len + 1] = offsets[len] + counts_[len];
-      }
-
-      symbols_.resize(lengths.size());
-      uint16_t symbol = 0;
-      for (auto losym : lengths) {
-        if (losym)
-          symbols_[offsets[losym]++] = symbol;
-        ++symbol;
-      }
-    }
-
-    int decode(plx::BitSlicer& slicer) {
-      const size_t max_bits = counts_.size() - 1;
-      uint16_t code = 0;
-      uint16_t first = 0;
-      size_t index = 0;
-      // $$ todo, replace for an efficient table lookup.
-      for (size_t len = 1; len <= max_bits; ++len) {
-        code |= slicer.slice(1);
-        auto count = counts_[len];
-        auto d = code - first;
-        if (count > d )
-          return symbols_[index + d];
-        index += count;
-        first += count;
-        first *= 2;
-        code <<= 1;
-      }
-
-      return -1;
-    }
-
-  };
-
 
  class Inflater {
     int error_;
     std::vector<uint8_t> output_;
+    std::unique_ptr<plx::HuffmanCodec> liter_len_;
+    std::unique_ptr<plx::HuffmanCodec> distance_;
 
   public:
     enum Errors {
@@ -1128,7 +1061,21 @@ void Test_GZIP::Exec() {
     }
 
     Errors fixed(plx::BitSlicer& slicer) {
+      static bool first_time = true;
+      if (first_time) {
+        construct_fixed_codecs();
+        first_time = false;
+      }
+ 
+      return decode(slicer, *liter_len_, *distance_);
+    }
 
+    Errors dynamic(plx::BitSlicer& slicer) {
+      // $$$ todo.
+      return not_implemented;
+    }
+
+    void construct_fixed_codecs() {
       const size_t fixed_ll_codes = 288;
       const size_t fixed_dis_codes = 30;
 
@@ -1146,24 +1093,16 @@ void Test_GZIP::Exec() {
         lengths[symbol] = 8;
 
       // Symbol 286 and 287 should never appear in the stream.
-
-      Huffman ll_huffman(15, lengths);
+      liter_len_.reset(new plx::HuffmanCodec(15, lengths));
 
       lengths.resize(fixed_dis_codes);
       for (symbol = 0; symbol != fixed_dis_codes; ++symbol)
         lengths[symbol] = 5;
 
-      Huffman dis_huffman(15, lengths);
-
-      return decode(slicer, ll_huffman, dis_huffman);
+      distance_.reset(new plx::HuffmanCodec(15, lengths));
     }
 
-    Errors dynamic(plx::BitSlicer& slicer) {
-
-      return not_implemented;
-    }
-
-    Errors decode(plx::BitSlicer& slicer, Huffman& len_lit, Huffman& dist) {
+    Errors decode(plx::BitSlicer& slicer, plx::HuffmanCodec& len_lit, plx::HuffmanCodec& dist) {
       while (true) {
         // either a literal or the length of a <len, dist> pair.
         auto symbol = len_lit.decode(slicer);
@@ -1187,7 +1126,6 @@ void Test_GZIP::Exec() {
           auto dist = decode_distance(symbol, slicer);
           // copy data from the already decoded stream.
           back_copy(dist, len);
-
         }
       }  // while. 
     }
@@ -1389,26 +1327,36 @@ void Test_GZIP::Exec() {
 
   {
     // gzip stream with a single deflate (08) block.
-    const uint8_t gzip_data[] = {
-      0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
-      0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
-      0x74, 0x00, 0xcb, 0xc8, 0x2f, 0x2d, 0x4e, 0x55,
-      0xc8, 0x05, 0x93, 0xc9, 0x89, 0x20, 0xd2, 0xd0,
-      0xc8, 0xd8, 0xc4, 0x54, 0x21, 0xa5, 0xa8, 0x34,
-      0x37, 0x37, 0xb5, 0x48, 0x01, 0xc4, 0x86, 0xc8,
-      0xe6, 0xe7, 0x25, 0xa7, 0x2a, 0x94, 0x64, 0xa4,
-      0x2a, 0x64, 0x80, 0xb9, 0x99, 0xc5, 0x60, 0x95,
-      0x0a, 0xf9, 0x45, 0x38, 0x75, 0x94, 0x64, 0xe6,
-      0x81, 0x45, 0x15, 0x80, 0x34, 0x42, 0x63, 0x7e,
-      0x1a, 0xc4, 0xa8, 0xaa, 0xaa, 0x92, 0xfc, 0x02,
-      0x3d, 0x00, 0xc2, 0x07, 0x45, 0xe9, 0x80, 0x00,
-      0x00, 0x00
+    const uint8_t gzip_data[98] = {
+        0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
+        0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
+        0x74, 0x00, 0xcb, 0xc8, 0x2f, 0x2d, 0x4e, 0x55,
+        0xc8, 0x05, 0x93, 0xc9, 0x89, 0x20, 0xd2, 0xd0,
+        0xc8, 0xd8, 0xc4, 0x54, 0x21, 0xa5, 0xa8, 0x34,
+        0x37, 0x37, 0xb5, 0x48, 0x01, 0xc4, 0x86, 0xc8,
+        0xe6, 0xe7, 0x25, 0xa7, 0x2a, 0x94, 0x64, 0xa4,
+        0x2a, 0x64, 0x80, 0xb9, 0x99, 0xc5, 0x60, 0x95,
+        0x0a, 0xf9, 0x45, 0x38, 0x75, 0x94, 0x64, 0xe6,
+        0x81, 0x45, 0x15, 0x80, 0x34, 0x42, 0x63, 0x7e,
+        0x1a, 0xc4, 0xa8, 0xaa, 0xaa, 0x92, 0xfc, 0x02,
+        0x3d, 0x00, 0xc2, 0x07, 0x45, 0xe9, 0x80, 0x00,
+        0x00, 0x00
     };
+
+    const char expected_out[129] =
+        "house mouse cause 12345 drummer 345 mouse once "
+        "the house is 1234 or 12345 drummer 345 mouse tin "
+        "drum in the house of once zztop.";
+
+    // The compression is (128 + 7) / 98 so to about 70% of
+    // the original size, just because for this short file
+    // the gzip format adds a 17% overhead.
 
     GZip gzip;
     auto rv = gzip.extract(plx::RangeFromArray(gzip_data));
     CheckEQ(rv, true);
     CheckEQ(gzip.output().size(), 128);
+    CheckEQ(memcmp(expected_out, gzip.output().start(), 128), 0);
     CheckEQ(gzip.file_name(), "001.txt");
   }
 

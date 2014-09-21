@@ -85,4 +85,5 @@ catalog 1 {
   plx::Hash_FNV1a_32 plx\hash_fnv1a_32.h;
   plx::CmdLine plx\cmd_line.h;
   plx::BitSlicer plx\bit_slicer.h;
+  plx::HuffmanCodec plx\huffman_codec.h;
 }
