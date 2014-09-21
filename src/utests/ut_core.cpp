@@ -1001,11 +1001,12 @@ void Test_GZIP::Exec() {
 
     Errors status() const { return Errors(error_); }
 
-    bool inflate(const plx::Range<const uint8_t>& r) {
+    size_t inflate(const plx::Range<const uint8_t>& r) {
       if (r.empty()) {
         error_ = empty_block;
-        return false;
+        return 0;
       }
+
       error_ = success;
       plx::BitSlicer slicer(r);
 
@@ -1035,7 +1036,7 @@ void Test_GZIP::Exec() {
         }
       }
 
-      return error_ == success;
+      return (error_ == success) ? slicer.pos() : 0;
     }
 
     Errors stored(plx::BitSlicer& slicer) {
@@ -1251,7 +1252,20 @@ void Test_GZIP::Exec() {
 
       slicer.discard_bits();
 
-      return inflater_.inflate(slicer.remaining_range());
+      auto consumed = inflater_.inflate(slicer.remaining_range());
+      if (!consumed)
+        return false;
+
+      slicer.skip(consumed);
+      auto crc = slicer.next_uint32();
+      // $$$ todo: chec crc.
+      auto isize = slicer.next_uint32();
+
+      if (isize != inflater_.output().size())
+        return false;
+
+      input.advance(consumed);
+      return true;
     }
 
   };
@@ -1265,7 +1279,7 @@ void Test_GZIP::Exec() {
 
     Inflater inflater;
     auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, false);
+    CheckEQ(rv, 0);
     CheckEQ(inflater.status(), Inflater::invalid_block_type);
     CheckEQ(inflater.output().size(), 0); 
   }
@@ -1278,7 +1292,7 @@ void Test_GZIP::Exec() {
 
     Inflater inflater;
     auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, false);
+    CheckEQ(rv, 0);
     CheckEQ(inflater.status(), Inflater::empty_block);
     CheckEQ(inflater.output().size(), 0);
   }
@@ -1291,7 +1305,7 @@ void Test_GZIP::Exec() {
 
     Inflater inflater;
     auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, false);
+    CheckEQ(rv, 0);
     CheckEQ(inflater.status(), Inflater::missing_data);
     CheckEQ(inflater.output().size(), 1);
   }
@@ -1304,7 +1318,7 @@ void Test_GZIP::Exec() {
 
     Inflater inflater;
     auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, false);
+    CheckEQ(rv, 0);
     CheckEQ(inflater.status(), Inflater::missing_data);
     CheckEQ(inflater.output().size(), 0);
   }
@@ -1319,7 +1333,7 @@ void Test_GZIP::Exec() {
 
     Inflater inflater;
     auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, true);
+    CheckEQ(rv, sizeof(deflated_data));
     CheckEQ(inflater.status(), Inflater::success);
     CheckEQ(inflater.output().size(), 8);
   }
