@@ -974,6 +974,75 @@ void Test_CmdLine::Exec() {
 }
 
 void Test_GZIP::Exec() {
+  class Huffman {
+    std::vector<uint16_t> symbols_;
+    std::vector<uint16_t> counts_;
+
+  public:
+    Huffman(size_t max_bits, const std::vector<uint16_t>& lengths) {
+      if (max_bits > 15)
+        __debugbreak();
+
+      counts_.resize(max_bits + 1);
+      for (auto len : lengths) {
+        counts_[len]++;
+      }
+
+      // all codes taking 0 bits makes no sense.
+      if (counts_[0] == lengths.size())
+        __debugbreak();
+
+      // compute how many symbols are not coded. |left| < 0 means the
+      // code is over-subscribed (error), |left| == 0 means every
+      // code maps to a symbol.
+      int left = 1;
+      for (size_t bit_len = 1; bit_len <= max_bits; ++bit_len) {
+        left *= 2;
+        left -= counts_[bit_len];
+        if (left < 0)
+          __debugbreak();
+      }
+
+      // Generate offsets for each bit lenght.
+      std::vector<uint16_t> offsets;
+      offsets.resize(max_bits + 1);
+      offsets[0] = 0;
+      for (size_t len = 1; len != max_bits; ++len) {
+        offsets[len + 1] = offsets[len] + counts_[len];
+      }
+
+      symbols_.resize(lengths.size());
+      uint16_t symbol = 0;
+      for (auto losym : lengths) {
+        if (losym)
+          symbols_[offsets[losym]++] = symbol;
+        ++symbol;
+      }
+    }
+
+    int decode(plx::BitSlicer& slicer) {
+      const size_t max_bits = counts_.size() - 1;
+      uint16_t code = 0;
+      uint16_t first = 0;
+      size_t index = 0;
+
+      for (size_t len = 1; len <= max_bits; ++len) {
+        code |= slicer.slice(1);
+        auto count = counts_[len];
+        auto d = code - first;
+        if (count > d )
+          return symbols_[index + d];
+        index += count;
+        first += count;
+        first *= 2;
+        code <<= 1;
+      }
+
+      return -1;
+    }
+
+  };
+
 
  class Inflater {
     int error_;
@@ -987,12 +1056,13 @@ void Test_GZIP::Exec() {
       invalid_length,
       empty_block,
       missing_data,
+      invalid_symbol
     };
 
     Inflater() : error_(success)  {
     }
 
-    std::vector<uint8_t>& output() {
+    const std::vector<uint8_t>& output() const {
       return output_;
     }
 
@@ -1061,7 +1131,33 @@ void Test_GZIP::Exec() {
 
     Errors fixed(plx::BitSlicer& slicer) {
 
-      return not_implemented;
+      const size_t fixed_ll_codes = 288;
+      const size_t fixed_dis_codes = 30;
+
+      std::vector<uint16_t> lengths;
+      lengths.resize(fixed_ll_codes);
+      size_t symbol;
+
+      for (symbol = 0; symbol != 144; ++symbol)
+        lengths[symbol] = 8;
+      for (; symbol != 256; ++symbol)
+        lengths[symbol] = 9;
+      for (; symbol != 280; ++symbol)
+        lengths[symbol] = 7;
+      for (; symbol != fixed_ll_codes; ++symbol)
+        lengths[symbol] = 8;
+
+      // Symbol 286 and 287 should never appear in the stream.
+
+      Huffman ll_huffman(15, lengths);
+
+      lengths.resize(fixed_dis_codes);
+      for (symbol = 0; symbol != fixed_dis_codes; ++symbol)
+        lengths[symbol] = 5;
+
+      Huffman dis_huffman(15, lengths);
+
+      return decode(slicer, ll_huffman, dis_huffman);
     }
 
     Errors dynamic(plx::BitSlicer& slicer) {
@@ -1069,11 +1165,95 @@ void Test_GZIP::Exec() {
       return not_implemented;
     }
 
+    Errors decode(plx::BitSlicer& slicer, Huffman& len_lit, Huffman& dist) {
+      while (true) {
+        // either a literal or the length of a <len, dist> pair.
+        auto symbol = len_lit.decode(slicer);
+        if (symbol < 0)
+          return invalid_symbol;
+        if (symbol == 256)
+          return success;
+
+        if (symbol < 256) {
+          // literal.
+          output_.push_back(static_cast<uint8_t>(symbol));
+        } else {
+          // length.
+          auto len = decode_length(symbol, slicer);
+          if (len < 0)
+            return invalid_symbol;
+          // distance.
+          symbol = dist.decode(slicer);
+          if (symbol < 0)
+            return invalid_symbol;
+          auto dist = decode_distance(symbol, slicer);
+          // copy from decoded.
+          back_copy(dist, len);
+
+        }
+      }  // while. 
+    }
+
+    int decode_length(int symbol, plx::BitSlicer& slicer) {
+      static const int lens[29] = {
+          3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+          35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
+      };
+      static const int lext[29] = {
+          0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+          3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
+      };
+
+      symbol -= 257;
+      if (symbol >= 29)
+        return -1;
+
+      auto extra_bits = lext[symbol];
+      return lens[symbol] +  (extra_bits ? slicer.slice(extra_bits) : 0);
+    }
+
+    int decode_distance(int symbol, plx::BitSlicer& slicer) {
+      static const int dists[30] = {
+          1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
+          257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145,
+          8193, 12289, 16385, 24577
+      };
+
+      static const short dext[30] = {
+          0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
+          7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
+      };
+
+      if (symbol >= 29)
+        return -1;
+
+      auto extra_bits = dext[symbol];
+      return dists[symbol] + (extra_bits ? slicer.slice(extra_bits) : 0);
+    }
+
+    void back_copy(int from, int count) {
+      auto s = output_.size() - from;
+      for (int ix = 0; ix != count; ++ix)
+        output_.insert(output_.end(), output_[s++]);
+    }
+
   };
  
   class GZip {
+    Inflater inflater_;
+    std::string fname_;
+
   public:
     GZip() {
+    }
+
+    plx::Range<const uint8_t> output() const {
+      auto s = &inflater_.output()[0];
+      return plx::Range<const uint8_t>(s, s + inflater_.output().size());
+    }
+
+    const std::string& file_name() const {
+      return fname_;
     }
 
     bool extract(plx::Range<const uint8_t>& input) {
@@ -1085,12 +1265,12 @@ void Test_GZIP::Exec() {
       if (method != 8)
         return false;
 
-      // The flags are defined as follows"
-      // bit 0   FTEXT : text hint. Don't care.
-      // bit 1   FHCRC : not checked.
-      // bit 2   FEXTRA : skipped.
-      // bit 3   FNAME : skipped ($$ todo fix).
-      // bit 4   FCOMMENT : skipped.
+      // Flags:
+      // bit 0  FTEXT : text hint. Don't care.
+      // bit 1  FHCRC : not checked.
+      // bit 2  FEXTRA : skipped.
+      // bit 3  FNAME : skipped ($$ todo fix).
+      // bit 4  FCOMMENT : skipped.
       slicer.slice(1);
       bool has_crc = slicer.slice(1) == 1;
       bool has_extra = slicer.slice(1) == 1;
@@ -1117,6 +1297,7 @@ void Test_GZIP::Exec() {
         size_t pos = 0;
         if (!name.contains(0, &pos))
           return false;
+        fname_ = reinterpret_cast<const char*>(name.start());
         slicer.skip(pos + 1);
       }
 
@@ -1134,8 +1315,7 @@ void Test_GZIP::Exec() {
 
       slicer.discard_bits();
 
-      Inflater inflater;
-      return inflater.inflate(slicer.remaining_range());
+      return inflater_.inflate(slicer.remaining_range());
     }
 
   };
@@ -1210,19 +1390,28 @@ void Test_GZIP::Exec() {
 
 
   {
-    // filename is 001.txt (which ends in 74, 78, 74, 00).
+    // gzip stream with a single deflate (08) block.
     const uint8_t gzip_data[] = {
       0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
       0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
       0x74, 0x00, 0xcb, 0xc8, 0x2f, 0x2d, 0x4e, 0x55,
       0xc8, 0x05, 0x93, 0xc9, 0x89, 0x20, 0xd2, 0xd0,
       0xc8, 0xd8, 0xc4, 0x54, 0x21, 0xa5, 0xa8, 0x34,
-      0x37, 0x37, 0xb5, 0x48, 0x01, 0xc4, 0x86, 0xc8
+      0x37, 0x37, 0xb5, 0x48, 0x01, 0xc4, 0x86, 0xc8,
+      0xe6, 0xe7, 0x25, 0xa7, 0x2a, 0x94, 0x64, 0xa4,
+      0x2a, 0x64, 0x80, 0xb9, 0x99, 0xc5, 0x60, 0x95,
+      0x0a, 0xf9, 0x45, 0x38, 0x75, 0x94, 0x64, 0xe6,
+      0x81, 0x45, 0x15, 0x80, 0x34, 0x42, 0x63, 0x7e,
+      0x1a, 0xc4, 0xa8, 0xaa, 0xaa, 0x92, 0xfc, 0x02,
+      0x3d, 0x00, 0xc2, 0x07, 0x45, 0xe9, 0x80, 0x00,
+      0x00, 0x00
     };
 
     GZip gzip;
     auto rv = gzip.extract(plx::RangeFromArray(gzip_data));
     CheckEQ(rv, true);
+    CheckEQ(gzip.output().size(), 128);
+    CheckEQ(gzip.file_name(), "001.txt");
   }
 
 }
