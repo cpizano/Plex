@@ -981,7 +981,7 @@ void Test_GZIP::Exec() {
   public:
     Huffman(size_t max_bits, const std::vector<uint16_t>& lengths) {
       if (max_bits > 15)
-        __debugbreak();
+        throw plx::InvalidParamException(__LINE__, 1);
 
       counts_.resize(max_bits + 1);
       for (auto len : lengths) {
@@ -990,7 +990,7 @@ void Test_GZIP::Exec() {
 
       // all codes taking 0 bits makes no sense.
       if (counts_[0] == lengths.size())
-        __debugbreak();
+        throw plx::InvalidParamException(__LINE__, 2);
 
       // compute how many symbols are not coded. |left| < 0 means the
       // code is over-subscribed (error), |left| == 0 means every
@@ -1000,7 +1000,7 @@ void Test_GZIP::Exec() {
         left *= 2;
         left -= counts_[bit_len];
         if (left < 0)
-          __debugbreak();
+          throw plx::InvalidParamException(__LINE__, 2);
       }
 
       // Generate offsets for each bit lenght.
@@ -1025,7 +1025,7 @@ void Test_GZIP::Exec() {
       uint16_t code = 0;
       uint16_t first = 0;
       size_t index = 0;
-
+      // $$ todo, replace for an efficient table lookup.
       for (size_t len = 1; len <= max_bits; ++len) {
         code |= slicer.slice(1);
         auto count = counts_[len];
@@ -1073,8 +1073,6 @@ void Test_GZIP::Exec() {
         error_ = empty_block;
         return false;
       }
-
-      
       error_ = success;
       plx::BitSlicer slicer(r);
 
@@ -1171,23 +1169,23 @@ void Test_GZIP::Exec() {
         auto symbol = len_lit.decode(slicer);
         if (symbol < 0)
           return invalid_symbol;
-        if (symbol == 256)
-          return success;
 
-        if (symbol < 256) {
+        if (symbol == 256) {
+          // special symbol that signifies the end of stream.
+          return success;
+        } else if (symbol < 256) {
           // literal.
           output_.push_back(static_cast<uint8_t>(symbol));
         } else {
-          // length.
+          // above 256 means length - distance pair.
           auto len = decode_length(symbol, slicer);
           if (len < 0)
             return invalid_symbol;
-          // distance.
           symbol = dist.decode(slicer);
           if (symbol < 0)
             return invalid_symbol;
           auto dist = decode_distance(symbol, slicer);
-          // copy from decoded.
+          // copy data from the already decoded stream.
           back_copy(dist, len);
 
         }
