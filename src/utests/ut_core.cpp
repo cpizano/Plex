@@ -1062,11 +1062,7 @@ void Test_GZIP::Exec() {
     }
 
     Errors fixed(plx::BitSlicer& slicer) {
-      static bool first_time = true;
-      if (first_time) {
-        construct_fixed_codecs();
-        first_time = false;
-      }
+      construct_fixed_codecs();
  
       return decode(slicer, *liter_len_, *distance_);
     }
@@ -1077,6 +1073,9 @@ void Test_GZIP::Exec() {
     }
 
     void construct_fixed_codecs() {
+      if (liter_len_ && distance_)
+        return;
+
       const size_t fixed_ll_codes = 288;
       const size_t fixed_dis_codes = 30;
 
@@ -1341,6 +1340,7 @@ void Test_GZIP::Exec() {
 
   {
     // gzip stream with a single deflate (08) block.
+    // deflate uses the fixed (1) dictionary.
     const uint8_t gzip_data[98] = {
         0x1f, 0x8b, 0x08, 0x08, 0x99, 0xf3, 0x15, 0x54,
         0x00, 0x0b, 0x30, 0x30, 0x31, 0x2e, 0x74, 0x78,
@@ -1372,6 +1372,27 @@ void Test_GZIP::Exec() {
     CheckEQ(gzip.output().size(), 128);
     CheckEQ(memcmp(expected_out, gzip.output().start(), 128), 0);
     CheckEQ(gzip.file_name(), "001.txt");
+  }
+
+  {
+    // gzip stream with a single deflate (08) block.
+    // deflate uses the fixed (1) dictionary but unlike the
+    // previous case it uses deltas of (1, 65) when the output
+    // is just one byte, cause the input is long sequences of
+    // '0' and '1'.
+    const uint8_t gzip_data[39] = {
+        0x1f, 0x8b, 0x08, 0x08, 0x44, 0xf5, 0x15, 0x54,
+        0x00, 0x0b, 0x30, 0x30, 0x32, 0x2e, 0x74, 0x78,
+        0x74, 0x00, 0x33, 0x30, 0xa0, 0x0c, 0x18, 0x52,
+        0x08, 0x28, 0xb4, 0x9e, 0x62, 0xfb, 0x01, 0x45,
+        0xb4, 0x53, 0x09, 0x00, 0x01, 0x00, 0x00
+    };
+
+    GZip gzip;
+    auto rv = gzip.extract(plx::RangeFromArray(gzip_data));
+    CheckEQ(rv, true);
+    CheckEQ(gzip.output().size(), 256);
+    CheckEQ(gzip.file_name(), "002.txt");
   }
 
 }
