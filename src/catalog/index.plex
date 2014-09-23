@@ -87,4 +87,5 @@ catalog 1 {
   plx::BitSlicer plx\bit_slicer.h;
   plx::HuffmanCodec plx\huffman_codec.h;
   plx::Inflater plx\inflater.h;
+  plx::GZip plx\gzip.h;
 }

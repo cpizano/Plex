@@ -27,6 +27,9 @@ public:
   Inflater() : error_(success)  {
   }
 
+  Inflater(const Inflater&) = delete;
+  Inflater& operator=(const Inflater&) = delete;
+
   const std::vector<uint8_t>& output() const {
     return output_;
   }
