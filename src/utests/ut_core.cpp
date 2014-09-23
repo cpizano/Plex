@@ -1478,21 +1478,35 @@ void Test_GZIP::Exec() {
   }
 
   {
-    // gzip stream with a single deflate (08) block.
-    // deflate uses a dynamic (2) dictionary.
-    plx::FilePath fp(L"data\\compression\\003.txt.gz");
-    auto param = plx::FileParams::Read_SharedRead();
-    plx::File f = plx::File::Create(fp, param, plx::FileSecurity());
-    CheckEQ(f.size_in_bytes(), 1041UL);
-
-    auto gzip_data = plx::RangeFromBytes(new uint8_t[f.size_in_bytes()], f.size_in_bytes());
-    f.read(gzip_data, 0);
-    // Compression of about 50%.
     GZip gzip;
-    auto rv = gzip.extract(gzip_data.const_bytes());
-    CheckEQ(rv, true);
-    CheckEQ(gzip.output().size(), 2038);
-    CheckEQ(gzip.file_name(), "003.txt");
+    {
+      // gzip stream with a single deflate (08) block.
+      // deflate uses a dynamic (2) dictionary.
+      plx::FilePath fp(L"data\\compression\\003.txt.gz");
+      auto param = plx::FileParams::Read_SharedRead();
+      plx::File f = plx::File::Create(fp, param, plx::FileSecurity());
+      CheckEQ(f.size_in_bytes(), 1041UL);
+
+      plx::Range<uint8_t> gzip_data(nullptr, f.size_in_bytes());
+      auto mem_holder = plx::HeapRange(gzip_data);
+      f.read(gzip_data, 0);
+      // Compression is about 50%.
+      auto rv = gzip.extract(gzip_data.const_bytes());
+      CheckEQ(rv, true);
+      CheckEQ(gzip.output().size(), 2038);
+      CheckEQ(gzip.file_name(), "003.txt");
+    }
+    {
+      // Now compare with the plaintext. It must be the same.
+      plx::FilePath fp(L"data\\compression\\003.txt");
+      auto param = plx::FileParams::Read_SharedRead();
+      plx::File f = plx::File::Create(fp, param, plx::FileSecurity());
+      CheckEQ(f.size_in_bytes(), 2038UL);
+      plx::Range<uint8_t> source_data(nullptr, f.size_in_bytes());
+      auto mem_holder = plx::HeapRange(source_data);
+      f.read(source_data, 0);
+      CheckEQ(memcmp(source_data.start(), gzip.output().start(), 2038), 0);
+    }
   }
 
 }
