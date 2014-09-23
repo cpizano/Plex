@@ -97,7 +97,15 @@ void Test_Range::Exec() {
     auto r1 = plx::RangeFromVector(v);
     CheckEQ(r1[1], 5);
     CheckEQ(r1.size(), 3);
+
+    std::vector<long> q;
+    for (auto x : r1) {
+      q.push_back(x);
+    }
+
+    CheckEQ(v, q);
   }
+
 }
 
 void Test_BitSlice::Exec() {

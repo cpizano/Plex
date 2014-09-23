@@ -139,6 +139,10 @@ public:
     return s_;
   }
 
+  It begin() const {
+    return s_;
+  }
+
   It end() const {
     return e_;
   }
