@@ -989,7 +989,10 @@ void Test_GZIP::Exec() {
       invalid_length,
       empty_block,
       missing_data,
-      invalid_symbol
+      invalid_symbol,
+      bad_dynamic_dict,
+      too_many_lengths,
+      bad_huffman
     };
 
     Inflater() : error_(success)  {
@@ -1068,8 +1071,87 @@ void Test_GZIP::Exec() {
     }
 
     Errors dynamic(plx::BitSlicer& slicer) {
-      // $$$ todo.
-      return not_implemented;
+      // number of Literal & Length codes, from 257 to 286.
+      auto ll_len = slicer.slice(5) + 257;
+      // number of distance codes, from 1 to 32.
+      auto dist_len = slicer.slice(5) + 1;
+      // number of code length codes, from 4 to 19.
+      auto clc_len = slicer.slice(4) + 4;
+
+      if (ll_len > 286)
+        return bad_dynamic_dict;
+      if (dist_len > 30)
+        return bad_dynamic_dict;
+
+      // the |order| represents the order most common symbols expected from the
+      // next decoding phase: 16 = case 1, 17 = case 2 and 18 = case 3, then
+      // then 0 = no code assigned. The rest are bit lenghts.
+      const size_t order[19] = {
+          16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
+      };
+
+      // Build the huffman decoder for the code length codes.
+      std::vector<uint16_t> lengths;
+      lengths.resize(19);
+      size_t index = 0;
+      for (; index != clc_len; ++index)
+        lengths[order[index]] = static_cast<uint16_t>(slicer.slice(3));
+      for (; index < 19; ++index)
+        lengths[order[index]] = 0;
+      plx::HuffmanCodec clc_huffman(15, lengths);
+
+      // Now read the real huffman decoder for the dynamic block.
+      const auto table_len = ll_len + dist_len;
+
+      lengths.resize(table_len);
+      size_t ix = 0;
+
+      while (ix < table_len) {
+        auto symbol = clc_huffman.decode(slicer);
+        if (symbol < 0)
+          return invalid_symbol;
+        if (symbol < 16) {
+          // the symbol is the huffman bit lenght.
+          lengths[ix++] = static_cast<uint16_t>(symbol);
+        } else {
+          // run length encoded. There are 3 cases.
+          int rle_value;
+          int rle_count;
+
+          if (symbol == 16) {
+            if (!ix)
+              return bad_dynamic_dict;
+            // case 1: repeat last value 3 to 6 times.
+            rle_value = lengths[ix - 1];
+            rle_count = 3 + slicer.slice(2);
+          } else {
+            rle_value = 0;
+            if (symbol == 17) {
+              // case 2: 0 bit length (no code for symbol) is repeated 3 to 10 times.
+              rle_count = 3 + slicer.slice(3);
+            } else {
+              // case 3: 0 bit length (no code for symbol) is repeated 11 to 138 times.
+              rle_count = 11 + slicer.slice(7);
+            }
+          }
+
+          if (ix + rle_count > table_len)
+            return too_many_lengths;
+          while (rle_count--)
+            lengths[ix++] = rle_value;
+        }
+      }
+
+      // we should have received a non-zero bit length for code 256, because
+      // that is how the decompressor knows how to stop.
+      if (!lengths[256])
+        return bad_huffman;
+
+      auto it = lengths.begin();
+      plx::HuffmanCodec lit_len(15, std::vector<uint16_t>(it, it + ll_len));
+      plx::HuffmanCodec distance(15, std::vector<uint16_t>(it + ll_len, it + table_len));
+
+      return decode(slicer, lit_len, distance);
     }
 
     void construct_fixed_codecs() {
@@ -1378,7 +1460,7 @@ void Test_GZIP::Exec() {
     // gzip stream with a single deflate (08) block.
     // deflate uses the fixed (1) dictionary but unlike the
     // previous case it uses deltas of (1, 65) when the output
-    // is just one byte, cause the input is long sequences of
+    // is just one byte, because the input is long sequences of
     // '0' and '1'.
     const uint8_t gzip_data[39] = {
         0x1f, 0x8b, 0x08, 0x08, 0x44, 0xf5, 0x15, 0x54,
@@ -1393,6 +1475,24 @@ void Test_GZIP::Exec() {
     CheckEQ(rv, true);
     CheckEQ(gzip.output().size(), 256);
     CheckEQ(gzip.file_name(), "002.txt");
+  }
+
+  {
+    // gzip stream with a single deflate (08) block.
+    // deflate uses a dynamic (2) dictionary.
+    plx::FilePath fp(L"data\\compression\\003.txt.gz");
+    auto param = plx::FileParams::Read_SharedRead();
+    plx::File f = plx::File::Create(fp, param, plx::FileSecurity());
+    CheckEQ(f.size_in_bytes(), 1041UL);
+
+    auto gzip_data = plx::RangeFromBytes(new uint8_t[f.size_in_bytes()], f.size_in_bytes());
+    f.read(gzip_data, 0);
+    // Compression of about 50%.
+    GZip gzip;
+    auto rv = gzip.extract(gzip_data.const_bytes());
+    CheckEQ(rv, true);
+    CheckEQ(gzip.output().size(), 2038);
+    CheckEQ(gzip.file_name(), "003.txt");
   }
 
 }
