@@ -1066,7 +1066,6 @@ void Test_GZIP::Exec() {
 
     Errors fixed(plx::BitSlicer& slicer) {
       construct_fixed_codecs();
- 
       return decode(slicer, *liter_len_, *distance_);
     }
 
@@ -1084,9 +1083,9 @@ void Test_GZIP::Exec() {
         return bad_dynamic_dict;
 
       // the |order| represents the order most common symbols expected from the
-      // next decoding phase: 16 = case 1, 17 = case 2 and 18 = case 3, then
+      // next decoding phase: 16 = rle case 1, 17 = rle case 2 and 18 = case 3,
       // then 0 = no code assigned. The rest are bit lenghts.
-      const size_t order[19] = {
+      static const size_t order[19] = {
           16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
       };
 
@@ -1121,7 +1120,7 @@ void Test_GZIP::Exec() {
           if (symbol == 16) {
             if (!ix)
               return bad_dynamic_dict;
-            // case 1: repeat last value 3 to 6 times.
+            // case 1: repeat last bit length value 3 to 6 times.
             rle_value = lengths[ix - 1];
             rle_count = 3 + slicer.slice(2);
           } else {
@@ -1137,16 +1136,18 @@ void Test_GZIP::Exec() {
 
           if (ix + rle_count > table_len)
             return too_many_lengths;
+
           while (rle_count--)
-            lengths[ix++] = rle_value;
+            lengths[ix++] = static_cast<uint16_t>(rle_value);
         }
       }
 
       // we should have received a non-zero bit length for code 256, because
-      // that is how the decompressor knows how to stop.
+      // that is how the decompressor will know how to stop.
       if (!lengths[256])
         return bad_huffman;
 
+      // Finally construct the two huffman decoders and decode the stream.
       auto it = lengths.begin();
       plx::HuffmanCodec lit_len(15, std::vector<uint16_t>(it, it + ll_len));
       plx::HuffmanCodec distance(15, std::vector<uint16_t>(it + ll_len, it + table_len));
