@@ -268,6 +268,12 @@ ItRange<U*> RangeFromVector(std::vector<U>& vec, size_t len = 0) {
   return ItRange<U*>(s, len ? s + len : s + vec.size());
 }
 
+template <typename U>
+ItRange<const U*> RangeFromVector(const std::vector<U>& vec, size_t len = 0) {
+  auto s = &vec[0];
+  return ItRange<const U*>(s, len ? s + len : s + vec.size());
+}
+
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) ;
 
 ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) ;

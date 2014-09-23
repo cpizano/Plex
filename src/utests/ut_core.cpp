@@ -1282,8 +1282,7 @@ void Test_GZIP::Exec() {
     }
 
     plx::Range<const uint8_t> output() const {
-      auto s = &inflater_.output()[0];
-      return plx::Range<const uint8_t>(s, s + inflater_.output().size());
+      return plx::RangeFromVector(inflater_.output());
     }
 
     const std::string& file_name() const {
