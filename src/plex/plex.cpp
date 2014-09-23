@@ -2489,7 +2489,7 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
   // is wrong. Easy to detect but hard to fix completely. We try
   // several times exchanging the order.
   if (ent.code.size() > 1) {
-    int tries = 30;
+    int tries = 50;
     bool go_again = true;
     while ((--tries != 0) && go_again) {
       go_again = false;
