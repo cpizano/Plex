@@ -230,10 +230,15 @@ public:
     return ItRange<const uint8_t*>(s, e);
   }
 
-   ItRange<uint8_t*> bytes() const {
+  ItRange<uint8_t*> bytes() const {
     auto s = reinterpret_cast<uint8_t*>(s_);
     auto e = reinterpret_cast<uint8_t*>(e_);
     return ItRange<uint8_t*>(s, e);
+  }
+
+  ItRange<It> slice(size_t start, size_t count = 0) const {
+    return ItRange<It>(s_ + start,
+                       count ? (s_ + start + count) : e_ );
   }
 
 };
@@ -1582,7 +1587,7 @@ class HuffmanCodec {
   std::vector<uint16_t> counts_;
 
 public:
-  HuffmanCodec(size_t max_bits, const std::vector<uint16_t>& lengths) {
+  HuffmanCodec(size_t max_bits, const plx::Range<uint16_t>& lengths) {
     if (max_bits > 15)
       throw plx::InvalidParamException(__LINE__, 1);
 

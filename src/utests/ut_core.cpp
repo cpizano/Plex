@@ -1112,7 +1112,7 @@ void Test_GZIP::Exec() {
         lengths[order[index]] = static_cast<uint16_t>(slicer.slice(3));
       for (; index < 19; ++index)
         lengths[order[index]] = 0;
-      plx::HuffmanCodec clc_huffman(15, lengths);
+      plx::HuffmanCodec clc_huffman(15, plx::RangeFromVector(lengths));
 
       // Now read the real huffman decoder for the dynamic block.
       const auto table_len = ll_len + dist_len;
@@ -1163,9 +1163,9 @@ void Test_GZIP::Exec() {
         return bad_huffman;
 
       // Finally construct the two huffman decoders and decode the stream.
-      auto it = lengths.begin();
-      plx::HuffmanCodec lit_len(15, std::vector<uint16_t>(it, it + ll_len));
-      plx::HuffmanCodec distance(15, std::vector<uint16_t>(it + ll_len, it + table_len));
+      auto rfv = plx::RangeFromVector(lengths);
+      plx::HuffmanCodec lit_len(15, rfv.slice(0, ll_len));
+      plx::HuffmanCodec distance(15, rfv.slice(ll_len));
 
       return decode(slicer, lit_len, distance);
     }
@@ -1191,13 +1191,13 @@ void Test_GZIP::Exec() {
         lengths[symbol] = 8;
 
       // Symbol 286 and 287 should never appear in the stream.
-      liter_len_.reset(new plx::HuffmanCodec(15, lengths));
+      liter_len_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
 
       lengths.resize(fixed_dis_codes);
       for (symbol = 0; symbol != fixed_dis_codes; ++symbol)
         lengths[symbol] = 5;
 
-      distance_.reset(new plx::HuffmanCodec(15, lengths));
+      distance_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
     }
 
     Errors decode(plx::BitSlicer& slicer, plx::HuffmanCodec& len_lit, plx::HuffmanCodec& dist) {
