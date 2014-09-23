@@ -49,6 +49,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_IOCPLoop().Run();
     Test_Hashes().Run();
     Test_CmdLine().Run();
+    Test_Inflater().Run();
     Test_GZIP().Run();
 
   } catch (Fail& ex) {

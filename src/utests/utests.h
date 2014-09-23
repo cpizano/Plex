@@ -78,5 +78,6 @@ TEST(Test_File);
 TEST(Test_IOCPLoop);
 TEST(Test_Hashes);
 TEST(Test_CmdLine);
+TEST(Test_Inflater);
 TEST(Test_GZIP);
 #undef TEST

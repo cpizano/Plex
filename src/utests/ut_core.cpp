@@ -988,6 +988,75 @@ void Test_CmdLine::Exec() {
   CheckEQ(out.equals(plx::RangeFromLitStr(L"c:\\foo\\bar")), true);
 }
 
+void Test_Inflater::Exec() {
+  {
+    // A last block with invalid block type (11) 
+    const uint8_t deflated_data[] = {
+        0x07, 0x01, 0x00, 0xfe, 0xff, 0x55
+    };
+
+    plx::Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, 0);
+    CheckEQ(inflater.status(), plx::Inflater::invalid_block_type);
+    CheckEQ(inflater.output().size(), 0); 
+  }
+
+  {
+    // A last block with stored block (00) with 0 bytes.
+    const uint8_t deflated_data[] = {
+        0x01, 0x00, 0x00, 0xff, 0xff
+    };
+
+    plx::Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, 0);
+    CheckEQ(inflater.status(), plx::Inflater::empty_block);
+    CheckEQ(inflater.output().size(), 0);
+  }
+
+  {
+    // A stored block (00) with 1 byte. No final block.
+    const uint8_t deflated_data[] = {
+        0x00, 0x01, 0x00, 0xfe, 0xff, 0x55
+    };
+
+    plx::Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, 0);
+    CheckEQ(inflater.status(), plx::Inflater::missing_data);
+    CheckEQ(inflater.output().size(), 1);
+  }
+
+  {
+    // A stored block (00) with 1 byte, but it is missing.
+    const uint8_t deflated_data[] = {
+        0x00, 0x01, 0x00, 0xfe, 0xff
+    };
+
+    plx::Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, 0);
+    CheckEQ(inflater.status(), plx::Inflater::missing_data);
+    CheckEQ(inflater.output().size(), 0);
+  }
+
+  {
+    // 3 stored blocks (00) total of 8 bytes of payload.
+    const uint8_t deflated_data[] = {
+      0x00, 0x01, 0x00, 0xfe, 0xff, '0',
+      0x00, 0x05, 0x00, 0xfa, 0xff, '1', '2', '3', '4', '5',
+      0x01, 0x02, 0x00, 0xfd, 0xff, '6', '7',
+    };
+
+    plx::Inflater inflater;
+    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
+    CheckEQ(rv, sizeof(deflated_data));
+    CheckEQ(inflater.status(), plx::Inflater::success);
+    CheckEQ(inflater.output().size(), 8);
+  }
+}
+
 void Test_GZIP::Exec() {
 
   class GZip {
@@ -1082,75 +1151,6 @@ void Test_GZIP::Exec() {
     }
 
   };
-
-
-  {
-    // A last block with invalid block type (11) 
-    const uint8_t deflated_data[] = {
-        0x07, 0x01, 0x00, 0xfe, 0xff, 0x55
-    };
-
-    plx::Inflater inflater;
-    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, 0);
-    CheckEQ(inflater.status(), plx::Inflater::invalid_block_type);
-    CheckEQ(inflater.output().size(), 0); 
-  }
-
-  {
-    // A last block with stored block (00) with 0 bytes.
-    const uint8_t deflated_data[] = {
-        0x01, 0x00, 0x00, 0xff, 0xff
-    };
-
-    plx::Inflater inflater;
-    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, 0);
-    CheckEQ(inflater.status(), plx::Inflater::empty_block);
-    CheckEQ(inflater.output().size(), 0);
-  }
-
-  {
-    // A stored block (00) with 1 byte. No final block.
-    const uint8_t deflated_data[] = {
-        0x00, 0x01, 0x00, 0xfe, 0xff, 0x55
-    };
-
-    plx::Inflater inflater;
-    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, 0);
-    CheckEQ(inflater.status(), plx::Inflater::missing_data);
-    CheckEQ(inflater.output().size(), 1);
-  }
-
-  {
-    // A stored block (00) with 1 byte, but it is missing.
-    const uint8_t deflated_data[] = {
-        0x00, 0x01, 0x00, 0xfe, 0xff
-    };
-
-    plx::Inflater inflater;
-    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, 0);
-    CheckEQ(inflater.status(), plx::Inflater::missing_data);
-    CheckEQ(inflater.output().size(), 0);
-  }
-
-  {
-    // 3 stored blocks (00) total of 8 bytes of payload.
-    const uint8_t deflated_data[] = {
-      0x00, 0x01, 0x00, 0xfe, 0xff, '0',
-      0x00, 0x05, 0x00, 0xfa, 0xff, '1', '2', '3', '4', '5',
-      0x01, 0x02, 0x00, 0xfd, 0xff, '6', '7',
-    };
-
-    plx::Inflater inflater;
-    auto rv = inflater.inflate(plx::RangeFromArray(deflated_data));
-    CheckEQ(rv, sizeof(deflated_data));
-    CheckEQ(inflater.status(), plx::Inflater::success);
-    CheckEQ(inflater.output().size(), 8);
-  }
-
 
   {
     // gzip stream with a single deflate (08) block.
