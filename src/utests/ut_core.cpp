@@ -91,6 +91,13 @@ void Test_Range::Exec() {
     auto r1 = plx::RangeUntilValue<const char>("rez,pez", ',');
     CheckEQ(r1.equals(plx::RangeFromLitStr("rez")), true);
   }
+
+  {
+    std::vector<long> v = {4, 5, 6};
+    auto r1 = plx::RangeFromVector(v);
+    CheckEQ(r1[1], 5);
+    CheckEQ(r1.size(), 3);
+  }
 }
 
 void Test_BitSlice::Exec() {

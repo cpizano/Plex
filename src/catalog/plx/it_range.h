@@ -161,7 +161,11 @@ ItRange<U*> RangeUntilValue(U* start, U value) {
   return ItRange<U*>(start, stop);
 }
 
-
+template <typename U>
+ItRange<U*> RangeFromVector(std::vector<U>& vec, size_t len = 0) {
+  auto s = &vec[0];
+  return ItRange<U*>(s, len ? s + len : s + vec.size());
+}
 
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) {
   auto s = reinterpret_cast<uint8_t*>(start);
