@@ -1862,8 +1862,8 @@ int GetExternalDefinitions(CppTokenVector& tv,
   auto last = ++begin(tv);
 
   for(auto it = last; it->type != CppToken::eos; ++it) {
-    auto prev = *(it - 1);
-    auto next = *(it + 1);
+    auto& prev = *(it - 1);
+    auto& next = *(it + 1);
 
     if (it->type == CppToken::comment)
       continue;
@@ -1922,11 +1922,15 @@ int GetExternalDefinitions(CppTokenVector& tv,
 
       } else if (IsAgregateIntroducer(prev.type)) {
         if (next.type == CppToken::semicolon) {
-          if (IsInVector(ldefs, it->range))
-            __debugbreak();
-          // forward declaration.
-          ldefs.push_back(*it);
-          continue;
+          if (IsInVector(ldefs, it->range)) {
+            // defined twice? explode. Unless its a friend declaration.
+            if ((it - 2)->type != CppToken::kw_friend)
+              throw TokenizerException(path.Raw(), __LINE__, it->line);
+          } else {
+            // forward declaration.
+            ldefs.push_back(*it);
+            continue;
+          }
         }
         // local definition.
         enclosing_definition.push_back(it->range.Start());
