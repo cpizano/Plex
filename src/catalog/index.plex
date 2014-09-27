@@ -90,4 +90,5 @@ catalog 1 {
   plx::Inflater plx\inflater.h;
   plx::GZip plx\gzip.h;
   plx::ReaderWriterLock plx\concurrent\reader_writer_lock.h;
+  plx::Globals plx\globals.h;
 }

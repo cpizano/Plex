@@ -81,5 +81,6 @@ TEST(Test_CmdLine);
 TEST(Test_Inflater);
 TEST(Test_GZIP);
 TEST(Test_ReaderWriterLock);
-TEST(Test_DemandPaged);
+TEST(Test_Globals);
+TEST(Test_VEHManager);
 #undef TEST

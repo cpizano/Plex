@@ -1192,6 +1192,29 @@ void Test_ReaderWriterLock::Exec() {
 
 }
 
-void Test_DemandPaged::Exec() {
+namespace plx {
+class TestService {
+  int count_;
+public:
+  TestService() : count_(66) {}
+  int count() const { return count_; }
+  void increment() { ++count_; }
+};
+}
+
+void Test_Globals::Exec() {
+  plx::Globals globals;
+  globals.add_service(new plx::TestService);
+  
+  auto svc = plx::Globals::get<plx::TestService>();
+  svc->increment();
+  CheckEQ(67, svc->count());
+  delete svc;
+}
+
+void Test_VEHManager::Exec() {
+  class VEHManager {
+
+  };
    // nothing here yet.
 }

@@ -52,7 +52,8 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_Inflater().Run();
     Test_GZIP().Run();
     Test_ReaderWriterLock().Run();
-    Test_DemandPaged().Run();
+    Test_Globals().Run();
+    Test_VEHManager().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
