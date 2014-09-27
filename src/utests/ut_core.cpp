@@ -1148,3 +1148,50 @@ void Test_GZIP::Exec() {
   }
 
 }
+
+void Test_ReaderWriterLock::Exec() {
+  {
+    plx::ReaderWriterLock rw_lock;
+    {
+      auto sl1 = rw_lock.write_lock();
+    }
+    {
+      auto sl2 = rw_lock.read_lock();
+    }
+  }
+
+  {
+    plx::ReaderWriterLock rw_lock;
+    int value = 1;
+    int max = 0;
+
+    auto lam = [&max](int& var, plx::ReaderWriterLock& rw_lock) {
+      while (true) {
+        auto reader = rw_lock.read_lock();
+        if (var > 20) {
+          break;
+        }
+      }
+
+      auto writer = rw_lock.write_lock();
+      max = var;
+      var = 0;
+    };
+
+    std::thread t1(lam, std::ref(value), std::ref(rw_lock));
+    while (true) {
+      auto writer = rw_lock.write_lock();
+      if (value == 0)
+        break;
+      ++value;
+    }
+
+    t1.join();
+    CheckEQ(max > 20, true);
+  }
+
+}
+
+void Test_DemandPaged::Exec() {
+   // nothing here yet.
+}

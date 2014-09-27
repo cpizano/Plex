@@ -80,4 +80,6 @@ TEST(Test_Hashes);
 TEST(Test_CmdLine);
 TEST(Test_Inflater);
 TEST(Test_GZIP);
+TEST(Test_ReaderWriterLock);
+TEST(Test_DemandPaged);
 #undef TEST

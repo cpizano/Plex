@@ -23,6 +23,7 @@ include 1 {
   std::stoll <string>;
   std::string <string>;
   std::stringstream <sstream>;
+  std::thread <thread>;
   std::to_string <string>;
   std::u32string <string>;
   std::unique_ptr <memory>;
@@ -88,4 +89,5 @@ catalog 1 {
   plx::HuffmanCodec plx\huffman_codec.h;
   plx::Inflater plx\inflater.h;
   plx::GZip plx\gzip.h;
+  plx::ReaderWriterLock plx\concurrent\reader_writer_lock.h;
 }
