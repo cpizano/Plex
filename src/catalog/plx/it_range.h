@@ -59,6 +59,11 @@ public:
     return (e_ >= s_);
   }
 
+  bool contains(const uint8_t* ptr) const {
+    return ((ptr >= reinterpret_cast<uint8_t*>(s_)) &&
+            (ptr < reinterpret_cast<uint8_t*>(e_)));
+  }
+
   RefT front() const {
     if (s_ >= e_)
       throw plx::RangeException(__LINE__, nullptr);
