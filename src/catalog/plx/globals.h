@@ -5,19 +5,20 @@
 namespace plx {
 template <class T> struct ServiceNumber;
 class TestService; template <> struct ServiceNumber<TestService> { enum { id = 0 }; };
+class VEHManager;  template <> struct ServiceNumber<VEHManager>  { enum { id = 1 }; }; 
 
 class Globals {
-  void* services_[__LINE__ - 9];
+  void* services_[2];
 
-  static void* raw_get(int id, Globals* ctx = nullptr) {
-    static Globals* plx_globals = ctx;
-    return plx_globals->services_[id];
+  static void* raw_get(int id, void** svcs = nullptr) {
+    static void** services = svcs;
+    return services[id];
   }
 
 public:
   Globals() {
     memset(services_, 0, sizeof(services_));
-    raw_get(0, this);
+    raw_get(0, services_);
   }
 
   template <typename Svc>
