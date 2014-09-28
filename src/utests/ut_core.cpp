@@ -1202,19 +1202,41 @@ public:
 };
 }
 
+plx::Globals globals;
+
 void Test_Globals::Exec() {
-  plx::Globals globals;
   globals.add_service(new plx::TestService);
-  
   auto svc = plx::Globals::get<plx::TestService>();
   svc->increment();
   CheckEQ(67, svc->count());
   delete svc;
 }
 
-void Test_VEHManager::Exec() {
-  class VEHManager {
-
-  };
-   // nothing here yet.
+bool WriteMemory(uint8_t* ptr, uint8_t val) {
+  __try {
+    *ptr = val;
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    return false;
+  }
+  return true;
 }
+
+void Test_VEHManager::Exec() {
+  void* addr = nullptr;
+  plx::VEHManager::HandlerFn hf([&addr](EXCEPTION_RECORD* er) -> bool {
+    addr = reinterpret_cast<void*>(er->ExceptionInformation[1]);
+    return true;
+  });
+
+  plx::Range<uint8_t> range(0, 20);
+  range.advance(10);
+
+  plx::VEHManager veh_manager;
+  globals.add_service(&veh_manager);
+
+  veh_manager.add_av_handler(range, hf);
+  
+  CheckEQ(WriteMemory(range.start(), 7), true);
+  CheckEQ(ULONG_PTR(addr), 10);
+}
+

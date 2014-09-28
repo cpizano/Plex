@@ -91,4 +91,5 @@ catalog 1 {
   plx::GZip plx\gzip.h;
   plx::ReaderWriterLock plx\concurrent\reader_writer_lock.h;
   plx::Globals plx\globals.h;
+  plx::VEHManager plx\veh_manager.h;
 }
