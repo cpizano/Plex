@@ -152,11 +152,6 @@ public:
     return (e_ >= s_);
   }
 
-  bool contains(const uint8_t* ptr) const {
-    return ((ptr >= reinterpret_cast<uint8_t*>(s_)) &&
-            (ptr < reinterpret_cast<uint8_t*>(e_)));
-  }
-
   RefT front() const {
     if (s_ >= e_)
       throw plx::RangeException(__LINE__, nullptr);
@@ -181,6 +176,11 @@ public:
     if (o.size() > size())
       return 0;
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0;
+  }
+
+  bool contains(const uint8_t* ptr) const {
+    return ((ptr >= reinterpret_cast<uint8_t*>(s_)) &&
+            (ptr < reinterpret_cast<uint8_t*>(e_)));
   }
 
   bool contains(ValueT x, size_t* pos) const {
@@ -2307,8 +2307,8 @@ private:
 class VEHManager {
 
   struct Node {
-    const DWORD code;
-    const plx::Range<uint8_t> address;
+    DWORD code;
+    plx::Range<uint8_t> address;
     std::function<bool(EXCEPTION_RECORD*)> handler;
     Node(DWORD c, const plx::Range<uint8_t>& r, std::function<bool(EXCEPTION_RECORD*)>& f)
       : code(c), address(r), handler(f) { }
@@ -2345,7 +2345,8 @@ class VEHManager {
       return EXCEPTION_CONTINUE_SEARCH;
     if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
       return EXCEPTION_CONTINUE_SEARCH;
-    return plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
+    bool handled = plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
+    return handled ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
   }
 
   plx::ReaderWriterLock lock_;
@@ -2366,8 +2367,20 @@ public:
     if (handlers_.size() == 1) {
       auto self = plx::Globals::get<VEHManager>();
       if (!self)
-        throw 7;
+        throw 7;  // $$$ fix.
       veh_handler_ = ::AddVectoredExceptionHandler(1, &VecHandler);
+    }
+  }
+
+  void remove_av_handler(const plx::Range<uint8_t>& address) {
+    auto wl = lock_.write_lock();
+    for (auto it = cbegin(handlers_); it != cend(handlers_); ++it) {
+      if (it->address.start() != address.start())
+        continue;
+      if (it->code == EXCEPTION_ACCESS_VIOLATION) {
+        handlers_.erase(it);
+        return;
+      }
     }
   }
 

@@ -1206,10 +1206,10 @@ plx::Globals globals;
 
 void Test_Globals::Exec() {
   globals.add_service(new plx::TestService);
+
   auto svc = plx::Globals::get<plx::TestService>();
   svc->increment();
   CheckEQ(67, svc->count());
-  delete svc;
 }
 
 bool WriteMemory(uint8_t* ptr, uint8_t val) {
@@ -1222,21 +1222,26 @@ bool WriteMemory(uint8_t* ptr, uint8_t val) {
 }
 
 void Test_VEHManager::Exec() {
-  void* addr = nullptr;
+  globals.add_service(new plx::VEHManager);
+  auto vehm = plx::Globals::get<plx::VEHManager>();
+
+  void* addr;
   plx::VEHManager::HandlerFn hf([&addr](EXCEPTION_RECORD* er) -> bool {
     addr = reinterpret_cast<void*>(er->ExceptionInformation[1]);
-    return true;
+    return false;
   });
 
   plx::Range<uint8_t> range(0, 20);
   range.advance(10);
 
-  plx::VEHManager veh_manager;
-  globals.add_service(&veh_manager);
-
-  veh_manager.add_av_handler(range, hf);
-  
-  CheckEQ(WriteMemory(range.start(), 7), true);
+  addr = nullptr;
+  vehm->add_av_handler(range, hf);
+  CheckEQ(WriteMemory(range.start(), 7), false);
   CheckEQ(ULONG_PTR(addr), 10);
+
+  addr = nullptr;
+  vehm->remove_av_handler(range);
+  CheckEQ(WriteMemory(range.start(), 8), false);
+  CheckEQ(ULONG_PTR(addr), 0);
 }
 
