@@ -59,11 +59,6 @@ public:
     return (e_ >= s_);
   }
 
-  bool contains(const uint8_t* ptr) const {
-    return ((ptr >= reinterpret_cast<uint8_t*>(s_)) &&
-            (ptr < reinterpret_cast<uint8_t*>(e_)));
-  }
-
   RefT front() const {
     if (s_ >= e_)
       throw plx::RangeException(__LINE__, nullptr);
@@ -88,6 +83,11 @@ public:
     if (o.size() > size())
       return 0;
     return (memcmp(s_, o.s_, o.size()) == 0) ? o.size() : 0; 
+  }
+
+  bool contains(const uint8_t* ptr) const {
+    return ((ptr >= reinterpret_cast<uint8_t*>(s_)) &&
+            (ptr < reinterpret_cast<uint8_t*>(e_)));
   }
 
   bool contains(ValueT x, size_t* pos) const {
