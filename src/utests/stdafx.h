@@ -2379,6 +2379,8 @@ public:
         continue;
       if (it->code == EXCEPTION_ACCESS_VIOLATION) {
         handlers_.erase(it);
+        if (handlers_.size() == 0)
+          ::RemoveVectoredExceptionHandler(veh_handler_);
         return;
       }
     }
