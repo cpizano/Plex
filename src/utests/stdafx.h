@@ -410,6 +410,21 @@ char* HexASCII(uint8_t byte, char* out) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::MemoryException
+//
+class MemoryException : public plx::Exception {
+  void* address_;
+
+public:
+  MemoryException(int line, void* address)
+      : Exception(line, "Memory"), address_(address) {
+    PostCtor();
+  }
+  void* address() const { return address_; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) ;
 
 
@@ -1858,18 +1873,89 @@ MakeGuard(TFunc&& fn) {
 }
 
 
+
+
 ///////////////////////////////////////////////////////////////////////////////
-// plx::MemoryException
+// ReaderWriterLock and its scoped unlockers.
 //
-class MemoryException : public plx::Exception {
-  void* address_;
+class ScopedWriteLock {
+  SRWLOCK* lock_;
+  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
+  friend class ReaderWriterLock;
 
 public:
-  MemoryException(int line, void* address)
-      : Exception(line, "Memory"), address_(address) {
-    PostCtor();
+  ScopedWriteLock() = delete;
+  ScopedWriteLock(const ScopedWriteLock&) = delete;
+  // void* operator new(std::size_t) =delete
+
+  ~ScopedWriteLock() {
+    ::ReleaseSRWLockExclusive(lock_);
   }
-  void* address() const { return address_; }
+};
+
+class ScopedReadLock {
+  SRWLOCK* lock_;
+  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
+  friend class ReaderWriterLock;
+
+public:
+  ScopedReadLock() = delete;
+  ScopedReadLock(const ScopedReadLock&) = delete;
+  // void* operator new(std::size_t) =delete
+
+  ~ScopedReadLock() {
+    ::ReleaseSRWLockShared(lock_);
+  }
+};
+
+// The SRW lock is implemented using a single pointer-sized atomic variable
+// which can take on a number of different states, depending on the values
+// of the low bits. The number of state transitions is pretty high, here are
+// some common ones:
+// - initial lock state: (0, ControlBits:0) -- An SRW lock starts with all
+//   bits set to 0.
+// - shared state: (ShareCount: n, ControlBits: 1) -- When there is no conflicting
+//   exclusive acquire and the lock is held shared, the share count is stored
+//   directly in the lock variable.
+// - exclusive state: (ShareCount: 0, ControlBits: 1) -- When there is no
+//   conflicting shared acquire or exclusive acquire, the lock has a low bit set
+//   and nothing else.
+// - contended case 1 : (WaitPtr:ptr, ControlBits: 3) -- When there is a conflict,
+//   the threads that are waiting for the lock form a queue using data allocated
+//   on the waiting threads' stacks. The lock variable stores a pointer to the
+//   tail of the queue instead of a share count.
+
+class ReaderWriterLock {
+  char cache_line_pad_[64 - sizeof(SRWLOCK)];
+  SRWLOCK lock_;
+
+public:
+  ReaderWriterLock() {
+    ::InitializeSRWLock(&lock_);
+  }
+
+  ReaderWriterLock(ReaderWriterLock&) = delete;
+  ReaderWriterLock& operator=(const ReaderWriterLock&) = delete;
+
+  // Acquiring an exclusive lock when you don't know the initial state is a
+  // single write to the lock word, to set the low bit (LOCK BTS instruction)
+  // If you succeeded you can proceed into the locked region with no further
+  // operations.
+
+  ScopedWriteLock write_lock() {
+    ::AcquireSRWLockExclusive(&lock_);
+    return ScopedWriteLock(&lock_);
+  }
+
+  // Trying to acquire a shared lock is a more involved operation: You need to
+  // first read the initial value of the lock variable to determine the old
+  // share count, increment the share count you read, and then write the updated
+  // value back conditionally with the LOCK CMPXCHG instruction.
+
+  ScopedReadLock read_lock() {
+    ::AcquireSRWLockShared(&lock_);
+    return ScopedReadLock(&lock_);
+  }
 };
 
 
@@ -2130,89 +2216,91 @@ static const uint32_t Utf8BitMask[] = {
 char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) ;
 
 
-
-
 ///////////////////////////////////////////////////////////////////////////////
-// ReaderWriterLock and its scoped unlockers.
+// plx::VEHManager
 //
-class ScopedWriteLock {
-  SRWLOCK* lock_;
-  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
+class VEHManager {
+
+  struct Node {
+    DWORD code;
+    plx::Range<uint8_t> address;
+    std::function<bool(EXCEPTION_RECORD*)> handler;
+    Node(DWORD c, const plx::Range<uint8_t>& r, std::function<bool(EXCEPTION_RECORD*)>& f)
+      : code(c), address(r), handler(f) { }
+  };
+
+  bool RunHandler(EXCEPTION_RECORD* er) {
+    const uint8_t* address = nullptr;
+    const DWORD code = er->ExceptionCode;
+
+    if (code == EXCEPTION_ACCESS_VIOLATION) {
+      address = reinterpret_cast<uint8_t*>(
+          er->ExceptionInformation[1]);
+    } else {
+      address = reinterpret_cast<uint8_t*>(
+          er->ExceptionAddress);
+    }
+
+    auto rl = lock_.read_lock();
+    for (auto& node : handlers_) {
+      if (!node.address.contains(address))
+        continue;
+
+      if (node.code == code) {
+        if (node.handler(er))
+          return true;
+      }
+    }
+
+    return false;
+  }
+
+  static LONG __stdcall VecHandler(EXCEPTION_POINTERS* ep) {
+    if (ep == nullptr || ep->ExceptionRecord == nullptr)
+      return EXCEPTION_CONTINUE_SEARCH;
+    if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+      return EXCEPTION_CONTINUE_SEARCH;
+    bool handled = plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
+    return handled ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
+  }
+
+  plx::ReaderWriterLock lock_;
+  std::vector<Node> handlers_;
+  void* veh_handler_;
 
 public:
-  ScopedWriteLock() = delete;
-  ScopedWriteLock(const ScopedWriteLock&) = delete;
-  // void* operator new(std::size_t) =delete
+  typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
 
-  ~ScopedWriteLock() {
-    ::ReleaseSRWLockExclusive(lock_);
-  }
-};
+  VEHManager() = default;
+  VEHManager(const VEHManager&) = delete;
+  VEHManager& operator=(const VEHManager&) = delete;
 
-class ScopedReadLock {
-  SRWLOCK* lock_;
-  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
+  void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
+    auto wl = lock_.write_lock();
+    handlers_.emplace_back(EXCEPTION_ACCESS_VIOLATION, address, fn);
 
-public:
-  ScopedReadLock() = delete;
-  ScopedReadLock(const ScopedReadLock&) = delete;
-  // void* operator new(std::size_t) =delete
-
-  ~ScopedReadLock() {
-    ::ReleaseSRWLockShared(lock_);
-  }
-};
-
-// The SRW lock is implemented using a single pointer-sized atomic variable
-// which can take on a number of different states, depending on the values
-// of the low bits. The number of state transitions is pretty high, here are
-// some common ones:
-// - initial lock state: (0, ControlBits:0) -- An SRW lock starts with all
-//   bits set to 0.
-// - shared state: (ShareCount: n, ControlBits: 1) -- When there is no conflicting
-//   exclusive acquire and the lock is held shared, the share count is stored
-//   directly in the lock variable.
-// - exclusive state: (ShareCount: 0, ControlBits: 1) -- When there is no
-//   conflicting shared acquire or exclusive acquire, the lock has a low bit set
-//   and nothing else.
-// - contended case 1 : (WaitPtr:ptr, ControlBits: 3) -- When there is a conflict,
-//   the threads that are waiting for the lock form a queue using data allocated
-//   on the waiting threads' stacks. The lock variable stores a pointer to the
-//   tail of the queue instead of a share count.
-
-class ReaderWriterLock {
-  char cache_line_pad_[64 - sizeof(SRWLOCK)];
-  SRWLOCK lock_;
-
-public:
-  ReaderWriterLock() {
-    ::InitializeSRWLock(&lock_);
+    if (handlers_.size() == 1) {
+      auto self = plx::Globals::get<VEHManager>();
+      if (!self)
+        throw 7;  // $$$ fix.
+      veh_handler_ = ::AddVectoredExceptionHandler(1, &VecHandler);
+    }
   }
 
-  ReaderWriterLock(ReaderWriterLock&) = delete;
-  ReaderWriterLock& operator=(const ReaderWriterLock&) = delete;
-
-  // Acquiring an exclusive lock when you don't know the initial state is a
-  // single write to the lock word, to set the low bit (LOCK BTS instruction)
-  // If you succeeded you can proceed into the locked region with no further
-  // operations.
-
-  ScopedWriteLock write_lock() {
-    ::AcquireSRWLockExclusive(&lock_);
-    return ScopedWriteLock(&lock_);
+  void remove_av_handler(const plx::Range<uint8_t>& address) {
+    auto wl = lock_.write_lock();
+    for (auto it = cbegin(handlers_); it != cend(handlers_); ++it) {
+      if (it->address.start() != address.start())
+        continue;
+      if (it->code == EXCEPTION_ACCESS_VIOLATION) {
+        handlers_.erase(it);
+        if (handlers_.size() == 0)
+          ::RemoveVectoredExceptionHandler(veh_handler_);
+        return;
+      }
+    }
   }
 
-  // Trying to acquire a shared lock is a more involved operation: You need to
-  // first read the initial value of the lock variable to determine the old
-  // share count, increment the share count you read, and then write the updated
-  // value back conditionally with the LOCK CMPXCHG instruction.
-
-  ScopedReadLock read_lock() {
-    ::AcquireSRWLockShared(&lock_);
-    return ScopedReadLock(&lock_);
-  }
 };
 
 
@@ -2321,90 +2409,44 @@ private:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::VEHManager
+// plx::DemandPagedMemory
 //
-class VEHManager {
-
-  struct Node {
-    DWORD code;
-    plx::Range<uint8_t> address;
-    std::function<bool(EXCEPTION_RECORD*)> handler;
-    Node(DWORD c, const plx::Range<uint8_t>& r, std::function<bool(EXCEPTION_RECORD*)>& f)
-      : code(c), address(r), handler(f) { }
-  };
-
-  bool RunHandler(EXCEPTION_RECORD* er) {
-    const uint8_t* address = nullptr;
-    const DWORD code = er->ExceptionCode;
-
-    if (code == EXCEPTION_ACCESS_VIOLATION) {
-      address = reinterpret_cast<uint8_t*>(
-          er->ExceptionInformation[1]);
-    } else {
-      address = reinterpret_cast<uint8_t*>(
-          er->ExceptionAddress);
-    }
-
-    auto rl = lock_.read_lock();
-    for (auto& node : handlers_) {
-      if (!node.address.contains(address))
-        continue;
-
-      if (node.code == code) {
-        if (node.handler(er))
-          return true;
-      }
-    }
-
-    return false;
-  }
-
-  static LONG __stdcall VecHandler(EXCEPTION_POINTERS* ep) {
-    if (ep == nullptr || ep->ExceptionRecord == nullptr)
-      return EXCEPTION_CONTINUE_SEARCH;
-    if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-      return EXCEPTION_CONTINUE_SEARCH;
-    bool handled = plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
-    return handled ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
-  }
-
-  plx::ReaderWriterLock lock_;
-  std::vector<Node> handlers_;
-  void* veh_handler_;
+class DemandPagedMemory {
+  size_t page_faults_;
+  size_t block_size_;
+  plx::Range<uint8_t> range_;
 
 public:
-  typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
-
-  VEHManager() = default;
-  VEHManager(const VEHManager&) = delete;
-  VEHManager& operator=(const VEHManager&) = delete;
-
-  void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
-    auto wl = lock_.write_lock();
-    handlers_.emplace_back(EXCEPTION_ACCESS_VIOLATION, address, fn);
-
-    if (handlers_.size() == 1) {
-      auto self = plx::Globals::get<VEHManager>();
-      if (!self)
-        throw 7;  // $$$ fix.
-      veh_handler_ = ::AddVectoredExceptionHandler(1, &VecHandler);
-    }
+  DemandPagedMemory(size_t max_bytes, size_t block_pages)
+      : page_faults_(0),
+        block_size_(block_pages * 4096),
+        range_(reinterpret_cast<uint8_t*>(
+            ::VirtualAlloc(NULL, max_bytes, MEM_RESERVE, PAGE_NOACCESS)), max_bytes) {
+    if (!range_.start())
+      throw plx::MemoryException(__LINE__, 0);
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    plx::VEHManager::HandlerFn fn =
+        std::bind(&DemandPagedMemory::page_fault, this, std::placeholders::_1);
+    veh_man->add_av_handler(range_, fn);
   }
 
-  void remove_av_handler(const plx::Range<uint8_t>& address) {
-    auto wl = lock_.write_lock();
-    for (auto it = cbegin(handlers_); it != cend(handlers_); ++it) {
-      if (it->address.start() != address.start())
-        continue;
-      if (it->code == EXCEPTION_ACCESS_VIOLATION) {
-        handlers_.erase(it);
-        if (handlers_.size() == 0)
-          ::RemoveVectoredExceptionHandler(veh_handler_);
-        return;
-      }
-    }
+  ~DemandPagedMemory() {
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    veh_man->remove_av_handler(range_);
+    ::VirtualFree(range_.start(), 0, MEM_RELEASE);
   }
 
+  plx::Range<uint8_t> get() { return range_; }
+
+  size_t page_faults() const { return page_faults_; }
+
+private:
+  bool page_fault(EXCEPTION_RECORD* er) {
+    ++page_faults_;
+    auto addr = reinterpret_cast<uint8_t*>(er->ExceptionInformation[1]);
+    auto alloc_sz = std::min(block_size_, size_t(range_.end() - addr));
+    auto new_addr = ::VirtualAlloc(addr, alloc_sz, MEM_COMMIT, PAGE_READWRITE);
+    return (new_addr != nullptr);
+  }
 };
-
 }

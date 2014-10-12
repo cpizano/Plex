@@ -93,4 +93,5 @@ catalog 1 {
   plx::ReaderWriterLock plx\concurrent\reader_writer_lock.h;
   plx::Globals plx\globals.h;
   plx::VEHManager plx\veh_manager.h;
+  plx::DemandPagedMemory plx\demand_paged_memory.h;
 }
