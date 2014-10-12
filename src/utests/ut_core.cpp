@@ -1245,3 +1245,36 @@ void Test_VEHManager::Exec() {
   CheckEQ(ULONG_PTR(addr), 0);
 }
 
+void Test_DemandPagedMemory::Exec() {
+class DemandPagedMemory {
+  size_t block_size_;
+  plx::Range<uint8_t> range_;
+
+public:
+  DemandPagedMemory(size_t max_bytes, size_t block_pages)
+      : block_size_(block_pages * 4096),
+        range_(reinterpret_cast<uint8_t*>(
+          ::VirtualAlloc(NULL, max_bytes, MEM_RESERVE, PAGE_NOACCESS)), max_bytes) {
+    if (!range_.start())
+      throw 1;
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    plx::VEHManager::HandlerFn fn =
+        std::bind(&DemandPagedMemory::page_fault, this, std::placeholders::_1);
+    veh_man->add_av_handler(range_, fn);
+  }
+
+  ~DemandPagedMemory() {
+    ::VirtualFree(range_.start(), 0, MEM_RELEASE);
+  }
+
+private:
+  bool page_fault(EXCEPTION_RECORD* er) {
+    auto addr = reinterpret_cast<uint8_t*>(er->ExceptionInformation[1]);
+    auto alloc_sz = std::min(block_size_, size_t(range_.end() - addr));
+    auto new_addr = ::VirtualAlloc(addr, alloc_sz, MEM_COMMIT, PAGE_READWRITE);
+    return (new_addr != nullptr);
+  }
+};
+
+}
+

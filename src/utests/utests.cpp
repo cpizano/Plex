@@ -54,6 +54,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_ReaderWriterLock().Run();
     Test_Globals().Run();
     Test_VEHManager().Run();
+    Test_DemandPagedMemory().Run();
 
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);

@@ -83,4 +83,5 @@ TEST(Test_GZIP);
 TEST(Test_ReaderWriterLock);
 TEST(Test_Globals);
 TEST(Test_VEHManager);
+TEST(Test_DemandPagedMemory);
 #undef TEST
