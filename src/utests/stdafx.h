@@ -1859,6 +1859,21 @@ MakeGuard(TFunc&& fn) {
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::MemoryException
+//
+class MemoryException : public plx::Exception {
+  void* address_;
+
+public:
+  MemoryException(int line, void* address)
+      : Exception(line, "Memory"), address_(address) {
+    PostCtor();
+  }
+  void* address() const { return address_; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowException (thrown by some numeric converters)
 // kind_ : Type of overflow, positive or negative.
 //

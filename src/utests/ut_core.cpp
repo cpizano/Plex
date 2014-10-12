@@ -1258,7 +1258,7 @@ public:
         range_(reinterpret_cast<uint8_t*>(
             ::VirtualAlloc(NULL, max_bytes, MEM_RESERVE, PAGE_NOACCESS)), max_bytes) {
     if (!range_.start())
-      throw 1;
+      throw plx::MemoryException(__LINE__, 0);
     auto veh_man = plx::Globals::get<plx::VEHManager>();
     plx::VEHManager::HandlerFn fn =
         std::bind(&DemandPagedMemory::page_fault, this, std::placeholders::_1);
@@ -1266,6 +1266,8 @@ public:
   }
 
   ~DemandPagedMemory() {
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    veh_man->remove_av_handler(range_);
     ::VirtualFree(range_.start(), 0, MEM_RELEASE);
   }
 
