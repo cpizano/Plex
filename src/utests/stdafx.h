@@ -230,6 +230,10 @@ public:
     e_ = s_ + sz;
   }
 
+  void extend(size_t count) {
+    e_ += count;
+  }
+
   ItRange<const uint8_t*> const_bytes() const {
     auto s = reinterpret_cast<const uint8_t*>(s_);
     auto e = reinterpret_cast<const uint8_t*>(e_);
