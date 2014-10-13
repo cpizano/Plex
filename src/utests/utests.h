@@ -58,6 +58,8 @@ private:\
   virtual void Exec() override;\
 }
 
+void InitGlobals();
+
 TEST(Test_PlatformCheck);
 TEST(Test_Range);
 TEST(Test_BitSlice);

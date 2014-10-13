@@ -13,7 +13,7 @@ public:
   }
 
   plx::Range<const uint8_t> output() const {
-    return plx::RangeFromVector(inflater_.output());
+    return inflater_.output();
   }
 
   const std::string& file_name() const {

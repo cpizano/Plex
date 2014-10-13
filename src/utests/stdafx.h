@@ -620,83 +620,89 @@ public:
 };
 
 
+
+
 ///////////////////////////////////////////////////////////////////////////////
-// plx::BitSlicer allows you to slice sequential bits of a byte range.
-// bits_ : the last extracted bits not given back to caller
-// bit_count_ : how many valid bits in |bits_|.
-// pos_ : the current byte position in |r_|.
+// ReaderWriterLock and its scoped unlockers.
 //
-
-class BitSlicer {
-  const plx::Range<const unsigned char>& r_;
-  unsigned long bits_;
-  size_t bit_count_;
-  size_t pos_;
-
-  unsigned long range_check(bool* eor) {
-    if (!eor)
-      throw plx::RangeException(__LINE__, 0);
-    *eor = true;
-    return 0;
-  }
+class ScopedWriteLock {
+  SRWLOCK* lock_;
+  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
+  friend class ReaderWriterLock;
 
 public:
-  BitSlicer(const plx::Range<const unsigned char>& r)
-      : r_(r), bits_(0), bit_count_(0), pos_(0) {
+  ScopedWriteLock() = delete;
+  ScopedWriteLock(const ScopedWriteLock&) = delete;
+  // void* operator new(std::size_t) =delete
+
+  ~ScopedWriteLock() {
+    ::ReleaseSRWLockExclusive(lock_);
+  }
+};
+
+class ScopedReadLock {
+  SRWLOCK* lock_;
+  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
+  friend class ReaderWriterLock;
+
+public:
+  ScopedReadLock() = delete;
+  ScopedReadLock(const ScopedReadLock&) = delete;
+  // void* operator new(std::size_t) =delete
+
+  ~ScopedReadLock() {
+    ::ReleaseSRWLockShared(lock_);
+  }
+};
+
+// The SRW lock is implemented using a single pointer-sized atomic variable
+// which can take on a number of different states, depending on the values
+// of the low bits. The number of state transitions is pretty high, here are
+// some common ones:
+// - initial lock state: (0, ControlBits:0) -- An SRW lock starts with all
+//   bits set to 0.
+// - shared state: (ShareCount: n, ControlBits: 1) -- When there is no conflicting
+//   exclusive acquire and the lock is held shared, the share count is stored
+//   directly in the lock variable.
+// - exclusive state: (ShareCount: 0, ControlBits: 1) -- When there is no
+//   conflicting shared acquire or exclusive acquire, the lock has a low bit set
+//   and nothing else.
+// - contended case 1 : (WaitPtr:ptr, ControlBits: 3) -- When there is a conflict,
+//   the threads that are waiting for the lock form a queue using data allocated
+//   on the waiting threads' stacks. The lock variable stores a pointer to the
+//   tail of the queue instead of a share count.
+
+class ReaderWriterLock {
+  char cache_line_pad_[64 - sizeof(SRWLOCK)];
+  SRWLOCK lock_;
+
+public:
+  ReaderWriterLock() {
+    ::InitializeSRWLock(&lock_);
   }
 
-  unsigned long slice(int needed, bool* eor = nullptr) {
-    if (needed > 23) {
-      throw plx::RangeException(__LINE__, 0);
-    }
+  ReaderWriterLock(ReaderWriterLock&) = delete;
+  ReaderWriterLock& operator=(const ReaderWriterLock&) = delete;
 
-    unsigned long value = bits_;
+  // Acquiring an exclusive lock when you don't know the initial state is a
+  // single write to the lock word, to set the low bit (LOCK BTS instruction)
+  // If you succeeded you can proceed into the locked region with no further
+  // operations.
 
-    while (bit_count_ < needed) {
-      if (past_end())
-        return range_check(eor);
-      // accumulate 8 bits at a time.
-      value |= static_cast<unsigned long>(r_[pos_++]) << bit_count_;
-      bit_count_ += 8;
-    }
-
-    // store the uneeded bits from above. We will use them
-    // for the next request.
-    bits_ = value >> needed;
-    bit_count_ -= needed;
-
-    // mask out the bits above |needed|.
-    return value & ((1L << needed) - 1);
+  ScopedWriteLock write_lock() {
+    ::AcquireSRWLockExclusive(&lock_);
+    return ScopedWriteLock(&lock_);
   }
 
-  bool past_end() const {
-    return (pos_ == r_.size());
-  }
+  // Trying to acquire a shared lock is a more involved operation: You need to
+  // first read the initial value of the lock variable to determine the old
+  // share count, increment the share count you read, and then write the updated
+  // value back conditionally with the LOCK CMPXCHG instruction.
 
-  void discard_bits() {
-    bit_count_ = 0;
-    bits_ = 0;
+  ScopedReadLock read_lock() {
+    ::AcquireSRWLockShared(&lock_);
+    return ScopedReadLock(&lock_);
   }
-
-  void skip(size_t n) {
-    discard_bits();
-    pos_ += n;
-  }
-
-  uint32_t next_uint32() {
-    auto rv = *reinterpret_cast<const uint32_t*>(&r_[pos_]);
-    skip(sizeof(uint32_t));
-    return rv;
-  }
-
-  plx::Range<const unsigned char> remaining_range() const {
-    return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
-  }
-
-  size_t pos() const {
-    return pos_;
-  }
-
 };
 
 
@@ -785,78 +791,80 @@ std::string DecodeString(plx::Range<const char>& range) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::HuffmanCodec : implements a huffman decoder.
-// it maps bit patterns (codes) of up to 15 bits to 16 bit symbols.
-//
-// |lengths| is the number of bits each symbol should use. With 0 bits meaning
-// that the symbol does not get a code. Based on that a huffman decoder zlib
-// compatible can be constructed like RFC1951 documents.
+// plx::BitSlicer allows you to slice sequential bits of a byte range.
+// bits_ : the last extracted bits not given back to caller
+// bit_count_ : how many valid bits in |bits_|.
+// pos_ : the current byte position in |r_|.
 //
 
-class HuffmanCodec {
-  std::vector<uint16_t> symbols_;
-  std::vector<uint16_t> counts_;
+class BitSlicer {
+  const plx::Range<const unsigned char>& r_;
+  unsigned long bits_;
+  size_t bit_count_;
+  size_t pos_;
 
-public:
-  HuffmanCodec(size_t max_bits, const plx::Range<uint16_t>& lengths) {
-    if (max_bits > 15)
-      throw plx::InvalidParamException(__LINE__, 1);
-
-    counts_.resize(max_bits + 1);
-    for (auto len : lengths) {
-      counts_[len]++;
-    }
-
-    // all codes taking 0 bits makes no sense.
-    if (counts_[0] == lengths.size())
-      throw plx::InvalidParamException(__LINE__, 2);
-
-    // compute how many symbols are not coded. |left| < 0 means the
-    // code is over-subscribed (error), |left| == 0 means every
-    // code maps to a symbol.
-    int left = 1;
-    for (size_t bit_len = 1; bit_len <= max_bits; ++bit_len) {
-      left *= 2;
-      left -= counts_[bit_len];
-      if (left < 0)
-        throw plx::InvalidParamException(__LINE__, 2);
-    }
-
-    // Generate offsets for each bit lenght.
-    std::vector<uint16_t> offsets;
-    offsets.resize(max_bits + 1);
-    offsets[0] = 0;
-    for (size_t len = 1; len != max_bits; ++len) {
-      offsets[len + 1] = offsets[len] + counts_[len];
-    }
-
-    symbols_.resize(lengths.size());
-    uint16_t symbol = 0;
-    for (auto losym : lengths) {
-      if (losym)
-        symbols_[offsets[losym]++] = symbol;
-      ++symbol;
-    }
+  unsigned long range_check(bool* eor) {
+    if (!eor)
+      throw plx::RangeException(__LINE__, 0);
+    *eor = true;
+    return 0;
   }
 
-  int decode(plx::BitSlicer& slicer) {
-    const size_t max_bits = counts_.size() - 1;
-    uint16_t code = 0;
-    uint16_t first = 0;
-    size_t index = 0;
-    // $$ todo, replace for an efficient table lookup.
-    for (size_t len = 1; len <= max_bits; ++len) {
-      code |= slicer.slice(1);
-      auto count = counts_[len];
-      auto d = code - first;
-      if (count > d )
-        return symbols_[index + d];
-      index += count;
-      first += count;
-      first *= 2;
-      code <<= 1;
+public:
+  BitSlicer(const plx::Range<const unsigned char>& r)
+      : r_(r), bits_(0), bit_count_(0), pos_(0) {
+  }
+
+  unsigned long slice(int needed, bool* eor = nullptr) {
+    if (needed > 23) {
+      throw plx::RangeException(__LINE__, 0);
     }
-    return -1;
+
+    unsigned long value = bits_;
+
+    while (bit_count_ < needed) {
+      if (past_end())
+        return range_check(eor);
+      // accumulate 8 bits at a time.
+      value |= static_cast<unsigned long>(r_[pos_++]) << bit_count_;
+      bit_count_ += 8;
+    }
+
+    // store the uneeded bits from above. We will use them
+    // for the next request.
+    bits_ = value >> needed;
+    bit_count_ -= needed;
+
+    // mask out the bits above |needed|.
+    return value & ((1L << needed) - 1);
+  }
+
+  bool past_end() const {
+    return (pos_ == r_.size());
+  }
+
+  void discard_bits() {
+    bit_count_ = 0;
+    bits_ = 0;
+  }
+
+  void skip(size_t n) {
+    discard_bits();
+    pos_ += n;
+  }
+
+  uint32_t next_uint32() {
+    auto rv = *reinterpret_cast<const uint32_t*>(&r_[pos_]);
+    skip(sizeof(uint32_t));
+    return rv;
+  }
+
+  plx::Range<const unsigned char> remaining_range() const {
+    return plx::Range<const unsigned char>(r_.start() + pos_, r_.end());
+  }
+
+  size_t pos() const {
+    return pos_;
   }
 
 };
@@ -1017,293 +1025,88 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Inflater  : Implements a decompressor for the DEFLATE format following
-//                  RFC 1951. It takes a compressed byte range |r| and returns
-//                  via output() the decompressed data.
-class Inflater {
-  int error_;
-  std::vector<uint8_t> output_;
-  std::unique_ptr<plx::HuffmanCodec> liter_len_;
-  std::unique_ptr<plx::HuffmanCodec> distance_;
+// plx::VEHManager
+//
+class VEHManager {
 
-public:
-  enum Errors {
-    success = 0,
-    not_implemented,
-    invalid_block_type,
-    invalid_length,
-    empty_block,
-    missing_data,
-    invalid_symbol,
-    bad_dynamic_dict,
-    too_many_lengths,
-    bad_huffman
+  struct Node {
+    DWORD code;
+    plx::Range<uint8_t> address;
+    std::function<bool(EXCEPTION_RECORD*)> handler;
+    Node(DWORD c, const plx::Range<uint8_t>& r, std::function<bool(EXCEPTION_RECORD*)>& f)
+      : code(c), address(r), handler(f) { }
   };
 
-  Inflater() : error_(success)  {
-  }
+  bool RunHandler(EXCEPTION_RECORD* er) {
+    const uint8_t* address = nullptr;
+    const DWORD code = er->ExceptionCode;
 
-  Inflater(const Inflater&) = delete;
-  Inflater& operator=(const Inflater&) = delete;
-
-  const std::vector<uint8_t>& output() const {
-    return output_;
-  }
-
-  Errors status() const { return Errors(error_); }
-
-  size_t inflate(const plx::Range<const uint8_t>& r) {
-    if (r.empty()) {
-      error_ = empty_block;
-      return 0;
+    if (code == EXCEPTION_ACCESS_VIOLATION) {
+      address = reinterpret_cast<uint8_t*>(
+          er->ExceptionInformation[1]);
+    } else {
+      address = reinterpret_cast<uint8_t*>(
+          er->ExceptionAddress);
     }
 
-    error_ = success;
-    plx::BitSlicer slicer(r);
+    auto rl = lock_.read_lock();
+    for (auto& node : handlers_) {
+      if (!node.address.contains(address))
+        continue;
 
-    while (true) {
-      auto last = slicer.slice(1) == 1;
-      auto type = slicer.slice(2);
-
-      switch (type) {
-      case 0:  error_ = stored(slicer);
-        break;
-      case 1:  error_ = fixed(slicer);
-        break;
-      case 2:  error_ = dynamic(slicer);
-        break;
-      default:
-        error_ = invalid_block_type;
-        break;
-      }
-
-      if (error_) {
-        break;
-      } else if (last) {
-        break;
-      } else if (slicer.past_end()) {
-        error_ = missing_data;
-        break;
+      if (node.code == code) {
+        if (node.handler(er))
+          return true;
       }
     }
 
-    return (error_ == success) ? slicer.pos() : 0;
+    return false;
   }
 
-  Errors stored(plx::BitSlicer& slicer) {
-    // The size of the block comes next in two bytes and its complement.
-    slicer.discard_bits();
-    unsigned int len = slicer.slice(16);
-    unsigned int clen = slicer.slice(16);
-    // check complement.
-    if (len != ((~clen) & 0x0ffff))
-      return invalid_length;
-
-    if (!len)
-      return empty_block;
-
-    // copy |len| bytes to the output.
-    const auto& remaining = slicer.remaining_range();
-    if (remaining.size() < len)
-      return missing_data;
-
-    output_.insert(output_.end(), remaining.start(), remaining.start() + len);
-    slicer.skip(len);
-    return success;
+  static LONG __stdcall VecHandler(EXCEPTION_POINTERS* ep) {
+    if (ep == nullptr || ep->ExceptionRecord == nullptr)
+      return EXCEPTION_CONTINUE_SEARCH;
+    if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
+      return EXCEPTION_CONTINUE_SEARCH;
+    bool handled = plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
+    return handled ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
   }
 
-  Errors fixed(plx::BitSlicer& slicer) {
-    construct_fixed_codecs();
-    return decode(slicer, *liter_len_, *distance_);
+  plx::ReaderWriterLock lock_;
+  std::vector<Node> handlers_;
+  void* veh_handler_;
+
+public:
+  typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
+
+  VEHManager() = default;
+  VEHManager(const VEHManager&) = delete;
+  VEHManager& operator=(const VEHManager&) = delete;
+
+  void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
+    auto wl = lock_.write_lock();
+    handlers_.emplace_back(EXCEPTION_ACCESS_VIOLATION, address, fn);
+
+    if (handlers_.size() == 1) {
+      auto self = plx::Globals::get<VEHManager>();
+      if (!self)
+        throw 7;  // $$$ fix.
+      veh_handler_ = ::AddVectoredExceptionHandler(1, &VecHandler);
+    }
   }
 
-  Errors dynamic(plx::BitSlicer& slicer) {
-    // number of Literal & Length codes, from 257 to 286.
-    auto ll_len = slicer.slice(5) + 257;
-    // number of distance codes, from 1 to 32.
-    auto dist_len = slicer.slice(5) + 1;
-    // number of code length codes, from 4 to 19.
-    auto clc_len = slicer.slice(4) + 4;
-
-    if (ll_len > 286)
-      return bad_dynamic_dict;
-    if (dist_len > 30)
-      return bad_dynamic_dict;
-
-    // the |order| represents the order most common symbols expected from the
-    // next decoding phase: 16 = rle case 1, 17 = rle case 2 and 18 = case 3,
-    // then 0 = no code assigned. The rest are bit lenghts.
-    static const size_t order[19] = {
-        16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
-    };
-
-    // Build the huffman decoder for the code length codes.
-    std::vector<uint16_t> lengths;
-    lengths.resize(19);
-    size_t index = 0;
-    for (; index != clc_len; ++index)
-      lengths[order[index]] = static_cast<uint16_t>(slicer.slice(3));
-    for (; index < 19; ++index)
-      lengths[order[index]] = 0;
-    plx::HuffmanCodec clc_huffman(15, plx::RangeFromVector(lengths));
-
-    // Now read the real huffman decoder for the dynamic block.
-    const auto table_len = ll_len + dist_len;
-
-    lengths.resize(table_len);
-    size_t ix = 0;
-
-    while (ix < table_len) {
-      auto symbol = clc_huffman.decode(slicer);
-      if (symbol < 0)
-        return invalid_symbol;
-      if (symbol < 16) {
-        // the symbol is the huffman bit lenght.
-        lengths[ix++] = static_cast<uint16_t>(symbol);
-      } else {
-        // run length encoded. There are 3 cases.
-        int rle_value;
-        int rle_count;
-
-        if (symbol == 16) {
-          if (!ix)
-            return bad_dynamic_dict;
-          // case 1: repeat last bit length value 3 to 6 times.
-          rle_value = lengths[ix - 1];
-          rle_count = 3 + slicer.slice(2);
-        } else {
-          rle_value = 0;
-          if (symbol == 17) {
-            // case 2: 0 bit length (no code for symbol) is repeated 3 to 10 times.
-            rle_count = 3 + slicer.slice(3);
-          } else {
-            // case 3: 0 bit length (no code for symbol) is repeated 11 to 138 times.
-            rle_count = 11 + slicer.slice(7);
-          }
-        }
-
-        if (ix + rle_count > table_len)
-          return too_many_lengths;
-
-        while (rle_count--)
-          lengths[ix++] = static_cast<uint16_t>(rle_value);
+  void remove_av_handler(const plx::Range<uint8_t>& address) {
+    auto wl = lock_.write_lock();
+    for (auto it = cbegin(handlers_); it != cend(handlers_); ++it) {
+      if (it->address.start() != address.start())
+        continue;
+      if (it->code == EXCEPTION_ACCESS_VIOLATION) {
+        handlers_.erase(it);
+        if (handlers_.size() == 0)
+          ::RemoveVectoredExceptionHandler(veh_handler_);
+        return;
       }
     }
-
-    // we should have received a non-zero bit length for code 256, because
-    // that is how the decompressor will know how to stop.
-    if (!lengths[256])
-      return bad_huffman;
-
-    // Finally construct the two huffman decoders and decode the stream.
-    auto rfv = plx::RangeFromVector(lengths);
-    plx::HuffmanCodec lit_len(15, rfv.slice(0, ll_len));
-    plx::HuffmanCodec distance(15, rfv.slice(ll_len));
-
-    return decode(slicer, lit_len, distance);
-  }
-
-  void construct_fixed_codecs() {
-    if (liter_len_ && distance_)
-      return;
-
-    const size_t fixed_ll_codes = 288;
-    const size_t fixed_dis_codes = 30;
-
-    std::vector<uint16_t> lengths;
-    lengths.resize(fixed_ll_codes);
-    size_t symbol;
-
-    for (symbol = 0; symbol != 144; ++symbol)
-      lengths[symbol] = 8;
-    for (; symbol != 256; ++symbol)
-      lengths[symbol] = 9;
-    for (; symbol != 280; ++symbol)
-      lengths[symbol] = 7;
-    for (; symbol != fixed_ll_codes; ++symbol)
-      lengths[symbol] = 8;
-
-    // Symbol 286 and 287 should never appear in the stream.
-    liter_len_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
-
-    lengths.resize(fixed_dis_codes);
-    for (symbol = 0; symbol != fixed_dis_codes; ++symbol)
-      lengths[symbol] = 5;
-
-    distance_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
-  }
-
-  Errors decode(plx::BitSlicer& slicer, plx::HuffmanCodec& len_lit, plx::HuffmanCodec& dist) {
-    while (true) {
-      // either a literal or the length of a <len, dist> pair.
-      auto symbol = len_lit.decode(slicer);
-      if (symbol < 0)
-        return invalid_symbol;
-
-      if (symbol == 256) {
-        // special symbol that signifies the end of stream.
-        return success;
-      } else if (symbol < 256) {
-        // literal.
-        output_.push_back(static_cast<uint8_t>(symbol));
-      } else {
-        // above 256 means length - distance pair.
-        auto len = decode_length(symbol, slicer);
-        if (len < 0)
-          return invalid_symbol;
-        symbol = dist.decode(slicer);
-        if (symbol < 0)
-          return invalid_symbol;
-        auto dist = decode_distance(symbol, slicer);
-        // copy data from the already decoded stream.
-        back_copy(dist, len);
-      }
-    }  // while.
-  }
-
-  //$$$ todo: remove the static arrays below, they are not thread safe.
-
-  int decode_length(int symbol, plx::BitSlicer& slicer) {
-    static const int lens[29] = {
-        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
-        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
-    };
-    static const int lext[29] = {
-        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
-        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
-    };
-
-    symbol -= 257;
-    if (symbol >= 29)
-      return -1;
-
-    auto extra_bits = lext[symbol];
-    return lens[symbol] +  (extra_bits ? slicer.slice(extra_bits) : 0);
-  }
-
-  int decode_distance(int symbol, plx::BitSlicer& slicer) {
-    static const int dists[30] = {
-        1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
-        257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145,
-        8193, 12289, 16385, 24577
-    };
-
-    static const short dext[30] = {
-        0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
-        7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
-    };
-
-    if (symbol >= 29)
-      return -1;
-
-    auto extra_bits = dext[symbol];
-    return dists[symbol] + (extra_bits ? slicer.slice(extra_bits) : 0);
-  }
-
-  void back_copy(int from, int count) {
-    auto s = output_.size() - from;
-    for (int ix = 0; ix != count; ++ix)
-      output_.insert(output_.end(), output_[s++]);
   }
 
 };
@@ -1873,88 +1676,45 @@ MakeGuard(TFunc&& fn) {
 }
 
 
-
-
 ///////////////////////////////////////////////////////////////////////////////
-// ReaderWriterLock and its scoped unlockers.
+// plx::DemandPagedMemory
 //
-class ScopedWriteLock {
-  SRWLOCK* lock_;
-  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
+class DemandPagedMemory {
+  size_t page_faults_;
+  size_t block_size_;
+  plx::Range<uint8_t> range_;
 
 public:
-  ScopedWriteLock() = delete;
-  ScopedWriteLock(const ScopedWriteLock&) = delete;
-  // void* operator new(std::size_t) =delete
-
-  ~ScopedWriteLock() {
-    ::ReleaseSRWLockExclusive(lock_);
-  }
-};
-
-class ScopedReadLock {
-  SRWLOCK* lock_;
-  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
-
-public:
-  ScopedReadLock() = delete;
-  ScopedReadLock(const ScopedReadLock&) = delete;
-  // void* operator new(std::size_t) =delete
-
-  ~ScopedReadLock() {
-    ::ReleaseSRWLockShared(lock_);
-  }
-};
-
-// The SRW lock is implemented using a single pointer-sized atomic variable
-// which can take on a number of different states, depending on the values
-// of the low bits. The number of state transitions is pretty high, here are
-// some common ones:
-// - initial lock state: (0, ControlBits:0) -- An SRW lock starts with all
-//   bits set to 0.
-// - shared state: (ShareCount: n, ControlBits: 1) -- When there is no conflicting
-//   exclusive acquire and the lock is held shared, the share count is stored
-//   directly in the lock variable.
-// - exclusive state: (ShareCount: 0, ControlBits: 1) -- When there is no
-//   conflicting shared acquire or exclusive acquire, the lock has a low bit set
-//   and nothing else.
-// - contended case 1 : (WaitPtr:ptr, ControlBits: 3) -- When there is a conflict,
-//   the threads that are waiting for the lock form a queue using data allocated
-//   on the waiting threads' stacks. The lock variable stores a pointer to the
-//   tail of the queue instead of a share count.
-
-class ReaderWriterLock {
-  char cache_line_pad_[64 - sizeof(SRWLOCK)];
-  SRWLOCK lock_;
-
-public:
-  ReaderWriterLock() {
-    ::InitializeSRWLock(&lock_);
+  DemandPagedMemory(size_t max_bytes, size_t block_pages)
+      : page_faults_(0),
+        block_size_(block_pages * 4096),
+        range_(reinterpret_cast<uint8_t*>(
+            ::VirtualAlloc(NULL, max_bytes, MEM_RESERVE, PAGE_NOACCESS)), max_bytes) {
+    if (!range_.start())
+      throw plx::MemoryException(__LINE__, 0);
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    plx::VEHManager::HandlerFn fn =
+        std::bind(&DemandPagedMemory::page_fault, this, std::placeholders::_1);
+    veh_man->add_av_handler(range_, fn);
   }
 
-  ReaderWriterLock(ReaderWriterLock&) = delete;
-  ReaderWriterLock& operator=(const ReaderWriterLock&) = delete;
-
-  // Acquiring an exclusive lock when you don't know the initial state is a
-  // single write to the lock word, to set the low bit (LOCK BTS instruction)
-  // If you succeeded you can proceed into the locked region with no further
-  // operations.
-
-  ScopedWriteLock write_lock() {
-    ::AcquireSRWLockExclusive(&lock_);
-    return ScopedWriteLock(&lock_);
+  ~DemandPagedMemory() {
+    auto veh_man = plx::Globals::get<plx::VEHManager>();
+    veh_man->remove_av_handler(range_);
+    ::VirtualFree(range_.start(), 0, MEM_RELEASE);
   }
 
-  // Trying to acquire a shared lock is a more involved operation: You need to
-  // first read the initial value of the lock variable to determine the old
-  // share count, increment the share count you read, and then write the updated
-  // value back conditionally with the LOCK CMPXCHG instruction.
+  plx::Range<uint8_t> get() { return range_; }
 
-  ScopedReadLock read_lock() {
-    ::AcquireSRWLockShared(&lock_);
-    return ScopedReadLock(&lock_);
+  size_t page_faults() const { return page_faults_; }
+
+private:
+  bool page_fault(EXCEPTION_RECORD* er) {
+    ++page_faults_;
+    auto addr = reinterpret_cast<uint8_t*>(er->ExceptionInformation[1]);
+    auto alloc_sz = std::min(block_size_, size_t(range_.end() - addr));
+    auto new_addr = ::VirtualAlloc(addr, alloc_sz, MEM_COMMIT, PAGE_READWRITE);
+    return (new_addr != nullptr);
   }
 };
 
@@ -2098,98 +1858,78 @@ bool PlatformCheck() ;;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::GZip  : implements a GZip compatible decompressor.
+// plx::HuffmanCodec : implements a huffman decoder.
+// it maps bit patterns (codes) of up to 15 bits to 16 bit symbols.
+//
+// |lengths| is the number of bits each symbol should use. With 0 bits meaning
+// that the symbol does not get a code. Based on that a huffman decoder zlib
+// compatible can be constructed like RFC1951 documents.
 //
 
-class GZip {
-  plx::Inflater inflater_;
-  std::string fname_;
+class HuffmanCodec {
+  std::vector<uint16_t> symbols_;
+  std::vector<uint16_t> counts_;
 
 public:
-  GZip() {
+  HuffmanCodec(size_t max_bits, const plx::Range<uint16_t>& lengths) {
+    if (max_bits > 15)
+      throw plx::InvalidParamException(__LINE__, 1);
+
+    counts_.resize(max_bits + 1);
+    for (auto len : lengths) {
+      counts_[len]++;
+    }
+
+    // all codes taking 0 bits makes no sense.
+    if (counts_[0] == lengths.size())
+      throw plx::InvalidParamException(__LINE__, 2);
+
+    // compute how many symbols are not coded. |left| < 0 means the
+    // code is over-subscribed (error), |left| == 0 means every
+    // code maps to a symbol.
+    int left = 1;
+    for (size_t bit_len = 1; bit_len <= max_bits; ++bit_len) {
+      left *= 2;
+      left -= counts_[bit_len];
+      if (left < 0)
+        throw plx::InvalidParamException(__LINE__, 2);
+    }
+
+    // Generate offsets for each bit lenght.
+    std::vector<uint16_t> offsets;
+    offsets.resize(max_bits + 1);
+    offsets[0] = 0;
+    for (size_t len = 1; len != max_bits; ++len) {
+      offsets[len + 1] = offsets[len] + counts_[len];
+    }
+
+    symbols_.resize(lengths.size());
+    uint16_t symbol = 0;
+    for (auto losym : lengths) {
+      if (losym)
+        symbols_[offsets[losym]++] = symbol;
+      ++symbol;
+    }
   }
 
-  plx::Range<const uint8_t> output() const {
-    return plx::RangeFromVector(inflater_.output());
-  }
-
-  const std::string& file_name() const {
-    return fname_;
-  }
-
-  bool extract(plx::Range<const uint8_t>& input) {
-    plx::BitSlicer slicer(input);
-    auto magic = slicer.slice(16);
-    if (magic != 0x8b1f)
-      return false;
-    auto method = slicer.slice(8);
-    if (method != 8)
-      return false;
-
-    // Flags:
-    // bit 0  FTEXT : text hint. Don't care.
-    // bit 1  FHCRC : not checked.
-    // bit 2  FEXTRA : skipped.
-    // bit 3  FNAME : skipped ($$ todo fix).
-    // bit 4  FCOMMENT : skipped.
-    slicer.slice(1);
-    bool has_crc = slicer.slice(1) == 1;
-    bool has_extra = slicer.slice(1) == 1;
-    bool has_name = slicer.slice(1) == 1;
-    bool has_comment = slicer.slice(1) == 1;
-    auto reserved = slicer.slice(3);
-
-    if (reserved)
-      return false;
-
-    auto mtime = slicer.next_uint32();
-    auto xfl = slicer.slice(8);
-    auto os = slicer.slice(8);
-
-    if (has_extra) {
-      auto xlen = slicer.slice(16);
-      slicer.skip(xlen);
+  int decode(plx::BitSlicer& slicer) {
+    const size_t max_bits = counts_.size() - 1;
+    uint16_t code = 0;
+    uint16_t first = 0;
+    size_t index = 0;
+    // $$ todo, replace for an efficient table lookup.
+    for (size_t len = 1; len <= max_bits; ++len) {
+      code |= slicer.slice(1);
+      auto count = counts_[len];
+      auto d = code - first;
+      if (count > d )
+        return symbols_[index + d];
+      index += count;
+      first += count;
+      first *= 2;
+      code <<= 1;
     }
-
-    slicer.discard_bits();
-
-    if (has_name) {
-      auto name = slicer.remaining_range();
-      size_t pos = 0;
-      if (!name.contains(0, &pos))
-        return false;
-      fname_ = reinterpret_cast<const char*>(name.start());
-      slicer.skip(pos + 1);
-    }
-
-    if (has_comment) {
-      auto comment = slicer.remaining_range();
-      size_t pos = 0;
-      if (!comment.contains(0, &pos))
-        return false;
-      slicer.skip(pos + 1);
-    }
-
-    if (has_crc) {
-      auto crc = slicer.slice(16);
-    }
-
-    slicer.discard_bits();
-
-    auto consumed = inflater_.inflate(slicer.remaining_range());
-    if (!consumed)
-      return false;
-
-    slicer.skip(consumed);
-    auto crc = slicer.next_uint32();
-    // $$$ todo: chec crc.
-    auto isize = slicer.next_uint32();
-
-    if (isize != inflater_.output().size())
-      return false;
-
-    input.advance(consumed);
-    return true;
+    return -1;
   }
 
 };
@@ -2217,87 +1957,302 @@ char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::VEHManager
-//
-class VEHManager {
+// plx::Inflater  : Implements a decompressor for the DEFLATE format following
+//                  RFC 1951. It takes a compressed byte range |r| and returns
+//                  via output() the decompressed data.
+class Inflater {
+  int error_;
+  std::unique_ptr<plx::DemandPagedMemory> dpm_;
+  plx::Range<uint8_t> output_;
 
-  struct Node {
-    DWORD code;
-    plx::Range<uint8_t> address;
-    std::function<bool(EXCEPTION_RECORD*)> handler;
-    Node(DWORD c, const plx::Range<uint8_t>& r, std::function<bool(EXCEPTION_RECORD*)>& f)
-      : code(c), address(r), handler(f) { }
-  };
-
-  bool RunHandler(EXCEPTION_RECORD* er) {
-    const uint8_t* address = nullptr;
-    const DWORD code = er->ExceptionCode;
-
-    if (code == EXCEPTION_ACCESS_VIOLATION) {
-      address = reinterpret_cast<uint8_t*>(
-          er->ExceptionInformation[1]);
-    } else {
-      address = reinterpret_cast<uint8_t*>(
-          er->ExceptionAddress);
-    }
-
-    auto rl = lock_.read_lock();
-    for (auto& node : handlers_) {
-      if (!node.address.contains(address))
-        continue;
-
-      if (node.code == code) {
-        if (node.handler(er))
-          return true;
-      }
-    }
-
-    return false;
-  }
-
-  static LONG __stdcall VecHandler(EXCEPTION_POINTERS* ep) {
-    if (ep == nullptr || ep->ExceptionRecord == nullptr)
-      return EXCEPTION_CONTINUE_SEARCH;
-    if (ep->ExceptionRecord->ExceptionCode != EXCEPTION_ACCESS_VIOLATION)
-      return EXCEPTION_CONTINUE_SEARCH;
-    bool handled = plx::Globals::get<VEHManager>()->RunHandler(ep->ExceptionRecord);
-    return handled ? EXCEPTION_CONTINUE_EXECUTION : EXCEPTION_CONTINUE_SEARCH;
-  }
-
-  plx::ReaderWriterLock lock_;
-  std::vector<Node> handlers_;
-  void* veh_handler_;
+  std::unique_ptr<plx::HuffmanCodec> liter_len_;
+  std::unique_ptr<plx::HuffmanCodec> distance_;
 
 public:
-  typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
+  enum Errors {
+    success = 0,
+    not_implemented,
+    invalid_block_type,
+    invalid_length,
+    empty_block,
+    missing_data,
+    invalid_symbol,
+    bad_dynamic_dict,
+    too_many_lengths,
+    bad_huffman
+  };
 
-  VEHManager() = default;
-  VEHManager(const VEHManager&) = delete;
-  VEHManager& operator=(const VEHManager&) = delete;
-
-  void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
-    auto wl = lock_.write_lock();
-    handlers_.emplace_back(EXCEPTION_ACCESS_VIOLATION, address, fn);
-
-    if (handlers_.size() == 1) {
-      auto self = plx::Globals::get<VEHManager>();
-      if (!self)
-        throw 7;  // $$$ fix.
-      veh_handler_ = ::AddVectoredExceptionHandler(1, &VecHandler);
-    }
+  Inflater() : error_(success)  {
   }
 
-  void remove_av_handler(const plx::Range<uint8_t>& address) {
-    auto wl = lock_.write_lock();
-    for (auto it = cbegin(handlers_); it != cend(handlers_); ++it) {
-      if (it->address.start() != address.start())
-        continue;
-      if (it->code == EXCEPTION_ACCESS_VIOLATION) {
-        handlers_.erase(it);
-        if (handlers_.size() == 0)
-          ::RemoveVectoredExceptionHandler(veh_handler_);
-        return;
+  Inflater(const Inflater&) = delete;
+  Inflater& operator=(const Inflater&) = delete;
+
+  const plx::Range<uint8_t>& output() const {
+    return output_;
+  }
+
+  Errors status() const { return Errors(error_); }
+
+  size_t inflate(const plx::Range<const uint8_t>& r) {
+    if (r.empty()) {
+      error_ = empty_block;
+      return 0;
+    }
+
+    dpm_.reset(new DemandPagedMemory(r.size(), 4));
+    output_ = plx::Range<uint8_t>(dpm_->get().start(), size_t(0));
+
+    error_ = success;
+    plx::BitSlicer slicer(r);
+
+    while (true) {
+      auto last = slicer.slice(1) == 1;
+      auto type = slicer.slice(2);
+
+      switch (type) {
+      case 0:  error_ = stored(slicer);
+        break;
+      case 1:  error_ = fixed(slicer);
+        break;
+      case 2:  error_ = dynamic(slicer);
+        break;
+      default:
+        error_ = invalid_block_type;
+        break;
       }
+
+      if (error_) {
+        break;
+      } else if (last) {
+        break;
+      } else if (slicer.past_end()) {
+        error_ = missing_data;
+        break;
+      }
+    }
+
+    return (error_ == success) ? slicer.pos() : 0;
+  }
+
+  Errors stored(plx::BitSlicer& slicer) {
+    // The size of the block comes next in two bytes and its complement.
+    slicer.discard_bits();
+    unsigned int len = slicer.slice(16);
+    unsigned int clen = slicer.slice(16);
+    // check complement.
+    if (len != ((~clen) & 0x0ffff))
+      return invalid_length;
+
+    if (!len)
+      return empty_block;
+
+    // copy |len| bytes to the output.
+    const auto& remaining = slicer.remaining_range();
+    if (remaining.size() < len)
+      return missing_data;
+
+    memcpy(output_.end(), remaining.start(), len);
+    output_.extend(len);
+
+    slicer.skip(len);
+    return success;
+  }
+
+  Errors fixed(plx::BitSlicer& slicer) {
+    construct_fixed_codecs();
+    return decode(slicer, *liter_len_, *distance_);
+  }
+
+  Errors dynamic(plx::BitSlicer& slicer) {
+    // number of Literal & Length codes, from 257 to 286.
+    auto ll_len = slicer.slice(5) + 257;
+    // number of distance codes, from 1 to 32.
+    auto dist_len = slicer.slice(5) + 1;
+    // number of code length codes, from 4 to 19.
+    auto clc_len = slicer.slice(4) + 4;
+
+    if (ll_len > 286)
+      return bad_dynamic_dict;
+    if (dist_len > 30)
+      return bad_dynamic_dict;
+
+    // the |order| represents the order most common symbols expected from the
+    // next decoding phase: 16 = rle case 1, 17 = rle case 2 and 18 = case 3,
+    // then 0 = no code assigned. The rest are bit lenghts.
+    static const size_t order[19] = {
+        16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15
+    };
+
+    // Build the huffman decoder for the code length codes.
+    std::vector<uint16_t> lengths;
+    lengths.resize(19);
+    size_t index = 0;
+    for (; index != clc_len; ++index)
+      lengths[order[index]] = static_cast<uint16_t>(slicer.slice(3));
+    for (; index < 19; ++index)
+      lengths[order[index]] = 0;
+    plx::HuffmanCodec clc_huffman(15, plx::RangeFromVector(lengths));
+
+    // Now read the real huffman decoder for the dynamic block.
+    const auto table_len = ll_len + dist_len;
+
+    lengths.resize(table_len);
+    size_t ix = 0;
+
+    while (ix < table_len) {
+      auto symbol = clc_huffman.decode(slicer);
+      if (symbol < 0)
+        return invalid_symbol;
+      if (symbol < 16) {
+        // the symbol is the huffman bit lenght.
+        lengths[ix++] = static_cast<uint16_t>(symbol);
+      } else {
+        // run length encoded. There are 3 cases.
+        int rle_value;
+        int rle_count;
+
+        if (symbol == 16) {
+          if (!ix)
+            return bad_dynamic_dict;
+          // case 1: repeat last bit length value 3 to 6 times.
+          rle_value = lengths[ix - 1];
+          rle_count = 3 + slicer.slice(2);
+        } else {
+          rle_value = 0;
+          if (symbol == 17) {
+            // case 2: 0 bit length (no code for symbol) is repeated 3 to 10 times.
+            rle_count = 3 + slicer.slice(3);
+          } else {
+            // case 3: 0 bit length (no code for symbol) is repeated 11 to 138 times.
+            rle_count = 11 + slicer.slice(7);
+          }
+        }
+
+        if (ix + rle_count > table_len)
+          return too_many_lengths;
+
+        while (rle_count--)
+          lengths[ix++] = static_cast<uint16_t>(rle_value);
+      }
+    }
+
+    // we should have received a non-zero bit length for code 256, because
+    // that is how the decompressor will know how to stop.
+    if (!lengths[256])
+      return bad_huffman;
+
+    // Finally construct the two huffman decoders and decode the stream.
+    auto rfv = plx::RangeFromVector(lengths);
+    plx::HuffmanCodec lit_len(15, rfv.slice(0, ll_len));
+    plx::HuffmanCodec distance(15, rfv.slice(ll_len));
+
+    return decode(slicer, lit_len, distance);
+  }
+
+  void construct_fixed_codecs() {
+    if (liter_len_ && distance_)
+      return;
+
+    const size_t fixed_ll_codes = 288;
+    const size_t fixed_dis_codes = 30;
+
+    std::vector<uint16_t> lengths;
+    lengths.resize(fixed_ll_codes);
+    size_t symbol;
+
+    for (symbol = 0; symbol != 144; ++symbol)
+      lengths[symbol] = 8;
+    for (; symbol != 256; ++symbol)
+      lengths[symbol] = 9;
+    for (; symbol != 280; ++symbol)
+      lengths[symbol] = 7;
+    for (; symbol != fixed_ll_codes; ++symbol)
+      lengths[symbol] = 8;
+
+    // Symbol 286 and 287 should never appear in the stream.
+    liter_len_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
+
+    lengths.resize(fixed_dis_codes);
+    for (symbol = 0; symbol != fixed_dis_codes; ++symbol)
+      lengths[symbol] = 5;
+
+    distance_.reset(new plx::HuffmanCodec(15, plx::RangeFromVector(lengths)));
+  }
+
+  Errors decode(plx::BitSlicer& slicer, plx::HuffmanCodec& len_lit, plx::HuffmanCodec& dist) {
+    while (true) {
+      // either a literal or the length of a <len, dist> pair.
+      auto symbol = len_lit.decode(slicer);
+      if (symbol < 0)
+        return invalid_symbol;
+
+      if (symbol == 256) {
+        // special symbol that signifies the end of stream.
+        return success;
+      } else if (symbol < 256) {
+        // literal.
+        *output_.end() = symbol;
+        output_.extend(1);
+      } else {
+        // above 256 means length - distance pair.
+        auto len = decode_length(symbol, slicer);
+        if (len < 0)
+          return invalid_symbol;
+        symbol = dist.decode(slicer);
+        if (symbol < 0)
+          return invalid_symbol;
+        auto dist = decode_distance(symbol, slicer);
+        // copy data from the already decoded stream.
+        back_copy(dist, len);
+      }
+    }  // while.
+  }
+
+  //$$$ todo: remove the static arrays below, they are not thread safe.
+
+  int decode_length(int symbol, plx::BitSlicer& slicer) {
+    static const int lens[29] = {
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
+    };
+    static const int lext[29] = {
+        0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+        3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0
+    };
+
+    symbol -= 257;
+    if (symbol >= 29)
+      return -1;
+
+    auto extra_bits = lext[symbol];
+    return lens[symbol] +  (extra_bits ? slicer.slice(extra_bits) : 0);
+  }
+
+  int decode_distance(int symbol, plx::BitSlicer& slicer) {
+    static const int dists[30] = {
+        1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
+        257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145,
+        8193, 12289, 16385, 24577
+    };
+
+    static const short dext[30] = {
+        0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6,
+        7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13
+    };
+
+    if (symbol >= 29)
+      return -1;
+
+    auto extra_bits = dext[symbol];
+    return dists[symbol] + (extra_bits ? slicer.slice(extra_bits) : 0);
+  }
+
+  void back_copy(int from, int count) {
+    auto s = output_.size() - from;
+    for (int ix = 0; ix != count; ++ix) {
+      *output_.end() = output_[s++];
+      output_.extend(1);
     }
   }
 
@@ -2409,44 +2364,100 @@ private:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::DemandPagedMemory
+// plx::GZip  : implements a GZip compatible decompressor.
 //
-class DemandPagedMemory {
-  size_t page_faults_;
-  size_t block_size_;
-  plx::Range<uint8_t> range_;
+
+class GZip {
+  plx::Inflater inflater_;
+  std::string fname_;
 
 public:
-  DemandPagedMemory(size_t max_bytes, size_t block_pages)
-      : page_faults_(0),
-        block_size_(block_pages * 4096),
-        range_(reinterpret_cast<uint8_t*>(
-            ::VirtualAlloc(NULL, max_bytes, MEM_RESERVE, PAGE_NOACCESS)), max_bytes) {
-    if (!range_.start())
-      throw plx::MemoryException(__LINE__, 0);
-    auto veh_man = plx::Globals::get<plx::VEHManager>();
-    plx::VEHManager::HandlerFn fn =
-        std::bind(&DemandPagedMemory::page_fault, this, std::placeholders::_1);
-    veh_man->add_av_handler(range_, fn);
+  GZip() {
   }
 
-  ~DemandPagedMemory() {
-    auto veh_man = plx::Globals::get<plx::VEHManager>();
-    veh_man->remove_av_handler(range_);
-    ::VirtualFree(range_.start(), 0, MEM_RELEASE);
+  plx::Range<const uint8_t> output() const {
+    return inflater_.output();
   }
 
-  plx::Range<uint8_t> get() { return range_; }
-
-  size_t page_faults() const { return page_faults_; }
-
-private:
-  bool page_fault(EXCEPTION_RECORD* er) {
-    ++page_faults_;
-    auto addr = reinterpret_cast<uint8_t*>(er->ExceptionInformation[1]);
-    auto alloc_sz = std::min(block_size_, size_t(range_.end() - addr));
-    auto new_addr = ::VirtualAlloc(addr, alloc_sz, MEM_COMMIT, PAGE_READWRITE);
-    return (new_addr != nullptr);
+  const std::string& file_name() const {
+    return fname_;
   }
+
+  bool extract(plx::Range<const uint8_t>& input) {
+    plx::BitSlicer slicer(input);
+    auto magic = slicer.slice(16);
+    if (magic != 0x8b1f)
+      return false;
+    auto method = slicer.slice(8);
+    if (method != 8)
+      return false;
+
+    // Flags:
+    // bit 0  FTEXT : text hint. Don't care.
+    // bit 1  FHCRC : not checked.
+    // bit 2  FEXTRA : skipped.
+    // bit 3  FNAME : skipped ($$ todo fix).
+    // bit 4  FCOMMENT : skipped.
+    slicer.slice(1);
+    bool has_crc = slicer.slice(1) == 1;
+    bool has_extra = slicer.slice(1) == 1;
+    bool has_name = slicer.slice(1) == 1;
+    bool has_comment = slicer.slice(1) == 1;
+    auto reserved = slicer.slice(3);
+
+    if (reserved)
+      return false;
+
+    auto mtime = slicer.next_uint32();
+    auto xfl = slicer.slice(8);
+    auto os = slicer.slice(8);
+
+    if (has_extra) {
+      auto xlen = slicer.slice(16);
+      slicer.skip(xlen);
+    }
+
+    slicer.discard_bits();
+
+    if (has_name) {
+      auto name = slicer.remaining_range();
+      size_t pos = 0;
+      if (!name.contains(0, &pos))
+        return false;
+      fname_ = reinterpret_cast<const char*>(name.start());
+      slicer.skip(pos + 1);
+    }
+
+    if (has_comment) {
+      auto comment = slicer.remaining_range();
+      size_t pos = 0;
+      if (!comment.contains(0, &pos))
+        return false;
+      slicer.skip(pos + 1);
+    }
+
+    if (has_crc) {
+      auto crc = slicer.slice(16);
+    }
+
+    slicer.discard_bits();
+
+    auto consumed = inflater_.inflate(slicer.remaining_range());
+    if (!consumed)
+      return false;
+
+    slicer.skip(consumed);
+    auto crc = slicer.next_uint32();
+    // $$$ todo: chec crc.
+    auto isize = slicer.next_uint32();
+
+    if (isize != inflater_.output().size())
+      return false;
+
+    input.advance(consumed);
+    return true;
+  }
+
 };
+
 }

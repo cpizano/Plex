@@ -6,7 +6,9 @@
 namespace plx {
 class Inflater {
   int error_;
-  std::vector<uint8_t> output_;
+  std::unique_ptr<plx::DemandPagedMemory> dpm_;
+  plx::Range<uint8_t> output_;
+
   std::unique_ptr<plx::HuffmanCodec> liter_len_;
   std::unique_ptr<plx::HuffmanCodec> distance_;
 
@@ -30,7 +32,7 @@ public:
   Inflater(const Inflater&) = delete;
   Inflater& operator=(const Inflater&) = delete;
 
-  const std::vector<uint8_t>& output() const {
+  const plx::Range<uint8_t>& output() const {
     return output_;
   }
 
@@ -41,6 +43,9 @@ public:
       error_ = empty_block;
       return 0;
     }
+
+    dpm_.reset(new DemandPagedMemory(r.size(), 4));
+    output_ = plx::Range<uint8_t>(dpm_->get().start(), size_t(0));
 
     error_ = success;
     plx::BitSlicer slicer(r);
@@ -91,7 +96,9 @@ public:
     if (remaining.size() < len)
       return missing_data;
 
-    output_.insert(output_.end(), remaining.start(), remaining.start() + len);
+    memcpy(output_.end(), remaining.start(), len);
+    output_.extend(len);
+
     slicer.skip(len);
     return success;
   }
@@ -229,7 +236,8 @@ public:
         return success;
       } else if (symbol < 256) {
         // literal.
-        output_.push_back(static_cast<uint8_t>(symbol));
+        *output_.end() = symbol;
+        output_.extend(1);
       } else {
         // above 256 means length - distance pair.
         auto len = decode_length(symbol, slicer);
@@ -286,8 +294,10 @@ public:
 
   void back_copy(int from, int count) {
     auto s = output_.size() - from;
-    for (int ix = 0; ix != count; ++ix)
-      output_.insert(output_.end(), output_[s++]);
+    for (int ix = 0; ix != count; ++ix) {
+      *output_.end() = output_[s++];
+      output_.extend(1);
+    }
   }
 
 };

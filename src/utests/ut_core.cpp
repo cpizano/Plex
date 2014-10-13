@@ -2,6 +2,12 @@
 #include "stdafx.h"
 #include "utests.h"
 
+plx::Globals globals;
+
+void InitGlobals() {
+  globals.add_service(new plx::VEHManager);
+}
+
 void Test_PlatformCheck::Exec() {
   CheckEQ(plx::PlatformCheck(), true);
 
@@ -1202,8 +1208,6 @@ public:
 };
 }
 
-plx::Globals globals;
-
 void Test_Globals::Exec() {
   globals.add_service(new plx::TestService);
 
@@ -1222,9 +1226,7 @@ bool WriteMemory(uint8_t* ptr, uint8_t val) {
 }
 
 void Test_VEHManager::Exec() {
-  globals.add_service(new plx::VEHManager);
   auto vehm = plx::Globals::get<plx::VEHManager>();
-
   void* addr;
   plx::VEHManager::HandlerFn hf([&addr](EXCEPTION_RECORD* er) -> bool {
     addr = reinterpret_cast<void*>(er->ExceptionInformation[1]);

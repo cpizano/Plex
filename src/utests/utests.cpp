@@ -29,6 +29,7 @@ void Test::Run() {
 
 int wmain(int argc, wchar_t* argv[]) {
   try {
+    InitGlobals();
     Test_PlatformCheck().Run();
     Test_Range().Run();
     Test_BitSlice().Run();
