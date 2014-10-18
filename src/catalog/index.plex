@@ -94,4 +94,5 @@ catalog 1 {
   plx::Globals plx\globals.h;
   plx::VEHManager plx\veh_manager.h;
   plx::DemandPagedMemory plx\demand_paged_memory.h;
+  plx::ArgInfo plx\arg_pack.h;
 }

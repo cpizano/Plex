@@ -1269,3 +1269,20 @@ void Test_DemandPagedMemory::Exec() {
   CheckEQ(WriteMemory(&r[(page_sz * 2) + 1], 0), false);
 }
 
+template<typename... Args>	
+int ArgAdder(Args... args) {	
+  const plx::ArgInfo arg_array[] = {args... };
+  uint64_t r = 0;
+  for (auto& a : arg_array) {
+    if (a.type == plx::ArgType::boolean || a.type == plx::ArgType::pointer)
+      continue;
+    r += a.integer;
+  }
+  return static_cast<int>(r);
+}
+
+void Test_ArgPack::Exec() {
+  long long x = 1;
+  int r = ArgAdder(false, 3, char(2), x);
+  CheckEQ(r, 6);
+}
