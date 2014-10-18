@@ -25,5 +25,8 @@
     <ClInclude Include="utests.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="stdafx.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

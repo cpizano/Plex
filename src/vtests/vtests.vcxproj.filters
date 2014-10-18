@@ -22,10 +22,10 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="stdafx.cpp">
+    <ClCompile Include="vtests.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="vtests.cpp">
+    <ClCompile Include="stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
