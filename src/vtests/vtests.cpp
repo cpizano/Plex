@@ -19,4 +19,3 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
 	return (int) msg.wParam;
 }
-
