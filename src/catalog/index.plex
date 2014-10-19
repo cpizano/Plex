@@ -57,6 +57,7 @@ catalog 1 {
   plx::JsonException plx\exceptions\json.h;
   plx::MemoryException plx\exceptions\memory.h;
   plx::User32Exception plx\exceptions\user32.h;
+  plx::ComException plx\exceptions\com.h;
   plx::FilePath plx\io\file_path.h;
   plx::OverflowKind plx\overflow_kind.h;
   plx::CpuId plx\cpu_id.h;
