@@ -1,75 +1,8 @@
-// This is the plex precompiled header, not the same as the VC precompiled header.
-
-#pragma once
-#define NOMINMAX
-
-#include <SDKDDKVer.h>
-#include <windows.h>
-
-
-
-
-
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::Exception
-// line_ : The line of code, usually __LINE__.
-// message_ : Whatever useful text.
-//
-namespace plx {
-class Exception {
-  int line_;
-  const char* message_;
-
-protected:
-  void PostCtor() {
-    if (::IsDebuggerPresent()) {
-      //__debugbreak();
-    }
-  }
-
-public:
-  Exception(int line, const char* message) : line_(line), message_(message) {}
-  virtual ~Exception() {}
-  const char* Message() const { return message_; }
-  int Line() const { return line_; }
-};
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::User32Exception (thrown by user32 functions)
-//
-class User32Exception : public plx::Exception {
-public:
-  enum Kind {
-    wclass,
-    window,
-    menu,
-    device,
-    cursor,
-    icon,
-    accelerator
-  };
-
-  User32Exception(int line, Kind type)
-      : Exception(line, "user 32"), type_(type) {
-    PostCtor();
-  }
-
-  Kind type() const {
-    return type_;
-  }
-
-private:
-  Kind type_;
-};
-
-
+//#~def plx::Window
 ///////////////////////////////////////////////////////////////////////////////
 // plx::Window
 //
+namespace plx {
 
 template <typename Derived>
 class Window {
