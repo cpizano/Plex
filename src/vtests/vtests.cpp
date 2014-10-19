@@ -12,7 +12,7 @@ protected:
 
   HWND window_ = nullptr;
 
-  HWND Create_Window(DWORD ex_style, DWORD style,
+  HWND create_window(DWORD ex_style, DWORD style,
                      LPCWSTR window_name,
                      HICON small_icon, HICON icon,
                      int x, int y, int width, int height,
@@ -39,7 +39,7 @@ protected:
                              x, y, width, height,
                              parent,
                              menu,
-                             wc.hInstance,
+                             wcex.hInstance,
                              this);
   }
 
@@ -64,8 +64,14 @@ protected:
       ::SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(obj));
     } else {
       auto obj = this_from_window(window);
-      if (obj)
+      if (obj) {
+        if (WM_NCDESTROY == message) {
+          ::SetWindowLongPtrW(window, GWLP_USERDATA, 0L);
+          obj->window_ = nullptr;
+          return obj->hwnd_destroyed();
+        }
         return obj->message_handler(message, wparam, lparam);
+      }
     }
 
     return ::DefWindowProc(window, message, wparam, lparam);
@@ -78,35 +84,34 @@ class SampleWindow : private Window<SampleWindow> {
 
 public:
   SampleWindow() {
-    WNDCLASS wc = {};
-    wc.hCursor       = ::LoadCursor(nullptr, IDC_ARROW);
-    wc.hInstance     = reinterpret_cast<HINSTANCE>(&__ImageBase);
-    wc.lpszClassName = L"SampleWindow";
-    wc.style         = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc   = WndProc;
-    ::RegisterClass(&wc);
-    ::CreateWindowEx(WS_EX_NOREDIRECTIONBITMAP,
-                     wc.lpszClassName,
-                     L"Window Title",
-                     WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                     CW_USEDEFAULT, CW_USEDEFAULT,
-                     CW_USEDEFAULT, CW_USEDEFAULT,
-                     nullptr,
-                     nullptr,
-                     wc.hInstance,
-                     this);
-    //ASSERT(m_window);
+    create_window(WS_EX_NOREDIRECTIONBITMAP,
+                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                  L"Window Title",
+                  nullptr, nullptr,
+                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  nullptr,
+                  nullptr);
   }
 
   LRESULT message_handler(const UINT message, WPARAM  wparam, LPARAM  lparam) {
     if (WM_PAINT == message)
       return PaintHandler();
-    
+
+    if (WM_DESTROY == message) {
+      ::PostQuitMessage(0);
+      return 0;
+    }
+
     return ::DefWindowProc(window_, message, wparam, lparam);
   }
 
   LRESULT PaintHandler() {
     // Render ...
+    return 0;
+  }
+
+  LRESULT hwnd_destroyed() {
     return 0;
   }
 };
