@@ -1,11 +1,9 @@
-// This is the plex precompiled header, not the
-// same as the VC precompiled header.
+// This is the plex precompiled header, not the same as the VC precompiled header.
 
 #pragma once
 #define NOMINMAX
 
-#include <windows.h>
-
+#include <SDKDDKVer.h>
 
 
 
@@ -39,6 +37,13 @@ const int plex_sse42_support = 1;
 const int plex_cpuid_support = 1;
 
 const int plex_vista_support = 1;
+#include <windows.h>
+
+
+
+
+
+
 
 
 
