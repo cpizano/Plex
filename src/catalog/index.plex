@@ -46,6 +46,7 @@ include 2 {
   _get_wpgmptr <stdlib.h>;
   va_list <stdarg.h>;
   Microsoft::WRL::ComPtr <wrl.h>;
+  ID2D1Factory2 <d2d1_2.h>;
 }
 
 catalog 1 {

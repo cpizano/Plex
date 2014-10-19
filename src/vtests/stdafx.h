@@ -9,6 +9,7 @@
 
 
 
+#include <d2d1_2.h>
 #include <wrl.h>
 #include <windows.h>
 
@@ -20,17 +21,11 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::ComPtr : smart COM pointer.
-//
-namespace plx {
-template <typename T> using ComPtr = Microsoft::WRL::ComPtr <T>;
-
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
 //
+namespace plx {
 class Exception {
   int line_;
   const char* message_;
@@ -47,6 +42,31 @@ public:
   virtual ~Exception() {}
   const char* Message() const { return message_; }
   int Line() const { return line_; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::ComPtr : smart COM pointer.
+//
+template <typename T> using ComPtr = Microsoft::WRL::ComPtr <T>;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::ComException (thrown when COM fails)
+//
+class ComException : public plx::Exception {
+  HRESULT hr_;
+
+public:
+  ComException(int line, HRESULT hr)
+      : Exception(line, "COM failure"), hr_(hr) {
+    PostCtor();
+  }
+
+  HRESULT hresult() const {
+    return hr_;
+  }
+
 };
 
 
