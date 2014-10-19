@@ -9,7 +9,6 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;
 template <typename Derived>
 class Window {
 protected:
-
   HWND window_ = nullptr;
 
   HWND create_window(DWORD ex_style, DWORD style,
@@ -43,15 +42,13 @@ protected:
                              this);
   }
 
-  static Derived * this_from_window(HWND window) {
+  static Derived* this_from_window(HWND window) {
     return reinterpret_cast<Derived*>(GetWindowLongPtr(window, GWLP_USERDATA));
   }
 
   static LRESULT __stdcall WndProc(HWND window,
                                    const UINT message,
-                                   WPARAM  wparam,
-                                   LPARAM  lparam) {
-
+                                   WPARAM  wparam, LPARAM  lparam) {
     if (WM_NCCREATE == message) {
       CREATESTRUCT * cs = reinterpret_cast<CREATESTRUCT*>(lparam);
       auto obj = static_cast<Derived*>(cs->lpCreateParams);
@@ -94,7 +91,7 @@ public:
                   nullptr);
   }
 
-  LRESULT message_handler(const UINT message, WPARAM  wparam, LPARAM  lparam) {
+  LRESULT message_handler(const UINT message, WPARAM wparam, LPARAM lparam) {
     if (WM_PAINT == message)
       return PaintHandler();
 
