@@ -6,7 +6,6 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-
 class SampleWindow : private plx::Window <SampleWindow> {
   friend class plx::Window<SampleWindow>;
 
@@ -49,6 +48,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
 
   SampleWindow sample_window;
+  plx::ComPtr<IUnknown> iuk;
 
   HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
   MSG msg;

@@ -4,6 +4,12 @@
 #define NOMINMAX
 
 #include <SDKDDKVer.h>
+
+
+
+
+
+#include <wrl.h>
 #include <windows.h>
 
 
@@ -14,11 +20,17 @@
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::ComPtr : smart COM pointer.
+//
+namespace plx {
+template <typename T> using ComPtr = Microsoft::WRL::ComPtr <T>;
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::Exception
 // line_ : The line of code, usually __LINE__.
 // message_ : Whatever useful text.
 //
-namespace plx {
 class Exception {
   int line_;
   const char* message_;

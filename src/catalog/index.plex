@@ -45,6 +45,7 @@ include 2 {
   _mm_crc32_u8 <nmmintrin.h>;
   _get_wpgmptr <stdlib.h>;
   va_list <stdarg.h>;
+  Microsoft::WRL::ComPtr <wrl.h>;
 }
 
 catalog 1 {
@@ -98,4 +99,5 @@ catalog 1 {
   plx::DemandPagedMemory plx\demand_paged_memory.h;
   plx::ArgInfo plx\arg_pack.h;
   plx::Window plx\ui\window.h;
+  plx::ComPtr plx\com_ptr.h;
 }
