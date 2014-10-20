@@ -71,6 +71,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     // Create device independent resources.
     const auto circle =  D2D1::Ellipse(D2D1::Point2F(50.0f, 50.0f), 49.0f, 49.0f);
 
+    // Direct2D geometries are immutable and device-independent resources.
     plx::ComPtr<ID2D1EllipseGeometry> circle_geom;
     hr = d2d1_factory->CreateEllipseGeometry(circle, circle_geom.GetAddressOf());
     if (hr != S_OK)
