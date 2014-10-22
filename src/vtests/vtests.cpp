@@ -8,6 +8,7 @@
 #pragma comment(lib, "d2d1.lib")
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dcomp.lib")
+#pragma comment(lib, "shcore.lib")
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
@@ -132,9 +133,60 @@ plx::ComPtr<IDCompositionVisual2> CreateVisual(plx::ComPtr<IDCompositionDesktopD
   return visual;
 }
 
+//  96 DPI = 1.00 scaling
+// 120 DPI = 1.25 scaling
+// 144 DPI = 1.50 scaling
+// 192 DPI = 2.00 scaling
+class DPI {
+  float ratio_x_;
+  float ratio_y_;
+
+public:
+  DPI() : ratio_x_(1.0f), ratio_y_(1.0f) {
+  }
+
+  void set_dpi_from_screen(int x, int y) {
+    unsigned int dpi_x, dpi_y;
+    POINT point = {x, y};
+    auto monitor = ::MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST); 
+    auto hr = ::GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+    if (hr != S_OK)
+      throw plx::ComException(__LINE__, hr);
+    set_dpi(dpi_x, dpi_y);
+  }
+
+  void set_dpi(unsigned int dpi_x, unsigned int dpi_y) {
+    ratio_x_ = dpi_x / 96.0f;
+    ratio_y_ = dpi_y / 96.0f;
+  }
+
+  template <typename T>
+  float to_logical_x(const T physical_pix) {
+    return physical_pix / ratio_x_;
+  }
+
+  template <typename T>
+  float to_logical_y(const T physical_pix) {
+    return physical_pix / ratio_y_;
+  }
+
+  template <typename T>
+  float to_physical_x(const T logical_pix) {
+    return logical_pix * ratio_x_;
+  }
+
+  template <typename T>
+  float to_physical_y(const T logical_pix) {
+    return logical_pix * ratio_y_;
+  }
+
+};
+
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
   try {
+    DPI dpi;
+    dpi.set_dpi_from_screen(100, 100);
 
     SampleWindow sample_window;
     // Create device independent resources. FactoryD2D1 and Geometries are such.

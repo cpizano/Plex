@@ -49,6 +49,7 @@ include 2 {
   ID2D1Factory2 <d2d1_2.h>;
   ID3D11Device <d3d11_2.h>;
   IDCompositionDesktopDevice <dcomp.h>;
+  ::GetDpiForMonitor <shellscalingapi.h>;
 }
 
 catalog 1 {
