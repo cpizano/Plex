@@ -53,6 +53,69 @@ public:
   }
 };
 
+//  96 DPI = 1.00 scaling
+// 120 DPI = 1.25 scaling
+// 144 DPI = 1.50 scaling
+// 192 DPI = 2.00 scaling
+class DPI {
+  float scale_x_;
+  float scale_y_;
+  unsigned int dpi_x_;
+  unsigned int dpi_y_;
+
+public:
+  DPI() : scale_x_(1.0f), scale_y_(1.0f), dpi_x_(96), dpi_y_(96) {
+  }
+
+  void set_from_screen(int x, int y) {
+    unsigned int dpi_x, dpi_y;
+    POINT point = {x, y};
+    auto monitor = ::MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST); 
+    auto hr = ::GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
+    if (hr != S_OK)
+      throw plx::ComException(__LINE__, hr);
+    set_dpi(dpi_x, dpi_y);
+  }
+
+  void set_dpi(unsigned int dpi_x, unsigned int dpi_y) {
+    dpi_x_ = dpi_x;
+    dpi_y_ = dpi_y;
+    scale_x_ = dpi_x_ / 96.0f;
+    scale_y_ = dpi_y_ / 96.0f;
+  }
+
+  bool isomorphic_scale() const { return (scale_x_ == scale_y_); }
+
+  float get_scale_x() const { return scale_x_; }
+
+  float get_scale_y() const { return scale_y_; }
+
+  unsigned int get_dpi_x() const { return dpi_x_; }
+
+  unsigned int get_dpi_y() const { return dpi_y_; }
+
+  template <typename T>
+  float to_logical_x(const T physical_pix) const {
+    return physical_pix / scale_x_;
+  }
+
+  template <typename T>
+  float to_logical_y(const T physical_pix) const {
+    return physical_pix / scale_y_;
+  }
+
+  template <typename T>
+  float to_physical_x(const T logical_pix) const {
+    return logical_pix * scale_x_;
+  }
+
+  template <typename T>
+  float to_physical_y(const T logical_pix) const {
+    return logical_pix * scale_y_;
+  }
+
+};
+
 plx::ComPtr<ID2D1Factory2> CreateD2D1Factory2() {
   D2D1_FACTORY_OPTIONS options = {};
   #ifdef _DEBUG
@@ -110,13 +173,13 @@ plx::ComPtr<IDCompositionDesktopDevice> CreateDeskCompDevice2(
   plx::ComPtr<IDCompositionDesktopDevice> device;
   auto hr = DCompositionCreateDevice2(device2D.Get(),
                                       __uuidof(device),
-                                      reinterpret_cast<void **>(device2D.GetAddressOf()));
+                                      reinterpret_cast<void **>(device.GetAddressOf()));
   if (hr != S_OK)
     throw plx::ComException(__LINE__, hr);
   return device;
 }
 
-plx::ComPtr<IDCompositionTarget> CreateHWDTarget(
+plx::ComPtr<IDCompositionTarget> CreateWindowTarget(
     plx::ComPtr<IDCompositionDesktopDevice> device, HWND window) {
   plx::ComPtr<IDCompositionTarget> target;
   auto hr = device->CreateTargetForHwnd(window, TRUE, target.GetAddressOf());
@@ -133,60 +196,34 @@ plx::ComPtr<IDCompositionVisual2> CreateVisual(plx::ComPtr<IDCompositionDesktopD
   return visual;
 }
 
-//  96 DPI = 1.00 scaling
-// 120 DPI = 1.25 scaling
-// 144 DPI = 1.50 scaling
-// 192 DPI = 2.00 scaling
-class DPI {
-  float scale_x_;
-  float scale_y_;
+plx::ComPtr<IDCompositionSurface> CreateSurface(
+    plx::ComPtr<IDCompositionDesktopDevice> device, unsigned int w, unsigned int h) {
+  plx::ComPtr<IDCompositionSurface> surface;
+  auto hr = device->CreateSurface(w, h,
+                                  DXGI_FORMAT_B8G8R8A8_UNORM,
+                                  DXGI_ALPHA_MODE_PREMULTIPLIED,
+                                  surface.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return surface;
+}
 
-public:
-  DPI() : scale_x_(1.0f), scale_y_(1.0f) {
-  }
-
-  void set_from_screen(int x, int y) {
-    unsigned int dpi_x, dpi_y;
-    POINT point = {x, y};
-    auto monitor = ::MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST); 
-    auto hr = ::GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpi_x, &dpi_y);
-    if (hr != S_OK)
-      throw plx::ComException(__LINE__, hr);
-    set_dpi(dpi_x, dpi_y);
-  }
-
-  void set_dpi(unsigned int dpi_x, unsigned int dpi_y) {
-    scale_x_ = dpi_x / 96.0f;
-    scale_y_ = dpi_y / 96.0f;
-  }
-
-  bool uniform_scale() const { return (scale_x_ == scale_y_); }
-
-  float get_scale_x() const { return scale_x_; }
-
-  float get_scale_y() const { return scale_y_; }
-
-  template <typename T>
-  float to_logical_x(const T physical_pix) const {
-    return physical_pix / scale_x_;
-  }
-
-  template <typename T>
-  float to_logical_y(const T physical_pix) const {
-    return physical_pix / scale_y_;
-  }
-
-  template <typename T>
-  float to_physical_x(const T logical_pix) const {
-    return logical_pix * scale_x_;
-  }
-
-  template <typename T>
-  float to_physical_y(const T logical_pix) const {
-    return logical_pix * scale_y_;
-  }
-
-};
+plx::ComPtr<ID2D1DeviceContext> CreateDeviceCtx(
+    plx::ComPtr<IDCompositionSurface> surface, const DPI& dpi) {
+  plx::ComPtr<ID2D1DeviceContext> dc;
+  POINT offset;
+  auto hr = surface->BeginDraw(nullptr,
+                               __uuidof(dc),
+                               reinterpret_cast<void **>(dc.GetAddressOf()),
+                               &offset);
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  dc->SetDpi(float(dpi.get_dpi_x()), float(dpi.get_dpi_y()));
+  auto matrix = D2D1::Matrix3x2F::Translation(dpi.to_logical_x(offset.x),
+                                              dpi.to_logical_y(offset.y));
+  dc->SetTransform(matrix);
+  return dc;
+}
 
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
@@ -207,11 +244,34 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto device3D = CreateDevice3D();
     auto device2D = CreateDevice2D(device3D, d2d1_factory);
     auto dc_device = CreateDeskCompDevice2(device2D);
-    auto target = CreateHWDTarget(dc_device, sample_window.window());
+    auto target = CreateWindowTarget(dc_device, sample_window.window());
     auto root_visual = CreateVisual(dc_device);
     hr = target->SetRoot(root_visual.Get());
 
-    //plx::ComPtr<IDCompositionSurface> surface;
+    // scale dependent resources.
+    auto surface = CreateSurface(dc_device,
+        static_cast<unsigned int>(dpi.to_physical_x(100)), 
+        static_cast<unsigned int>(dpi.to_physical_y(100)));
+
+    {
+      auto dc = CreateDeviceCtx(surface, dpi);
+
+      plx::ComPtr<ID2D1SolidColorBrush> brush;
+      dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.8f), brush.GetAddressOf());
+      dc->Clear(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
+      dc->FillGeometry(circle_geom.Get(), brush.Get());
+      brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
+      dc->DrawGeometry(circle_geom.Get(), brush.Get());
+    }
+
+    surface->EndDraw();
+
+    // Add some visuals.
+    plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
+    visual->SetContent(surface.Get());
+    root_visual->AddVisual(visual.Get(), FALSE, nullptr);
+
+    dc_device->Commit();
 
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
     MSG msg;
