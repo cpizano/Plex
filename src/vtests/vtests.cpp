@@ -185,7 +185,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto root_visual = CreateVisual(dc_device);
     hr = target->SetRoot(root_visual.Get());
 
-    // scale dependent resources.
+    // scale-dependent resources.
     auto surface = CreateSurface(dc_device,
         static_cast<unsigned int>(dpi.to_physical_x(100)), 
         static_cast<unsigned int>(dpi.to_physical_y(100)));
@@ -194,7 +194,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       auto dc = CreateDeviceCtx(surface, dpi);
 
       plx::ComPtr<ID2D1SolidColorBrush> brush;
-      dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.8f), brush.GetAddressOf());
+      dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
       dc->Clear(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
       dc->FillGeometry(circle_geom.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
@@ -203,11 +203,14 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     surface->EndDraw();
 
-    // Add some visuals.
-    plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
-    visual->SetContent(surface.Get());
-    root_visual->AddVisual(visual.Get(), FALSE, nullptr);
-
+    // Add some child visuals.
+    for (int ix = 0; ix != 20; ++ix) {
+      plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
+      visual->SetContent(surface.Get());
+      root_visual->AddVisual(visual.Get(), FALSE, nullptr);
+      visual->SetOffsetX(dpi.to_physical_x(20.0f * ix));
+      visual->SetOffsetY(dpi.to_physical_y(5.0f * ix));
+    }
     dc_device->Commit();
 
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
