@@ -103,5 +103,6 @@ catalog 1 {
   plx::DemandPagedMemory plx\demand_paged_memory.h;
   plx::ArgInfo plx\arg_pack.h;
   plx::Window plx\ui\window.h;
+  plx::DPI plx\ui\dpi.h;
   plx::ComPtr plx\com_ptr.h;
 }
