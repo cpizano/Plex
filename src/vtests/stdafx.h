@@ -9,10 +9,12 @@
 
 
 
+#include <objbase.h>
 #include <shellscalingapi.h>
 #include <d2d1_2.h>
 #include <d3d11_2.h>
 #include <dcomp.h>
+#include <wincodec.h>
 #include <wrl.h>
 #include <windows.h>
 

@@ -50,6 +50,8 @@ include 2 {
   ID3D11Device <d3d11_2.h>;
   IDCompositionDesktopDevice <dcomp.h>;
   ::GetDpiForMonitor <shellscalingapi.h>;
+  IWICImagingFactory <wincodec.h>;
+  ::CoInitializeEx <objbase.h>;
 }
 
 catalog 1 {

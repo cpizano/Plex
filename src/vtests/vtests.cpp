@@ -162,14 +162,73 @@ plx::ComPtr<ID2D1DeviceContext> CreateDeviceCtx(
   return dc;
 }
 
+plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
+  plx::ComPtr<IWICImagingFactory> factory;
+  auto hr = ::CoCreateInstance(CLSID_WICImagingFactory, NULL,
+                               CLSCTX_INPROC_SERVER,
+                               __uuidof(factory),
+                               reinterpret_cast<void **>(factory.GetAddressOf()));
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return factory;
+}
+
+plx::ComPtr<IWICBitmapDecoder> CreateDecoder(
+    plx::ComPtr<IWICImagingFactory> factory, const wchar_t* fname) {
+  plx::ComPtr<IWICBitmapDecoder> decoder;
+  auto hr = factory->CreateDecoderFromFilename(fname, nullptr,
+                                               GENERIC_READ,
+                                               WICDecodeMetadataCacheOnDemand,
+                                               decoder.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return decoder;
+}
+
+plx::ComPtr<IWICFormatConverter> Create32BGRABitmap(unsigned int frame_index,
+                                                    plx::ComPtr<IWICBitmapDecoder> decoder,
+                                                    plx::ComPtr<IWICImagingFactory> factory) {
+  plx::ComPtr<IWICFormatConverter> converter;
+  auto hr = factory->CreateFormatConverter(converter.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  plx::ComPtr<IWICBitmapFrameDecode> frame;
+  hr = decoder->GetFrame(frame_index, frame.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  hr = converter->Initialize(frame.Get(),
+                             GUID_WICPixelFormat32bppPBGRA,
+                             WICBitmapDitherTypeNone,
+                             nullptr,
+                             0.0f,
+                             WICBitmapPaletteTypeCustom);
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return converter;
+}
+
+plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
+    plx::ComPtr<ID2D1DeviceContext> dc, plx::ComPtr<IWICBitmapSource> src) {
+  plx::ComPtr<ID2D1Bitmap> bitmap;
+  auto hr = dc->CreateBitmapFromWicBitmap(src.Get(), nullptr, bitmap.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return bitmap;
+}
+
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
+
+  ::CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
   try {
     plx::DPI dpi;
     dpi.set_from_screen(100, 100);
 
     SampleWindow sample_window;
+
     // Create device independent resources. FactoryD2D1 and Geometries are such.
+    auto wic_factory = CreateWICFactory();
     auto d2d1_factory = CreateD2D1Factory2();
     const auto circle =  D2D1::Ellipse(D2D1::Point2F(50.0f, 50.0f), 49.0f, 49.0f);
     plx::ComPtr<ID2D1EllipseGeometry> circle_geom;
@@ -186,12 +245,12 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     hr = target->SetRoot(root_visual.Get());
 
     // scale-dependent resources.
-    auto surface = CreateSurface(dc_device,
+    auto surface1 = CreateSurface(dc_device,
         static_cast<unsigned int>(dpi.to_physical_x(100)), 
         static_cast<unsigned int>(dpi.to_physical_y(100)));
 
     {
-      auto dc = CreateDeviceCtx(surface, dpi);
+      auto dc = CreateDeviceCtx(surface1, dpi);
 
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
@@ -199,20 +258,35 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       dc->FillGeometry(circle_geom.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
       dc->DrawGeometry(circle_geom.Get(), brush.Get());
+      surface1->EndDraw();
     }
 
-    surface->EndDraw();
+    unsigned int width, height;
+    auto png1 = CreateDecoder(wic_factory, L"c:\\test\\images\\diamonds_k.png");
+    auto png1_cv = Create32BGRABitmap(0, png1, wic_factory);
+    png1_cv->GetSize(&width, &height);
+
+    auto surface2 = CreateSurface(dc_device,
+        static_cast<unsigned int>(dpi.to_physical_x(width)), 
+        static_cast<unsigned int>(dpi.to_physical_y(height)));
+    {
+      auto dc = CreateDeviceCtx(surface2, dpi);
+      auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
+      dc->Clear(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
+      dc->DrawBitmap(bmp1.Get(), nullptr, 1.0f);
+      surface2->EndDraw();
+    }
 
     // Add some child visuals.
-    for (int ix = 0; ix != 20; ++ix) {
+    for (int ix = 0; ix != 3; ++ix) {
       plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
-      visual->SetContent(surface.Get());
+      visual->SetContent(ix == 0 ? surface2.Get() : surface1.Get());
       root_visual->AddVisual(visual.Get(), FALSE, nullptr);
       visual->SetOffsetX(dpi.to_physical_x(20.0f * ix));
       visual->SetOffsetY(dpi.to_physical_y(5.0f * ix));
     }
     dc_device->Commit();
-
+    
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
     MSG msg;
 	  while (::GetMessage(&msg, NULL, 0, 0)) {
