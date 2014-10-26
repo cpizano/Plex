@@ -261,19 +261,22 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       surface1->EndDraw();
     }
 
-    unsigned int width, height;
+    unsigned int as_width, as_height;
     auto png1 = CreateDecoder(wic_factory, L"c:\\test\\images\\diamonds_k.png");
     auto png1_cv = Create32BGRABitmap(0, png1, wic_factory);
-    png1_cv->GetSize(&width, &height);
+    png1_cv->GetSize(&as_width, &as_height);
 
+    auto sc_width = dpi.to_physical_x(as_width * 0.5f);
+    auto sc_height = dpi.to_physical_y(as_height * 0.5f);
     auto surface2 = CreateSurface(dc_device,
-        static_cast<unsigned int>(dpi.to_physical_x(width)), 
-        static_cast<unsigned int>(dpi.to_physical_y(height)));
+                                  static_cast<unsigned int>(sc_width), 
+                                  static_cast<unsigned int>(sc_height));
     {
       auto dc = CreateDeviceCtx(surface2, dpi);
       auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
       dc->Clear(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
-      dc->DrawBitmap(bmp1.Get(), nullptr, 1.0f);
+      auto dr = D2D1::Rect(0.0f, 0.0f, sc_width, sc_height);
+      dc->DrawBitmap(bmp1.Get(), &dr, 1.0f);
       surface2->EndDraw();
     }
 
