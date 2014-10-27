@@ -1,4 +1,46 @@
-// vtests.cpp : Defines the entry point for the application.
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//  
+//  +------------+               +--------------+    
+//  | Direct3D   |          QI   |              |  
+//  | Device     +---------------> IDXGIDevice3 |  
+//  |            |               |              |   
+//  +------------+               +---------+----+    
+//                                         |    
+//  +------------+                         |  
+//  | Direct2D   |                         |   
+//  | Factory    +-----------------------+ |  
+//  |            |                       | | 
+//  +------------+                       | | CreateDevice()  
+//                                   +---v-v--------+  
+//                                   | Direct2D     |  
+//                                   |              |  
+//                                   +-------+------+ 
+//                                           |  DCompositionCreateDevice2() 
+//                                           | 
+//                                           |                           +---------------+
+//  +-------------+                  +-------v------+                  +-+-------------+ | 
+//  | Visual      |  CreateVisual()  |  Direct      |  CreateSurface() |  Direct       | | 
+//  |             <------------------+  Composition +------------------>  Composition  | | 
+//  | (root)      |                  |  Device      |                  |  Surface      + + 
+//  +--+------^---+                  |              |                  +--+------+-----+  
+//     |      |                      +-------+------+                     |      |  
+//     |      |           +--------+         |                            |      |   
+//     |      |           | HWND   +-------+ |                            |      |  
+//     |      |           +--------+       | | CreateTargetForHwnd()      |      |  
+//     |      |                      +-----v-v------+                     |      | BeginDraw()
+//     |      |                      | Direct       |                     |   +--v----------+  
+//     |      +----------------------+ Composition  |                     |   |  D2D1       |  
+//     |         SetRoot()           | Target       |                     |   |  Device     |  
+//     |                             |              |                     |   |  Context    |  
+//     |                             +--------------+                     |   +-------------+  
+//     |                                                                  |  
+//     |                              +------------+                      |  
+//     |                            +-+----------+ |                      |  
+//     |                            |   Visual   | |                      |  
+//     |   AddVisual()              |            <------------------------+  
+//     +---------------------------->  (child)   | |     SetContent()   
+//                                  |            | +
+//                                  +------------+   
 //
 
 #include "stdafx.h"
@@ -94,11 +136,11 @@ plx::ComPtr<ID3D11Device> CreateDevice3D() {
 
 plx::ComPtr<ID2D1Device> CreateDevice2D(plx::ComPtr<ID3D11Device> device3D,
                                         plx::ComPtr<ID2D1Factory2> factoryD2D1) {
-  plx::ComPtr<IDXGIDevice3> deviceX;
-  device3D.As(&deviceX);
+  plx::ComPtr<IDXGIDevice3> dxgi_dev;
+  device3D.As(&dxgi_dev);
   plx::ComPtr<ID2D1Device> device2D;
 
-  auto hr = factoryD2D1->CreateDevice(deviceX.Get(),
+  auto hr = factoryD2D1->CreateDevice(dxgi_dev.Get(),
                                       device2D.GetAddressOf());
   if (hr != S_OK)
     throw plx::ComException(__LINE__, hr);
