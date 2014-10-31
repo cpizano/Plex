@@ -24,9 +24,9 @@
 //  | (root)      |                  |  Device      |                  |  Surface      + + 
 //  +--+------^---+                  |              |                  +--+------+-----+  
 //     |      |                      +-------+------+                     |      |  
-//     |      |           +--------+         |                            |      |   
-//     |      |           | HWND   +-------+ |                            |      |  
-//     |      |           +--------+       | | CreateTargetForHwnd()      |      |  
+//     |      |       +--------+             |                            |      |   
+//     |      |       | HWND   +-----------+ |                            |      |  
+//     |      |       +--------+           | | CreateTargetForHwnd()      |      |  
 //     |      |                      +-----v-v------+                     |      | BeginDraw()
 //     |      |                      | Direct       |                     |   +--v----------+  
 //     |      +----------------------+ Composition  |                     |   |  D2D1       |  
@@ -57,8 +57,10 @@ extern "C" IMAGE_DOS_HEADER __ImageBase;
 class SampleWindow : private plx::Window <SampleWindow> {
   friend class plx::Window<SampleWindow>;
 
+  bool sizing_loop_;
+
 public:
-  SampleWindow() {
+  SampleWindow() : sizing_loop_(false) {
     create_window(WS_EX_NOREDIRECTIONBITMAP,
                   WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                   L"Window Title",
@@ -74,23 +76,43 @@ public:
   }
 
   LRESULT message_handler(const UINT message, WPARAM wparam, LPARAM lparam) {
-    if (WM_PAINT == message)
-      return PaintHandler();
-
-    if (WM_DESTROY == message) {
-      ::PostQuitMessage(0);
-      return 0;
+    switch (message) {
+      case WM_DESTROY: {
+        ::PostQuitMessage(0);
+        return 0;
+      }
+      case WM_SIZE: {
+        return SizeHandler(MAKEPOINTS(lparam));
+      }
+      case WM_PAINT: {
+        PaintHandler();
+        break;
+      }
+      case WM_ENTERSIZEMOVE: {
+        sizing_loop_ = true;
+        break;
+      }
+      case WM_EXITSIZEMOVE: {
+        sizing_loop_ = false;
+        break;
+      }
     }
 
     return ::DefWindowProc(window_, message, wparam, lparam);
   }
 
-  LRESULT PaintHandler() {
-    // Render ...
-    return 0;
+  void PaintHandler() {
+    
   }
 
   LRESULT hwnd_destroyed() {
+    return 0;
+  }
+
+  LRESULT SizeHandler(POINTS pts) {
+    if (sizing_loop_)
+      return 0;
+
     return 0;
   }
 };
