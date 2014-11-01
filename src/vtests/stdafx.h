@@ -75,6 +75,18 @@ public:
 };
 
 
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateD2D1FactoryST : Direct2D fatory.
+// plx::CreateDeviceD2D1 : Direct2D device.
+//
+
+plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) ;
+
+plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
+                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) ;
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::CreateDeviceD3D11 : Direct3D device fatory.
 //
@@ -160,16 +172,12 @@ public:
 };
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
-// plx::CreateD2D1FactoryST : Direct2D fatory.
-// plx::CreateDeviceD2D1 : Direct2D device.
+// plx::CreateDCoDevice2 : DirectComposition Desktop Device.
 //
 
-plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) ;
-
-plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
-                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) ;
+plx::ComPtr<IDCompositionDesktopDevice> CreateDCoDevice2(
+    plx::ComPtr<ID2D1Device> device2D) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

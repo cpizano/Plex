@@ -110,4 +110,5 @@ catalog 1 {
   plx::CreateDeviceD3D11 plx\gfx\d3d_device.h;
   plx::CreateDeviceD2D1 plx\gfx\d2d_device.h;
   plx::CreateWICFactory plx\gfx\wic_factory.h;
+  plx::CreateDCoDevice2 plx\gfx\dco_device.h;
 }

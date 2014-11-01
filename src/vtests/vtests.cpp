@@ -117,17 +117,6 @@ public:
   }
 };
 
-plx::ComPtr<IDCompositionDesktopDevice> CreateDeskCompDevice2(
-    plx::ComPtr<ID2D1Device> device2D) {
-  plx::ComPtr<IDCompositionDesktopDevice> device;
-  auto hr = DCompositionCreateDevice2(device2D.Get(),
-                                      __uuidof(device),
-                                      reinterpret_cast<void **>(device.GetAddressOf()));
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return device;
-}
-
 plx::ComPtr<IDCompositionTarget> CreateWindowTarget(
     plx::ComPtr<IDCompositionDesktopDevice> device, HWND window) {
   plx::ComPtr<IDCompositionTarget> target;
@@ -248,7 +237,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto device3D = plx::CreateDevice3D(0);
 #endif
     auto device2D = plx::CreateDeviceD2D1(device3D, d2d1_factory);
-    auto dc_device = CreateDeskCompDevice2(device2D);
+    auto dc_device = plx::CreateDCoDevice2(device2D);
     auto target = CreateWindowTarget(dc_device, sample_window.window());
     auto root_visual = CreateVisual(dc_device);
     hr = target->SetRoot(root_visual.Get());
@@ -294,21 +283,21 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
       visual->SetContent(ix == 0 ? surface2.Get() : surface1.Get());
       root_visual->AddVisual(visual.Get(), FALSE, nullptr);
-      visual->SetOffsetX(dpi.to_physical_x(20.0f * ix));
-      visual->SetOffsetY(dpi.to_physical_y(5.0f * ix));
+      visual->SetOffsetX(dpi.to_physical_x(125.0f * ix));
+      visual->SetOffsetY(dpi.to_physical_y(45.0f * ix));
     }
     dc_device->Commit();
     
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
     MSG msg;
-	  while (::GetMessage(&msg, NULL, 0, 0)) {
-		  if (!::TranslateAccelerator(msg.hwnd, accel_table, &msg)) {
-			  ::TranslateMessage(&msg);
-			  ::DispatchMessage(&msg);
-		  }
-	  }
+    while (::GetMessage(&msg, NULL, 0, 0)) {
+      if (!::TranslateAccelerator(msg.hwnd, accel_table, &msg)) {
+        ::TranslateMessage(&msg);
+        ::DispatchMessage(&msg);
+      }
+    }
 
-	  return (int) msg.wParam;
+    return (int) msg.wParam;
 
   } catch (plx::Exception& ex) {
     ex;
