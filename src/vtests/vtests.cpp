@@ -54,12 +54,11 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-class SampleWindow : public plx::Window <SampleWindow> {
-  friend class plx::Window<SampleWindow>;
+class DCoWindow : public plx::Window <DCoWindow> {
   bool sizing_loop_;
 
 public:
-  SampleWindow() : sizing_loop_(false) {
+  DCoWindow() : sizing_loop_(false) {
     create_window(WS_EX_NOREDIRECTIONBITMAP,
                   WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                   L"Window Title",
@@ -211,20 +210,22 @@ struct Visual {
 };
 
 class VisualManager {
+  DCoWindow* window_;
   std::vector<Visual> visuals_;
   plx::ComPtr<IDCompositionDesktopDevice> dc_device_;
   plx::ComPtr<IDCompositionTarget> target_;
 
 public:
-  VisualManager(HWND window, plx::ComPtr<IDCompositionDesktopDevice> dc_device) {
-    visuals_.reserve(10);
-    target_ = CreateWindowTarget(dc_device, window);
-    auto root_visual = CreateVisual(dc_device);
+  VisualManager(DCoWindow* window, plx::ComPtr<ID2D1Device> device2D)
+      : window_(window) {
+    dc_device_ = plx::CreateDCoDevice2(device2D);
+    target_ = CreateWindowTarget(dc_device_, window_->window());
+    auto root_visual = CreateVisual(dc_device_);
     auto hr = target_->SetRoot(root_visual.Get());
     if (hr != S_OK)
       throw plx::ComException(__LINE__, hr);
+    visuals_.reserve(10);
     visuals_.emplace_back(root_visual, D2D1::RectF());
-    dc_device_ = dc_device;
   }
 
   void add_visual(plx::ComPtr<IDCompositionSurface> ics, const D2D_RECT_F& rect) {
@@ -236,6 +237,13 @@ public:
     Visual visual(icv, rect);
     visual.ics = ics;
     visuals_.push_back(visual);
+  }
+
+  plx::ComPtr<IDCompositionSurface> make_surface(float width, float height) {
+    auto dpi = window_->dpi();
+    return CreateSurface(dc_device_,
+                         static_cast<unsigned int>(dpi.to_physical_x(width)),
+                         static_cast<unsigned int>(dpi.to_physical_x(height)));
   }
 
   void commit() {
@@ -250,8 +258,8 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
   ::CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
   try {
-    SampleWindow sample_window;
-    auto dpi = sample_window.dpi();
+    DCoWindow window;
+    auto dpi = window.dpi();
 
     // Create device independent resources. FactoryD2D1 and Geometries are such.
     auto wic_factory = plx::CreateWICFactory();
@@ -273,16 +281,11 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto device3D = plx::CreateDevice3D(0);
 #endif
     auto device2D = plx::CreateDeviceD2D1(device3D, d2d1_factory);
-    auto dc_device = plx::CreateDCoDevice2(device2D);
 
-    VisualManager viman(sample_window.window(), dc_device);
-
+    VisualManager viman(&window, device2D);
 
     // scale-dependent resources.
-    auto surface1 = CreateSurface(dc_device,
-        static_cast<unsigned int>(dpi.to_physical_x(100)), 
-        static_cast<unsigned int>(dpi.to_physical_y(100)));
-
+    auto surface1 = viman.make_surface(100.0f, 100.0f);
     {
       auto dc = CreateDeviceCtx(surface1, dpi);
 
@@ -302,9 +305,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     auto sc_width = dpi.to_physical_x(as_width * 0.5f);
     auto sc_height = dpi.to_physical_y(as_height * 0.5f);
-    auto surface2 = CreateSurface(dc_device,
-                                  static_cast<unsigned int>(sc_width), 
-                                  static_cast<unsigned int>(sc_height));
+    auto surface2 = viman.make_surface(sc_width, sc_height);
     {
       auto dc = CreateDeviceCtx(surface2, dpi);
       auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
