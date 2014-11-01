@@ -206,6 +206,49 @@ plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
   return bitmap;
 }
 
+struct Visual {
+  D2D_RECT_F rect;
+  plx::ComPtr<IDCompositionSurface> ics;
+  plx::ComPtr<IDCompositionVisual2> icv;
+
+  Visual(plx::ComPtr<IDCompositionVisual2> icv, const D2D_RECT_F& rect) 
+    : icv(icv), rect(rect) {}
+};
+
+class VisualManager {
+  std::vector<Visual> visuals_;
+  plx::ComPtr<IDCompositionDesktopDevice> dc_device_;
+  plx::ComPtr<IDCompositionTarget> target_;
+
+public:
+  VisualManager(HWND window, plx::ComPtr<IDCompositionDesktopDevice> dc_device) {
+    visuals_.reserve(10);
+    target_ = CreateWindowTarget(dc_device, window);
+    auto root_visual = CreateVisual(dc_device);
+    auto hr = target_->SetRoot(root_visual.Get());
+    if (hr != S_OK)
+      throw plx::ComException(__LINE__, hr);
+    visuals_.emplace_back(root_visual, D2D1::RectF());
+    dc_device_ = dc_device;
+  }
+
+  void add_visual(plx::ComPtr<IDCompositionSurface> ics, const D2D_RECT_F& rect) {
+    plx::ComPtr<IDCompositionVisual2> icv = CreateVisual(dc_device_);
+    icv->SetContent(ics.Get());
+    visuals_[0].icv->AddVisual(icv.Get(), FALSE, nullptr);
+    icv->SetOffsetX(rect.left);
+    icv->SetOffsetY(rect.top);
+    Visual visual(icv, rect);
+    visual.ics = ics;
+    visuals_.push_back(visual);
+  }
+
+  void commit() {
+    dc_device_->Commit();
+  }
+
+};
+
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
 
@@ -238,9 +281,9 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 #endif
     auto device2D = plx::CreateDeviceD2D1(device3D, d2d1_factory);
     auto dc_device = plx::CreateDCoDevice2(device2D);
-    auto target = CreateWindowTarget(dc_device, sample_window.window());
-    auto root_visual = CreateVisual(dc_device);
-    hr = target->SetRoot(root_visual.Get());
+
+    VisualManager viman(sample_window.window(), dc_device);
+
 
     // scale-dependent resources.
     auto surface1 = CreateSurface(dc_device,
@@ -280,13 +323,14 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     // Add some child visuals.
     for (int ix = 0; ix != 3; ++ix) {
-      plx::ComPtr<IDCompositionVisual2> visual = CreateVisual(dc_device);
-      visual->SetContent(ix == 0 ? surface2.Get() : surface1.Get());
-      root_visual->AddVisual(visual.Get(), FALSE, nullptr);
-      visual->SetOffsetX(dpi.to_physical_x(125.0f * ix));
-      visual->SetOffsetY(dpi.to_physical_y(45.0f * ix));
+      viman.add_visual(
+          ix == 0 ? surface2.Get() : surface1.Get(),
+          D2D1::RectF(dpi.to_physical_x(125.0f * ix),
+                      dpi.to_physical_y(45.0f * ix),
+                      100.0,
+                      100.0));
     }
-    dc_device->Commit();
+    viman.commit();
     
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
     MSG msg;

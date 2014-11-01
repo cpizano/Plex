@@ -16,6 +16,7 @@
 #include <dcomp.h>
 #include <wincodec.h>
 #include <wrl.h>
+#include <vector>
 #include <windows.h>
 
 
