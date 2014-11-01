@@ -76,6 +76,20 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDeviceD3D11 : Direct3D device fatory.
+//
+
+plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateWICFactory : Windows Imaging components factory.
+//
+
+plx::ComPtr<IWICImagingFactory> CreateWICFactory() ;
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::DPI
 //
 //  96 DPI = 1.00 scaling
@@ -144,6 +158,18 @@ public:
   }
 
 };
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateD2D1FactoryST : Direct2D fatory.
+// plx::CreateDeviceD2D1 : Direct2D device.
+//
+
+plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) ;
+
+plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
+                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

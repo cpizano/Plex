@@ -117,58 +117,6 @@ public:
   }
 };
 
-plx::ComPtr<ID2D1Factory2> CreateD2D1Factory2() {
-  D2D1_FACTORY_OPTIONS options = {};
-  #ifdef _DEBUG
-  options.debugLevel = D2D1_DEBUG_LEVEL_INFORMATION;
-  #endif
-
-  plx::ComPtr<ID2D1Factory2> factory;
-  auto hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED,
-                              options,
-                              factory.GetAddressOf());
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return factory;
-}
-
-
-plx::ComPtr<ID3D11Device> CreateDevice3D() {
-  auto flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT |
-               D3D11_CREATE_DEVICE_SINGLETHREADED;
-
-  #ifdef _DEBUG
-  flags |= D3D11_CREATE_DEVICE_DEBUG;
-  #endif
-
-  plx::ComPtr<ID3D11Device> device;
-  auto hr = D3D11CreateDevice(nullptr,
-                              D3D_DRIVER_TYPE_HARDWARE,
-                              nullptr,
-                              flags,
-                              nullptr, 0,
-                              D3D11_SDK_VERSION,
-                              device.GetAddressOf(),
-                              nullptr,
-                              nullptr);
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return device;
-}
-
-plx::ComPtr<ID2D1Device> CreateDevice2D(plx::ComPtr<ID3D11Device> device3D,
-                                        plx::ComPtr<ID2D1Factory2> factoryD2D1) {
-  plx::ComPtr<IDXGIDevice3> dxgi_dev;
-  device3D.As(&dxgi_dev);
-  plx::ComPtr<ID2D1Device> device2D;
-
-  auto hr = factoryD2D1->CreateDevice(dxgi_dev.Get(),
-                                      device2D.GetAddressOf());
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return device2D;
-}
-
 plx::ComPtr<IDCompositionDesktopDevice> CreateDeskCompDevice2(
     plx::ComPtr<ID2D1Device> device2D) {
   plx::ComPtr<IDCompositionDesktopDevice> device;
@@ -226,17 +174,6 @@ plx::ComPtr<ID2D1DeviceContext> CreateDeviceCtx(
   return dc;
 }
 
-plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
-  plx::ComPtr<IWICImagingFactory> factory;
-  auto hr = ::CoCreateInstance(CLSID_WICImagingFactory, NULL,
-                               CLSCTX_INPROC_SERVER,
-                               __uuidof(factory),
-                               reinterpret_cast<void **>(factory.GetAddressOf()));
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return factory;
-}
-
 plx::ComPtr<IWICBitmapDecoder> CreateDecoder(
     plx::ComPtr<IWICImagingFactory> factory, const wchar_t* fname) {
   plx::ComPtr<IWICBitmapDecoder> decoder;
@@ -292,8 +229,12 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     SampleWindow sample_window;
 
     // Create device independent resources. FactoryD2D1 and Geometries are such.
-    auto wic_factory = CreateWICFactory();
-    auto d2d1_factory = CreateD2D1Factory2();
+    auto wic_factory = plx::CreateWICFactory();
+#if defined (_DEBUG)
+    auto d2d1_factory = plx::CreateD2D1FactoryST(D2D1_DEBUG_LEVEL_INFORMATION);
+#else
+    auto d2d1_factory = plx::CreateD2D1FactoryST(D2D1_DEBUG_LEVEL_NONE);
+#endif
     const auto circle =  D2D1::Ellipse(D2D1::Point2F(50.0f, 50.0f), 49.0f, 49.0f);
     plx::ComPtr<ID2D1EllipseGeometry> circle_geom;
     auto hr = d2d1_factory->CreateEllipseGeometry(circle, circle_geom.GetAddressOf());
@@ -301,8 +242,12 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       throw plx::ComException(__LINE__, hr);
 
     // Device dependent resources.
-    auto device3D = CreateDevice3D();
-    auto device2D = CreateDevice2D(device3D, d2d1_factory);
+#if defined (_DEBUG)
+    auto device3D = plx::CreateDeviceD3D11(D3D11_CREATE_DEVICE_DEBUG);
+#else
+    auto device3D = plx::CreateDevice3D(0);
+#endif
+    auto device2D = plx::CreateDeviceD2D1(device3D, d2d1_factory);
     auto dc_device = CreateDeskCompDevice2(device2D);
     auto target = CreateWindowTarget(dc_device, sample_window.window());
     auto root_visual = CreateVisual(dc_device);

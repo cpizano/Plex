@@ -3,4 +3,62 @@
 
 #include "stdafx.h"
 
+
+
+namespace plx {
+plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) {
+  auto flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT |
+               D3D11_CREATE_DEVICE_SINGLETHREADED;
+  flags |= extra_flags;
+
+  plx::ComPtr<ID3D11Device> device;
+  auto hr = D3D11CreateDevice(nullptr,
+                              D3D_DRIVER_TYPE_HARDWARE,
+                              nullptr,
+                              flags,
+                              nullptr, 0,
+                              D3D11_SDK_VERSION,
+                              device.GetAddressOf(),
+                              nullptr,
+                              nullptr);
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return device;
+}
+plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
+  plx::ComPtr<IWICImagingFactory> factory;
+  auto hr = ::CoCreateInstance(CLSID_WICImagingFactory, NULL,
+                               CLSCTX_INPROC_SERVER,
+                               __uuidof(factory),
+                               reinterpret_cast<void **>(factory.GetAddressOf()));
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return factory;
+}
+plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) {
+  D2D1_FACTORY_OPTIONS options = {};
+  options.debugLevel = debug_level;
+
+  plx::ComPtr<ID2D1Factory2> factory;
+  auto hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED,
+                              options,
+                              factory.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return factory;
+}
+plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
+                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) {
+  plx::ComPtr<IDXGIDevice3> dxgi_dev;
+  device3D.As(&dxgi_dev);
+  plx::ComPtr<ID2D1Device> device2D;
+
+  auto hr = factoryD2D1->CreateDevice(dxgi_dev.Get(),
+                                      device2D.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return device2D;
+}
+}
+
 extern "C" IMAGE_DOS_HEADER __ImageBase;
