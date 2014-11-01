@@ -218,6 +218,7 @@ template <typename Derived>
 class Window {
 protected:
   HWND window_ = nullptr;
+  plx::DPI dpi_;
 
   HWND create_window(DWORD ex_style, DWORD style,
                      LPCWSTR window_name,
@@ -266,6 +267,7 @@ protected:
         throw plx::User32Exception(__LINE__, plx::User32Exception::window);
 
       obj->window_ = window;
+      obj->dpi_.set_from_monitor(::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
       ::SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(obj));
     } else {
       auto obj = this_from_window(window);
@@ -282,6 +284,14 @@ protected:
     return ::DefWindowProc(window, message, wparam, lparam);
   }
 
+public:
+  HWND window() {
+    return window_;
+  }
+
+  const plx::DPI& dpi() const {
+    return dpi_;
+  }
 };
 
 }

@@ -54,9 +54,8 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-class SampleWindow : private plx::Window <SampleWindow> {
+class SampleWindow : public plx::Window <SampleWindow> {
   friend class plx::Window<SampleWindow>;
-
   bool sizing_loop_;
 
 public:
@@ -69,10 +68,6 @@ public:
                   CW_USEDEFAULT, CW_USEDEFAULT,
                   nullptr,
                   nullptr);
-  }
-
-  HWND window() {
-    return window_;
   }
 
   LRESULT message_handler(const UINT message, WPARAM wparam, LPARAM lparam) {
@@ -255,10 +250,8 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
   ::CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
   try {
-    plx::DPI dpi;
-    dpi.set_from_screen(100, 100);
-
     SampleWindow sample_window;
+    auto dpi = sample_window.dpi();
 
     // Create device independent resources. FactoryD2D1 and Geometries are such.
     auto wic_factory = plx::CreateWICFactory();
