@@ -54,63 +54,6 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
-class DCoWindow : public plx::Window <DCoWindow> {
-  bool sizing_loop_;
-
-public:
-  DCoWindow() : sizing_loop_(false) {
-    create_window(WS_EX_NOREDIRECTIONBITMAP,
-                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-                  L"Window Title",
-                  nullptr, nullptr,
-                  CW_USEDEFAULT, CW_USEDEFAULT,
-                  CW_USEDEFAULT, CW_USEDEFAULT,
-                  nullptr,
-                  nullptr);
-  }
-
-  LRESULT message_handler(const UINT message, WPARAM wparam, LPARAM lparam) {
-    switch (message) {
-      case WM_DESTROY: {
-        ::PostQuitMessage(0);
-        return 0;
-      }
-      case WM_SIZE: {
-        return SizeHandler(MAKEPOINTS(lparam));
-      }
-      case WM_PAINT: {
-        PaintHandler();
-        break;
-      }
-      case WM_ENTERSIZEMOVE: {
-        sizing_loop_ = true;
-        break;
-      }
-      case WM_EXITSIZEMOVE: {
-        sizing_loop_ = false;
-        break;
-      }
-    }
-
-    return ::DefWindowProc(window_, message, wparam, lparam);
-  }
-
-  void PaintHandler() {
-    
-  }
-
-  LRESULT hwnd_destroyed() {
-    return 0;
-  }
-
-  LRESULT SizeHandler(POINTS pts) {
-    if (sizing_loop_)
-      return 0;
-
-    return 0;
-  }
-};
-
 plx::ComPtr<IDCompositionTarget> CreateWindowTarget(
     plx::ComPtr<IDCompositionDesktopDevice> device, HWND window) {
   plx::ComPtr<IDCompositionTarget> target;
@@ -200,26 +143,63 @@ plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
   return bitmap;
 }
 
-struct Visual {
-  D2D_RECT_F rect;
-  plx::ComPtr<IDCompositionSurface> ics;
-  plx::ComPtr<IDCompositionVisual2> icv;
 
-  Visual(plx::ComPtr<IDCompositionVisual2> icv, const D2D_RECT_F& rect) 
-    : icv(icv), rect(rect) {}
+class Surface {
+  bool drawing_;
+  D2D_POINT_2F size;
+  plx::ComPtr<IDCompositionSurface> ics_;
+  const plx::DPI& dpi_;
+
+  friend class VisualManager;
+
+public:
+  Surface(plx::ComPtr<IDCompositionSurface> ics,
+          const plx::DPI& dpi,
+          float width, float height) 
+    : drawing_(false),
+      size(D2D1::Point2F(width, height)),
+      ics_(ics),
+      dpi_(dpi) {
+  }
+
+  plx::ComPtr<ID2D1DeviceContext> begin_draw() {
+    auto dc = CreateDeviceCtx(ics_, dpi_);
+    drawing_ = true;
+    return dc;
+  }
+
+  void end_draw() {
+    if (drawing_)
+      ics_->EndDraw();
+  }
+
+  ~Surface() {
+    end_draw();
+  }
 };
 
+struct Visual {
+  D2D_RECT_F rect;
+  plx::ComPtr<IDCompositionVisual2> icv;
+  plx::ComPtr<IDCompositionSurface> ics;
+
+  Visual(plx::ComPtr<IDCompositionVisual2> icv, const D2D_RECT_F& rect) 
+    : icv(icv), rect(rect) {
+  }
+};
+
+
 class VisualManager {
-  DCoWindow* window_;
+  const plx::DPI& dpi_;
   std::vector<Visual> visuals_;
   plx::ComPtr<IDCompositionDesktopDevice> dc_device_;
   plx::ComPtr<IDCompositionTarget> target_;
 
 public:
-  VisualManager(DCoWindow* window, plx::ComPtr<ID2D1Device> device2D)
-      : window_(window) {
+  VisualManager(HWND window, const plx::DPI& dpi,  plx::ComPtr<ID2D1Device> device2D)
+      : dpi_(dpi) {
     dc_device_ = plx::CreateDCoDevice2(device2D);
-    target_ = CreateWindowTarget(dc_device_, window_->window());
+    target_ = CreateWindowTarget(dc_device_, window);
     auto root_visual = CreateVisual(dc_device_);
     auto hr = target_->SetRoot(root_visual.Get());
     if (hr != S_OK)
@@ -228,22 +208,35 @@ public:
     visuals_.emplace_back(root_visual, D2D1::RectF());
   }
 
-  void add_visual(plx::ComPtr<IDCompositionSurface> ics, const D2D_RECT_F& rect) {
+  void add_visual(Surface& surface, const D2D_POINT_2F& offset) {
     plx::ComPtr<IDCompositionVisual2> icv = CreateVisual(dc_device_);
-    icv->SetContent(ics.Get());
+    icv->SetContent(surface.ics_.Get());
     visuals_[0].icv->AddVisual(icv.Get(), FALSE, nullptr);
-    icv->SetOffsetX(rect.left);
-    icv->SetOffsetY(rect.top);
+    icv->SetOffsetX(dpi_.to_physical_x(offset.x));
+    icv->SetOffsetY(dpi_.to_physical_y(offset.y));
+    
+    auto rect = D2D1::RectF(offset.x, offset.y,
+                            offset.x + surface.size.x, offset.y + surface.size.y);
     Visual visual(icv, rect);
-    visual.ics = ics;
+    visual.ics = surface.ics_;
     visuals_.push_back(visual);
   }
 
-  plx::ComPtr<IDCompositionSurface> make_surface(float width, float height) {
-    auto dpi = window_->dpi();
-    return CreateSurface(dc_device_,
-                         static_cast<unsigned int>(dpi.to_physical_x(width)),
-                         static_cast<unsigned int>(dpi.to_physical_x(height)));
+  Surface make_surface(float width, float height) {
+    auto ics = CreateSurface(dc_device_,
+                             static_cast<unsigned int>(dpi_.to_physical_x(width)),
+                             static_cast<unsigned int>(dpi_.to_physical_x(height)));
+    return Surface(ics, dpi_, width, height);
+  }
+
+  std::vector<Visual> get_visuals(D2D1_POINT_2F point) {
+    std::vector<Visual> hits;
+    for (auto& v : visuals_) {
+      if ((v.rect.left < point.x) && (v.rect.right > point.x) &&
+          (v.rect.top < point.y) && (v.rect.bottom > point.y))
+        hits.push_back(v);
+    }
+    return hits;
   }
 
   void commit() {
@@ -252,6 +245,95 @@ public:
 
 };
 
+
+
+class DCoWindow : public plx::Window <DCoWindow> {
+  bool sizing_loop_;
+  VisualManager* viman_;
+
+public:
+  DCoWindow() : sizing_loop_(false), viman_(nullptr) {
+    create_window(WS_EX_NOREDIRECTIONBITMAP,
+                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                  L"Window Title",
+                  nullptr, nullptr,
+                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  nullptr,
+                  nullptr);
+  }
+
+  void set_visual_manager(VisualManager* viman) { viman_ = viman; }
+
+  LRESULT message_handler(const UINT message, WPARAM wparam, LPARAM lparam) {
+    switch (message) {
+      case WM_DESTROY: {
+        ::PostQuitMessage(0);
+        return 0;
+      }
+      case WM_SIZE: {
+        return SizeHandler(MAKEPOINTS(lparam));
+      }
+      case WM_PAINT: {
+        PaintHandler();
+        break;
+      }
+      case WM_MOUSEMOVE: {
+        return MouseMoveHandler(MAKEPOINTS(lparam));
+      }
+      case WM_ENTERSIZEMOVE: {
+        sizing_loop_ = true;
+        break;
+      }
+      case WM_EXITSIZEMOVE: {
+        sizing_loop_ = false;
+        break;
+      }
+      case WM_DPICHANGED: {
+        //$$ fix the dpi member, possibly move the the base class.
+        break;
+      }
+    }
+
+    return ::DefWindowProc(window_, message, wparam, lparam);
+  }
+
+  void PaintHandler() {
+    
+  }
+
+  LRESULT hwnd_destroyed() {
+    return 0;
+  }
+
+  LRESULT SizeHandler(POINTS pts) {
+    if (sizing_loop_)
+      return 0;
+
+    return 0;
+  }
+
+  LRESULT MouseMoveHandler(POINTS pts) {
+    auto visuals = viman_->get_visuals(D2D1::Point2F(pts.x, pts.y));
+    if (visuals.empty())
+      return 0;
+
+    auto& v0 = visuals[0];
+
+    auto dc = CreateDeviceCtx(v0.ics, dpi());
+    plx::ComPtr<ID2D1SolidColorBrush> brush;
+    dc->Clear(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
+    dc->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.4f, 0.4f, 0.4f), brush.GetAddressOf());
+    dc->FillRectangle(D2D1::RectF(0.0f, 0.0f, 200.0f, 200.0f), brush.Get());
+    v0.ics->EndDraw();
+    viman_->commit();
+
+    return 0;
+  }
+
+};
+
+
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
 
@@ -259,8 +341,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
   try {
     DCoWindow window;
-    auto dpi = window.dpi();
-
+    
     // Create device independent resources. FactoryD2D1 and Geometries are such.
     auto wic_factory = plx::CreateWICFactory();
 #if defined (_DEBUG)
@@ -282,20 +363,20 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 #endif
     auto device2D = plx::CreateDeviceD2D1(device3D, d2d1_factory);
 
-    VisualManager viman(&window, device2D);
+    VisualManager viman(window.window(), window.dpi(), device2D);
+    window.set_visual_manager(&viman);
 
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
     {
-      auto dc = CreateDeviceCtx(surface1, dpi);
-
+      auto dc = surface1.begin_draw();
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
       dc->Clear(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
       dc->FillGeometry(circle_geom.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
       dc->DrawGeometry(circle_geom.Get(), brush.Get());
-      surface1->EndDraw();
+      surface1.end_draw();
     }
 
     unsigned int as_width, as_height;
@@ -303,27 +384,26 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto png1_cv = Create32BGRABitmap(0, png1, wic_factory);
     png1_cv->GetSize(&as_width, &as_height);
 
-    auto sc_width = dpi.to_physical_x(as_width * 0.5f);
-    auto sc_height = dpi.to_physical_y(as_height * 0.5f);
+    auto sc_width = window.dpi().to_physical_x(as_width * 0.5f);
+    auto sc_height = window.dpi().to_physical_y(as_height * 0.5f);
     auto surface2 = viman.make_surface(sc_width, sc_height);
     {
-      auto dc = CreateDeviceCtx(surface2, dpi);
+      auto dc = surface2.begin_draw();
       auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
       dc->Clear(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
       auto dr = D2D1::Rect(0.0f, 0.0f, sc_width, sc_height);
       dc->DrawBitmap(bmp1.Get(), &dr, 1.0f);
-      surface2->EndDraw();
+      surface2.end_draw();
     }
 
-    // Add some child visuals.
-    for (int ix = 0; ix != 3; ++ix) {
-      viman.add_visual(
-          ix == 0 ? surface2.Get() : surface1.Get(),
-          D2D1::RectF(dpi.to_physical_x(125.0f * ix),
-                      dpi.to_physical_y(45.0f * ix),
-                      100.0,
-                      100.0));
+    // add the image at the bottom.
+    viman.add_visual(surface2, D2D1::Point2F(0.0f, 0.0f));
+
+    // Add some elipses on top.
+    for (int ix = 0; ix != 5; ++ix) {
+      viman.add_visual(surface1, D2D1::Point2F(125.0f * ix, 45.0f * ix));
     }
+
     viman.commit();
     
     HACCEL accel_table = ::LoadAccelerators(instance, MAKEINTRESOURCE(IDC_VTESTS));
