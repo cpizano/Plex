@@ -161,8 +161,9 @@ public:
       dpi_(dpi) {
   }
 
-  plx::ComPtr<ID2D1DeviceContext> begin_draw() {
+  plx::ComPtr<ID2D1DeviceContext> begin_draw(const D2D1_COLOR_F& clear_color) {
     auto dc = CreateDeviceCtx(ics_, dpi_);
+    dc->Clear(clear_color);
     drawing_ = true;
     return dc;
   }
@@ -323,9 +324,8 @@ public:
 
     auto surface = viman_->surface_from_visual(visuals[0]);
     {
-      auto dc = surface.begin_draw();
+      auto dc = surface.begin_draw(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
-      dc->Clear(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
       dc->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.4f, 0.4f, 0.4f), brush.GetAddressOf());
       dc->FillRectangle(D2D1::RectF(0.0f, 0.0f, 200.0f, 200.0f), brush.Get());
       surface.end_draw();
@@ -373,10 +373,9 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
     {
-      auto dc = surface1.begin_draw();
+      auto dc = surface1.begin_draw(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
-      dc->Clear(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
       dc->FillGeometry(circle_geom.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
       dc->DrawGeometry(circle_geom.Get(), brush.Get());
@@ -392,9 +391,8 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto sc_height = window.dpi().to_physical_y(as_height * 0.5f);
     auto surface2 = viman.make_surface(sc_width, sc_height);
     {
-      auto dc = surface2.begin_draw();
+      auto dc = surface2.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
       auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
-      dc->Clear(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
       auto dr = D2D1::Rect(0.0f, 0.0f, sc_width, sc_height);
       dc->DrawBitmap(bmp1.Get(), &dr, 1.0f);
       surface2.end_draw();
