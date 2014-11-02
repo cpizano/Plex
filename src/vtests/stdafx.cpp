@@ -6,6 +6,32 @@
 
 
 namespace plx {
+plx::ComPtr<IDCompositionSurface> CreateDCoSurface(
+    plx::ComPtr<IDCompositionDesktopDevice> device, unsigned int w, unsigned int h) {
+  plx::ComPtr<IDCompositionSurface> surface;
+  auto hr = device->CreateSurface(w, h,
+                                  DXGI_FORMAT_B8G8R8A8_UNORM,
+                                  DXGI_ALPHA_MODE_PREMULTIPLIED,
+                                  surface.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return surface;
+}
+plx::ComPtr<IDCompositionVisual2> CreateDCoVisual(plx::ComPtr<IDCompositionDesktopDevice> device) {
+  plx::ComPtr<IDCompositionVisual2> visual;
+  auto hr = device->CreateVisual(visual.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return visual;
+}
+plx::ComPtr<IDCompositionTarget> CreateDCoWindowTarget(
+    plx::ComPtr<IDCompositionDesktopDevice> device, HWND window) {
+  plx::ComPtr<IDCompositionTarget> target;
+  auto hr = device->CreateTargetForHwnd(window, TRUE, target.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return target;
+}
 plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) {
   D2D1_FACTORY_OPTIONS options = {};
   options.debugLevel = debug_level;
@@ -49,6 +75,28 @@ plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) {
     throw plx::ComException(__LINE__, hr);
   return device;
 }
+plx::ComPtr<IWICFormatConverter> CreateWICBitmapBGRA(unsigned int frame_index,
+                                                     WICBitmapDitherType dither,
+                                                     plx::ComPtr<IWICBitmapDecoder> decoder,
+                                                     plx::ComPtr<IWICImagingFactory> factory) {
+  plx::ComPtr<IWICFormatConverter> converter;
+  auto hr = factory->CreateFormatConverter(converter.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  plx::ComPtr<IWICBitmapFrameDecode> frame;
+  hr = decoder->GetFrame(frame_index, frame.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  hr = converter->Initialize(frame.Get(),
+                             GUID_WICPixelFormat32bppPBGRA,
+                             dither,
+                             nullptr,
+                             0.0f,
+                             WICBitmapPaletteTypeCustom);
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return converter;
+}
 plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
   plx::ComPtr<IWICImagingFactory> factory;
   auto hr = ::CoCreateInstance(CLSID_WICImagingFactory, NULL,
@@ -59,6 +107,22 @@ plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
     throw plx::ComException(__LINE__, hr);
   return factory;
 }
+plx::ComPtr<ID2D1DeviceContext> CreateDCoDeviceCtx(
+    plx::ComPtr<IDCompositionSurface> surface, const plx::DPI& dpi) {
+  plx::ComPtr<ID2D1DeviceContext> dc;
+  POINT offset;
+  auto hr = surface->BeginDraw(nullptr,
+                               __uuidof(dc),
+                               reinterpret_cast<void **>(dc.GetAddressOf()),
+                               &offset);
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  dc->SetDpi(float(dpi.get_dpi_x()), float(dpi.get_dpi_y()));
+  auto matrix = D2D1::Matrix3x2F::Translation(dpi.to_logical_x(offset.x),
+                                              dpi.to_logical_y(offset.y));
+  dc->SetTransform(matrix);
+  return dc;
+}
 plx::ComPtr<IDCompositionDesktopDevice> CreateDCoDevice2(
     plx::ComPtr<ID2D1Device> device2D) {
   plx::ComPtr<IDCompositionDesktopDevice> device;
@@ -68,6 +132,17 @@ plx::ComPtr<IDCompositionDesktopDevice> CreateDCoDevice2(
   if (hr != S_OK)
     throw plx::ComException(__LINE__, hr);
   return device;
+}
+plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
+    plx::ComPtr<IWICImagingFactory> factory, const plx::FilePath& fname) {
+  plx::ComPtr<IWICBitmapDecoder> decoder;
+  auto hr = factory->CreateDecoderFromFilename(fname.raw(), nullptr,
+                                               GENERIC_READ,
+                                               WICDecodeMetadataCacheOnDemand,
+                                               decoder.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+  return decoder;
 }
 }
 

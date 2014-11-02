@@ -111,4 +111,10 @@ catalog 1 {
   plx::CreateDeviceD2D1 plx\gfx\d2d_device.h;
   plx::CreateWICFactory plx\gfx\wic_factory.h;
   plx::CreateDCoDevice2 plx\gfx\dco_device.h;
+  plx::CreateDCoVisual plx\gfx\dco_visual.h;
+  plx::CreateDCoSurface plx\gfx\dco_surface.h;
+  plx::CreateDCoWindowTarget plx\gfx\dco_wnd_target.h;
+  plx::CreateDCoDeviceCtx plx\gfx\dco_device_ctx.h;
+  plx::CreateWICDecoder plx\gfx\wic_decoder.h;
+  plx::CreateWICBitmapBGRA plx\gfx\wic_bitmap_bgra.h;
 }

@@ -17,6 +17,7 @@
 #include <wincodec.h>
 #include <wrl.h>
 #include <vector>
+#include <string>
 #include <windows.h>
 
 
@@ -74,32 +75,6 @@ public:
   }
 
 };
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::CreateD2D1FactoryST : Direct2D fatory.
-// plx::CreateDeviceD2D1 : Direct2D device.
-//
-
-plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) ;
-
-plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
-                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) ;
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::CreateDeviceD3D11 : Direct3D device fatory.
-//
-
-plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) ;
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::CreateWICFactory : Windows Imaging components factory.
-//
-
-plx::ComPtr<IWICImagingFactory> CreateWICFactory() ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -174,11 +149,179 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDCoSurface : Makes a DirectComposition compatible surface.
+//
+
+plx::ComPtr<IDCompositionSurface> CreateDCoSurface(
+    plx::ComPtr<IDCompositionDesktopDevice> device, unsigned int w, unsigned int h) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDCoVisual : Makes a DirectComposition Visual.
+//
+
+plx::ComPtr<IDCompositionVisual2> CreateDCoVisual(plx::ComPtr<IDCompositionDesktopDevice> device) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDCoWindowTarget : Makes a DirectComposition target for a window.
+//
+
+plx::ComPtr<IDCompositionTarget> CreateDCoWindowTarget(
+    plx::ComPtr<IDCompositionDesktopDevice> device, HWND window) ;
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateD2D1FactoryST : Direct2D fatory.
+// plx::CreateDeviceD2D1 : Direct2D device.
+//
+
+plx::ComPtr<ID2D1Factory2> CreateD2D1FactoryST(D2D1_DEBUG_LEVEL debug_level) ;
+
+plx::ComPtr<ID2D1Device> CreateDeviceD2D1(plx::ComPtr<ID3D11Device> device3D,
+                                          plx::ComPtr<ID2D1Factory2> factoryD2D1) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDeviceD3D11 : Direct3D device fatory.
+//
+
+plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateWICBitmapBGRA : Makes a BGRA 32-bit WIC bitmap.
+//
+
+plx::ComPtr<IWICFormatConverter> CreateWICBitmapBGRA(unsigned int frame_index,
+                                                     WICBitmapDitherType dither,
+                                                     plx::ComPtr<IWICBitmapDecoder> decoder,
+                                                     plx::ComPtr<IWICImagingFactory> factory) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::IOException
+// error_code_ : The win32 error code of the last operation.
+// name_ : The file or pipe in question.
+//
+class IOException : public plx::Exception {
+  DWORD error_code_;
+  const std::wstring name_;
+
+public:
+  IOException(int line, const wchar_t* name)
+      : Exception(line, "IO problem"),
+        error_code_(::GetLastError()),
+        name_(name) {
+    PostCtor();
+  }
+  DWORD ErrorCode() const { return error_code_; }
+  const wchar_t* Name() const { return name_.c_str(); }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateWICFactory : Windows Imaging components factory.
+//
+
+plx::ComPtr<IWICImagingFactory> CreateWICFactory() ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateDCoDeviceCtx : Makes a DirectComposition DC for drawing.
+//
+
+plx::ComPtr<ID2D1DeviceContext> CreateDCoDeviceCtx(
+    plx::ComPtr<IDCompositionSurface> surface, const plx::DPI& dpi) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::CreateDCoDevice2 : DirectComposition Desktop Device.
 //
 
 plx::ComPtr<IDCompositionDesktopDevice> CreateDCoDevice2(
     plx::ComPtr<ID2D1Device> device2D) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::FilePath
+// path_ : The actual path (ucs16 probably).
+//
+class FilePath {
+private:
+  std::wstring path_;
+  friend class File;
+
+public:
+  explicit FilePath(const wchar_t* path)
+    : path_(path) {
+  }
+
+  explicit FilePath(const std::wstring& path)
+    : path_(path) {
+  }
+
+  FilePath parent() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos)
+      return FilePath();
+    return FilePath(path_.substr(0, pos));
+  }
+
+  std::wstring leaf() const {
+    auto pos = path_.find_last_of(L'\\');
+    if (pos == std::string::npos) {
+      return is_drive() ? std::wstring() : path_;
+    }
+    return path_.substr(pos + 1);
+  }
+
+  FilePath append(const std::wstring& name) const {
+    if (name.empty())
+      throw plx::IOException(__LINE__, path_.c_str());
+
+    std::wstring full(path_);
+    if (!path_.empty())
+      full.append(1, L'\\');
+    full.append(name);
+    return FilePath(full);
+  }
+
+  bool is_drive() const {
+    return (path_.size() != 2) ? false : drive_impl();
+  }
+
+  bool has_drive() const {
+    return (path_.size() < 2) ? false : drive_impl();
+  }
+
+  const wchar_t* raw() const {
+    return path_.c_str();
+  }
+
+private:
+  FilePath() {}
+
+  bool drive_impl() const {
+    if (path_[1] != L':')
+      return false;
+    auto dl = path_[0];
+    if ((dl >= L'A') && (dl <= L'Z'))
+      return true;
+    if ((dl >= L'a') && (dl <= L'z'))
+      return true;
+    return false;
+  }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::CreateWICDecoder : Makes a Windows Imaging Components decoder.
+//
+
+plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
+    plx::ComPtr<IWICImagingFactory> factory, const plx::FilePath& fname) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
