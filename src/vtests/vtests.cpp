@@ -143,7 +143,6 @@ plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
   return bitmap;
 }
 
-
 class Surface {
   bool drawing_;
   D2D_POINT_2F size;
@@ -229,6 +228,12 @@ public:
     return Surface(ics, dpi_, width, height);
   }
 
+  Surface surface_from_visual(Visual& visual) {
+    return Surface(visual.ics, dpi_,
+                   visual.rect.right - visual.rect.left,
+                   visual.rect.bottom - visual.rect.top);
+  }
+
   std::vector<Visual> get_visuals(D2D1_POINT_2F point) {
     std::vector<Visual> hits;
     for (auto& v : visuals_) {
@@ -244,8 +249,6 @@ public:
   }
 
 };
-
-
 
 class DCoWindow : public plx::Window <DCoWindow> {
   bool sizing_loop_;
@@ -318,16 +321,17 @@ public:
     if (visuals.empty())
       return 0;
 
-    auto& v0 = visuals[0];
+    auto surface = viman_->surface_from_visual(visuals[0]);
+    {
+      auto dc = surface.begin_draw();
+      plx::ComPtr<ID2D1SolidColorBrush> brush;
+      dc->Clear(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
+      dc->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.4f, 0.4f, 0.4f), brush.GetAddressOf());
+      dc->FillRectangle(D2D1::RectF(0.0f, 0.0f, 200.0f, 200.0f), brush.Get());
+      surface.end_draw();
+    }
 
-    auto dc = CreateDeviceCtx(v0.ics, dpi());
-    plx::ComPtr<ID2D1SolidColorBrush> brush;
-    dc->Clear(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
-    dc->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.4f, 0.4f, 0.4f), brush.GetAddressOf());
-    dc->FillRectangle(D2D1::RectF(0.0f, 0.0f, 200.0f, 200.0f), brush.Get());
-    v0.ics->EndDraw();
     viman_->commit();
-
     return 0;
   }
 
