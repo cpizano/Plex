@@ -183,7 +183,7 @@ public:
                   L"Window Title",
                   nullptr, nullptr,
                   CW_USEDEFAULT, CW_USEDEFAULT,
-                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  1000, 1000,
                   nullptr,
                   nullptr);
   }

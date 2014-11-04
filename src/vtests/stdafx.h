@@ -416,6 +416,19 @@ protected:
         if (message == WM_CREATE) {
           auto monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
           obj->dpi_.set_from_monitor(monitor);
+          auto cs = reinterpret_cast<CREATESTRUCT*>(lparam);
+          if ((cs->cx != CW_USEDEFAULT) && (cs->cy != CW_USEDEFAULT)) {
+            RECT r = {
+              0, 0,
+              static_cast<long>(obj->dpi_.to_physical_x(cs->cx)),
+              static_cast<long>(obj->dpi_.to_physical_x(cs->cy))
+            };
+            ::AdjustWindowRectEx(&r, cs->style, (cs->hMenu != NULL), cs->dwExStyle);
+            ::SetWindowPos(window, nullptr, 0, 0,
+                           r.right - r.left, r.bottom - r.top,
+                           SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOZORDER);
+          }
+
         } else if (message == WM_NCDESTROY) {
           ::SetWindowLongPtrW(window, GWLP_USERDATA, 0L);
           obj->window_ = nullptr;
