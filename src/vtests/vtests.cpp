@@ -227,10 +227,6 @@ public:
     
   }
 
-  LRESULT hwnd_destroyed() {
-    return 0;
-  }
-
   LRESULT SizeHandler(POINTS pts) {
     if (sizing_loop_)
       return 0;

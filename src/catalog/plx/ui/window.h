@@ -55,17 +55,19 @@ protected:
         throw plx::User32Exception(__LINE__, plx::User32Exception::window);
       if (obj->window_)
         throw plx::User32Exception(__LINE__, plx::User32Exception::window);
-
       obj->window_ = window;
-      obj->dpi_.set_from_monitor(::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST));
       ::SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(obj));
     } else {
       auto obj = this_from_window(window);
       if (obj) {
-        if (WM_NCDESTROY == message) {
+        if (message == WM_CREATE) {
+          auto monitor = ::MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);
+          obj->dpi_.set_from_monitor(monitor);
+        } else if (message == WM_NCDESTROY) {
           ::SetWindowLongPtrW(window, GWLP_USERDATA, 0L);
           obj->window_ = nullptr;
-          return obj->hwnd_destroyed();
+        } else if (message == WM_DPICHANGED) {
+          obj->dpi_.set_dpi(LOWORD(wparam), HIWORD(wparam));
         }
         return obj->message_handler(message, wparam, lparam);
       }
