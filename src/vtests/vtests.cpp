@@ -202,10 +202,10 @@ class DCoWindow : public plx::Window <DCoWindow> {
 public:
   DCoWindow() : sizing_loop_(false), viman_(nullptr) {
     create_window(WS_EX_NOREDIRECTIONBITMAP,
-                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                  WS_POPUP | WS_VISIBLE,
                   L"Window Title",
                   nullptr, nullptr,
-                  CW_USEDEFAULT, CW_USEDEFAULT,
+                  15, 15,
                   1000, 1000,
                   nullptr,
                   nullptr);
