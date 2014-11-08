@@ -111,7 +111,9 @@ struct Visual {
 
 class VisualManager {
   const plx::DPI& dpi_;
-  std::vector<Visual> visuals_;
+  plx::ComPtr<IDCompositionVisual2> root_;
+  plx::ComPtr<IDCompositionVisual2> background_;
+  std::vector<Visual> child_visuals_;
   plx::ComPtr<IDCompositionDesktopDevice> dc_device_;
   plx::ComPtr<IDCompositionTarget> target_;
 
@@ -120,18 +122,23 @@ public:
       : dpi_(dpi) {
     dc_device_ = plx::CreateDCoDevice2(device2D);
     target_ = plx::CreateDCoWindowTarget(dc_device_, window);
-    auto root_visual = plx::CreateDCoVisual(dc_device_);
-    auto hr = target_->SetRoot(root_visual.Get());
+    root_ = plx::CreateDCoVisual(dc_device_);
+    auto hr = target_->SetRoot(root_.Get());
     if (hr != S_OK)
       throw plx::ComException(__LINE__, hr);
-    visuals_.reserve(10);
-    visuals_.emplace_back(root_visual, D2D1::RectF());
+
+    child_visuals_.reserve(10);
   }
 
   void add_visual(Surface& surface, const D2D_POINT_2F& offset) {
     plx::ComPtr<IDCompositionVisual2> icv = plx::CreateDCoVisual(dc_device_);
     icv->SetContent(surface.ics_.Get());
-    visuals_[0].icv->AddVisual(icv.Get(), FALSE, nullptr);
+
+    if (background_)
+      background_->AddVisual(icv.Get(), TRUE, nullptr);
+    else
+      root_->AddVisual(icv.Get(), TRUE, nullptr);
+
     icv->SetOffsetX(dpi_.to_physical_x(offset.x));
     icv->SetOffsetY(dpi_.to_physical_y(offset.y));
     
@@ -139,7 +146,23 @@ public:
                             offset.x + surface.size.x, offset.y + surface.size.y);
     Visual visual(icv, rect);
     visual.ics = surface.ics_;
-    visuals_.push_back(visual);
+    child_visuals_.push_back(visual);
+  }
+
+  Surface make_background_surface(HWND window) {
+    if (!background_) {
+      background_ = plx::CreateDCoVisual(dc_device_);
+      root_->AddVisual(background_.Get(), FALSE, nullptr);
+    }
+
+    RECT rect = {};
+    ::GetClientRect(window, &rect);
+    auto width = rect.right - rect.left;
+    auto height = rect.bottom - rect.top;
+    auto ics = plx::CreateDCoSurface(dc_device_, width, height);
+    background_->SetContent(ics.Get());
+
+    return Surface(ics, dpi_, dpi_.to_logical_x(width), dpi_.to_logical_y(height));
   }
 
   Surface make_surface(float width, float height) {
@@ -158,7 +181,7 @@ public:
 
   std::vector<Visual> get_visuals(D2D1_POINT_2F point) {
     std::vector<Visual> hits;
-    for (auto& v : visuals_) {
+    for (auto& v : child_visuals_) {
       if ((v.rect.left < point.x) && (v.rect.right > point.x) &&
           (v.rect.top < point.y) && (v.rect.bottom > point.y))
         hits.push_back(v);
@@ -224,7 +247,14 @@ public:
   }
 
   void PaintHandler() {
-    
+    // if (deviceCreated() {
+    //   device_d3d->GetDeviceRemovedReason() == S_OK
+    //   if not ok then release all device dependent resources and
+    //   not validate the window region so we get a second
+    //   paint. (hmmm, not sure if this is the best idea)
+    // } else {
+    //   CreateDeviceResources();
+    // }
   }
 
   LRESULT SizeHandler(POINTS pts) {
@@ -286,6 +316,12 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     VisualManager viman(window.window(), window.dpi(), device2D);
     window.set_visual_manager(&viman);
+
+    auto background = viman.make_background_surface(window.window());
+    {
+      auto dc = background.begin_draw(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.7f));
+      background.end_draw();
+    }
 
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
