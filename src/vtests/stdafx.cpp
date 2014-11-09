@@ -75,28 +75,6 @@ plx::ComPtr<ID3D11Device> CreateDeviceD3D11(int extra_flags) {
     throw plx::ComException(__LINE__, hr);
   return device;
 }
-plx::ComPtr<IWICFormatConverter> CreateWICBitmapBGRA(unsigned int frame_index,
-                                                     WICBitmapDitherType dither,
-                                                     plx::ComPtr<IWICBitmapDecoder> decoder,
-                                                     plx::ComPtr<IWICImagingFactory> factory) {
-  plx::ComPtr<IWICFormatConverter> converter;
-  auto hr = factory->CreateFormatConverter(converter.GetAddressOf());
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  plx::ComPtr<IWICBitmapFrameDecode> frame;
-  hr = decoder->GetFrame(frame_index, frame.GetAddressOf());
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  hr = converter->Initialize(frame.Get(),
-                             GUID_WICPixelFormat32bppPBGRA,
-                             dither,
-                             nullptr,
-                             0.0f,
-                             WICBitmapPaletteTypeCustom);
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return converter;
-}
 plx::ComPtr<IWICImagingFactory> CreateWICFactory() {
   plx::ComPtr<IWICImagingFactory> factory;
   auto hr = ::CoCreateInstance(CLSID_WICImagingFactory, NULL,
@@ -132,17 +110,6 @@ plx::ComPtr<IDCompositionDesktopDevice> CreateDCoDevice2(
   if (hr != S_OK)
     throw plx::ComException(__LINE__, hr);
   return device;
-}
-plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
-    plx::ComPtr<IWICImagingFactory> factory, const plx::FilePath& fname) {
-  plx::ComPtr<IWICBitmapDecoder> decoder;
-  auto hr = factory->CreateDecoderFromFilename(fname.raw(), nullptr,
-                                               GENERIC_READ,
-                                               WICDecodeMetadataCacheOnDemand,
-                                               decoder.GetAddressOf());
-  if (hr != S_OK)
-    throw plx::ComException(__LINE__, hr);
-  return decoder;
 }
 }
 

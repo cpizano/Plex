@@ -42,9 +42,11 @@
 //                                  |            | +
 //                                  +------------+   
 //
+#define NANOSVG_IMPLEMENTATION 1
 
 #include "stdafx.h"
 #include "vtests.h"
+#include "nanosvg.h"
 
 //$$ fix this in plex itself
 #pragma comment(lib, "d2d1.lib")
@@ -129,6 +131,8 @@ public:
 
     child_visuals_.reserve(10);
   }
+
+  plx::ComPtr<IDCompositionDesktopDevice> dc_device() { return dc_device_; }
 
   void add_visual(Surface& surface, const D2D_POINT_2F& offset) {
     plx::ComPtr<IDCompositionVisual2> icv = plx::CreateDCoVisual(dc_device_);
@@ -265,6 +269,7 @@ public:
   }
 
   LRESULT MouseMoveHandler(POINTS pts) {
+#if 0
     auto visuals = viman_->get_visuals(D2D1::Point2F(pts.x, pts.y));
     if (visuals.empty())
       return 0;
@@ -279,11 +284,48 @@ public:
     }
 
     viman_->commit();
+#endif
     return 0;
   }
 
 };
 
+plx::ComPtr<ID2D1PathGeometry> RealizeSVG(
+    const char* file, const plx::DPI& dpi, plx::ComPtr<ID2D1Factory2> dd_factory) {
+
+  auto image = nsvgParseFromFile(file, "px", static_cast<float>(dpi.get_dpi_x()));
+  if (!image)
+    return nullptr;
+
+  plx::ComPtr<ID2D1PathGeometry> geom;
+  auto hr = dd_factory->CreatePathGeometry(geom.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+
+  plx::ComPtr<ID2D1GeometrySink> sink;
+  hr = geom->Open(sink.GetAddressOf());
+  if (hr != S_OK)
+    throw plx::ComException(__LINE__, hr);
+
+  for (auto shape = image->shapes; shape != nullptr; shape = shape->next) {
+    for (auto path = shape->paths; path != nullptr; path = path->next) {
+      for (auto i = 0; i < path->npts - 1; i += 3) {
+        float* p = &path->pts[i*2];
+        //drawCubicBez(p[0],p[1], p[2],p[3], p[4],p[5], p[6],p[7]);
+        sink->BeginFigure(D2D1::Point2F(p[0], p[1]), D2D1_FIGURE_BEGIN_FILLED);
+        sink->AddBezier(
+            D2D1::BezierSegment(D2D1::Point2F(p[2], p[3]),
+                                D2D1::Point2F(p[4], p[5]),
+                                D2D1::Point2F(p[6], p[7])));
+        sink->EndFigure(path->closed ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
+      }
+    }
+  }
+
+  sink->Close();
+  nsvgDelete(image);
+  return geom;
+}
 
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
@@ -335,6 +377,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       surface1.end_draw();
     }
 
+#if 0
     unsigned int as_width, as_height;
     auto png1 = plx::CreateWICDecoder(
         wic_factory, plx::FilePath(L"c:\\test\\images\\diamonds_k.png"));
@@ -354,6 +397,25 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     // add the image at the bottom.
     viman.add_visual(surface2, D2D1::Point2F(0.0f, 0.0f));
+#endif
+
+    auto svg = RealizeSVG(
+        //"C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
+        "C:\\Test\\svg\\2_elipse_red_black.svg",
+        window.dpi(), d2d1_factory);
+
+    auto surface3 = viman.make_surface(600.0f, 600.0f);
+    {
+      auto dc = surface3.begin_draw(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
+      plx::ComPtr<ID2D1SolidColorBrush> brush;
+      dc->CreateSolidColorBrush(D2D1::ColorF(0.5f, 0.0f, 1.0f, 0.4f), brush.GetAddressOf());
+      dc->FillGeometry(svg.Get(), brush.Get());
+      brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
+      dc->DrawGeometry(svg.Get(), brush.Get());
+      surface3.end_draw();
+    }
+
+    viman.add_visual(surface3, D2D1::Point2F(10.0f, 80.0f));
 
     // Add some elipses on top.
     for (int ix = 0; ix != 5; ++ix) {
