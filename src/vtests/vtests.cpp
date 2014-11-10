@@ -309,16 +309,17 @@ plx::ComPtr<ID2D1PathGeometry> RealizeSVG(
 
   for (auto shape = image->shapes; shape != nullptr; shape = shape->next) {
     for (auto path = shape->paths; path != nullptr; path = path->next) {
+      sink->BeginFigure(
+          D2D1::Point2F(path->pts[0], path->pts[1]), D2D1_FIGURE_BEGIN_FILLED);
       for (auto i = 0; i < path->npts - 1; i += 3) {
         float* p = &path->pts[i*2];
-        //drawCubicBez(p[0],p[1], p[2],p[3], p[4],p[5], p[6],p[7]);
-        sink->BeginFigure(D2D1::Point2F(p[0], p[1]), D2D1_FIGURE_BEGIN_FILLED);
         sink->AddBezier(
             D2D1::BezierSegment(D2D1::Point2F(p[2], p[3]),
                                 D2D1::Point2F(p[4], p[5]),
                                 D2D1::Point2F(p[6], p[7])));
-        sink->EndFigure(path->closed ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
       }
+      sink->EndFigure(
+          (path->closed == 1) ? D2D1_FIGURE_END_CLOSED : D2D1_FIGURE_END_OPEN);
     }
   }
 
@@ -400,13 +401,13 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 #endif
 
     auto svg = RealizeSVG(
-        //"C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
-        "C:\\Test\\svg\\2_elipse_red_black.svg",
+        "C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
+        //"C:\\Test\\svg\\2_elipse_red_black.svg",
         window.dpi(), d2d1_factory);
 
     auto surface3 = viman.make_surface(600.0f, 600.0f);
     {
-      auto dc = surface3.begin_draw(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
+      auto dc = surface3.begin_draw(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.4f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.5f, 0.0f, 1.0f, 0.4f), brush.GetAddressOf());
       dc->FillGeometry(svg.Get(), brush.Get());
