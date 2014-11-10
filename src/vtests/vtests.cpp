@@ -183,12 +183,12 @@ public:
                    visual.rect.bottom - visual.rect.top);
   }
 
-  std::vector<Visual> get_visuals(D2D1_POINT_2F point) {
-    std::vector<Visual> hits;
+  std::vector<Visual*> get_visuals(D2D1_POINT_2F point) {
+    std::vector<Visual*> hits;
     for (auto& v : child_visuals_) {
       if ((v.rect.left < point.x) && (v.rect.right > point.x) &&
           (v.rect.top < point.y) && (v.rect.bottom > point.y))
-        hits.push_back(v);
+        hits.push_back(&v);
     }
     return hits;
   }
@@ -202,9 +202,11 @@ public:
 class DCoWindow : public plx::Window <DCoWindow> {
   bool sizing_loop_;
   VisualManager* viman_;
+  Visual* current_visual_;
+  float dx_, dy_;
 
 public:
-  DCoWindow() : sizing_loop_(false), viman_(nullptr) {
+  DCoWindow() : sizing_loop_(false), viman_(nullptr), current_visual_(nullptr) {
     create_window(WS_EX_NOREDIRECTIONBITMAP,
                   WS_POPUP | WS_VISIBLE,
                   L"Window Title",
@@ -230,8 +232,11 @@ public:
         PaintHandler();
         break;
       }
+      case WM_LBUTTONDOWN: {
+        return LeftMouseButtonHandler(MAKEPOINTS(lparam));
+      }
       case WM_MOUSEMOVE: {
-        return MouseMoveHandler(MAKEPOINTS(lparam));
+        return MouseMoveHandler(wparam, MAKEPOINTS(lparam));
       }
       case WM_ENTERSIZEMOVE: {
         sizing_loop_ = true;
@@ -268,23 +273,37 @@ public:
     return 0;
   }
 
-  LRESULT MouseMoveHandler(POINTS pts) {
-#if 0
+  LRESULT LeftMouseButtonHandler(POINTS pts) {
     auto visuals = viman_->get_visuals(D2D1::Point2F(pts.x, pts.y));
-    if (visuals.empty())
+    if (visuals.empty()) {
+      current_visual_ = nullptr;
       return 0;
-
-    auto surface = viman_->surface_from_visual(visuals[0]);
-    {
-      auto dc = surface.begin_draw(D2D1::ColorF(0.0f, 0.4f, 0.4f, 0.4f));
-      plx::ComPtr<ID2D1SolidColorBrush> brush;
-      dc->CreateSolidColorBrush(D2D1::ColorF(0.8f, 0.4f, 0.4f, 0.4f), brush.GetAddressOf());
-      dc->FillRectangle(D2D1::RectF(0.0f, 0.0f, 200.0f, 200.0f), brush.Get());
-      surface.end_draw();
     }
 
+    current_visual_ = visuals[0];
+    dx_ = pts.x - current_visual_->rect.left;
+    dy_ = pts.y - current_visual_->rect.top;
+    return 0;
+  }
+
+  LRESULT MouseMoveHandler(UINT_PTR state, POINTS pts) {
+    if (state != MK_LBUTTON)
+      return 0;
+    if (!current_visual_)
+      return 0;
+
+    current_visual_->icv->SetOffsetX(pts.x - dx_);
+    current_visual_->icv->SetOffsetY(pts.y - dy_);
+
+    auto w = current_visual_->rect.right - current_visual_->rect.left;
+    auto h = current_visual_->rect.bottom - current_visual_->rect.top;
+
+    current_visual_->rect.left = pts.x - dx_;
+    current_visual_->rect.top = pts.y - dy_;
+    current_visual_->rect.right =  current_visual_->rect.left + w;
+    current_visual_->rect.bottom = current_visual_->rect.top + h;
+
     viman_->commit();
-#endif
     return 0;
   }
 
@@ -378,7 +397,6 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
       surface1.end_draw();
     }
 
-#if 0
     unsigned int as_width, as_height;
     auto png1 = plx::CreateWICDecoder(
         wic_factory, plx::FilePath(L"c:\\test\\images\\diamonds_k.png"));
@@ -398,7 +416,6 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     // add the image at the bottom.
     viman.add_visual(surface2, D2D1::Point2F(0.0f, 0.0f));
-#endif
 
     auto svg = RealizeSVG(
         "C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
