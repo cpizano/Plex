@@ -221,17 +221,17 @@ public:
         return 0;
       }
       case WM_SIZE: {
-        return SizeHandler(MAKEPOINTS(lparam));
+        return size_handler(MAKEPOINTS(lparam));
       }
       case WM_PAINT: {
-        PaintHandler();
+        paint_handler();
         break;
       }
       case WM_LBUTTONDOWN: {
-        return LeftMouseButtonHandler(MAKEPOINTS(lparam));
+        return left_mouse_button_handler(MAKEPOINTS(lparam));
       }
       case WM_MOUSEMOVE: {
-        return MouseMoveHandler(wparam, MAKEPOINTS(lparam));
+        return mouse_move_handler(wparam, MAKEPOINTS(lparam));
       }
       case WM_ENTERSIZEMOVE: {
         sizing_loop_ = true;
@@ -249,7 +249,7 @@ public:
     return ::DefWindowProc(window_, message, wparam, lparam);
   }
 
-  void PaintHandler() {
+  void paint_handler() {
     // if (deviceCreated() {
     //   device_d3d->GetDeviceRemovedReason() == S_OK
     //   if not ok then release all device dependent resources and
@@ -260,14 +260,14 @@ public:
     // }
   }
 
-  LRESULT SizeHandler(POINTS pts) {
+  LRESULT size_handler(POINTS pts) {
     if (sizing_loop_)
       return 0;
 
     return 0;
   }
 
-  LRESULT LeftMouseButtonHandler(POINTS pts) {
+  LRESULT left_mouse_button_handler(POINTS pts) {
     auto visuals = viman_->get_visuals(D2D1::Point2F(pts.x, pts.y));
     if (visuals.empty()) {
       current_visual_ = nullptr;
@@ -280,7 +280,7 @@ public:
     return 0;
   }
 
-  LRESULT MouseMoveHandler(UINT_PTR state, POINTS pts) {
+  LRESULT mouse_move_handler(UINT_PTR state, POINTS pts) {
     if (state != MK_LBUTTON)
       return 0;
     if (!current_visual_)
