@@ -241,6 +241,11 @@ public:
         sizing_loop_ = false;
         break;
       }
+      case WM_WINDOWPOSCHANGING: {
+        // send to fixed size windows when there is a device loss. do nothing
+        // to prevent the default window proc from resizing to 640x400.
+        return 0;
+      }
       case WM_DPICHANGED: {
         return dpi_changed_handler(lparam);
       }
