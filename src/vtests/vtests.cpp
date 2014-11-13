@@ -129,6 +129,9 @@ public:
     if (hr != S_OK)
       throw plx::ComException(__LINE__, hr);
 
+    background_ = plx::CreateDCoVisual(dc_device_);
+        root_->AddVisual(background_.Get(), FALSE, nullptr);
+  
     child_visuals_.reserve(10);
   }
 
@@ -137,11 +140,7 @@ public:
   void add_visual(Surface& surface, const D2D_POINT_2F& offset) {
     plx::ComPtr<IDCompositionVisual2> icv = plx::CreateDCoVisual(dc_device_);
     icv->SetContent(surface.ics_.Get());
-
-    if (background_)
-      background_->AddVisual(icv.Get(), TRUE, nullptr);
-    else
-      root_->AddVisual(icv.Get(), TRUE, nullptr);
+    root_->AddVisual(icv.Get(), FALSE, nullptr);
 
     icv->SetOffsetX(dpi_.to_physical_x(offset.x));
     icv->SetOffsetY(dpi_.to_physical_y(offset.y));
@@ -153,20 +152,15 @@ public:
     child_visuals_.push_back(visual);
   }
 
-  Surface make_background_surface(HWND window) {
-    if (!background_) {
-      background_ = plx::CreateDCoVisual(dc_device_);
-      root_->AddVisual(background_.Get(), FALSE, nullptr);
-    }
-
+  void set_background_surface(HWND window, Surface& surface) {
     RECT rect = {};
     ::GetClientRect(window, &rect);
     auto width = rect.right - rect.left;
     auto height = rect.bottom - rect.top;
-    auto ics = plx::CreateDCoSurface(dc_device_, width, height);
-    background_->SetContent(ics.Get());
-
-    return Surface(ics, dpi_, dpi_.to_logical_x(width), dpi_.to_logical_y(height));
+    background_->SetTransform(
+        D2D1::Matrix3x2F::Scale(static_cast<float>(width),
+                                static_cast<float>(height)));
+    background_->SetContent(surface.ics_.Get());
   }
 
   Surface make_surface(float width, float height) {
@@ -379,11 +373,13 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     VisualManager viman(window.window(), window.dpi(), device2D);
     window.set_visual_manager(&viman);
 
-    auto background = viman.make_background_surface(window.window());
+    auto background = viman.make_surface(1.0f, 1.0f);
     {
       auto dc = background.begin_draw(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.7f));
       background.end_draw();
     }
+    viman.set_background_surface(window.window(), background);
+
 
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
@@ -418,8 +414,9 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     viman.add_visual(surface2, D2D1::Point2F(0.0f, 0.0f));
 
     auto svg = RealizeSVG(
-        "C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
+        //"C:\\Users\\cpu\\Documents\\GitHub\\nanosvg\\example\\nano.svg",
         //"C:\\Test\\svg\\2_elipse_red_black.svg",
+        "C:\\Test\\svg\\3_red_arrows_angles.svg",
         window.dpi(), d2d1_factory);
 
     auto surface3 = viman.make_surface(600.0f, 600.0f);
