@@ -197,6 +197,8 @@ class DCoWindow : public plx::Window <DCoWindow> {
   VisualManager* viman_;
   Visual* current_visual_;
   float dx_, dy_;
+  const int width_ = 1200;
+  const int height_ = 1000;
 
 public:
   DCoWindow() : sizing_loop_(false), viman_(nullptr), current_visual_(nullptr) {
@@ -205,7 +207,7 @@ public:
                   L"Window Title",
                   nullptr, nullptr,
                   15, 15,
-                  1000, 1000,
+                  width_, height_,
                   nullptr,
                   nullptr);
   }
@@ -240,8 +242,7 @@ public:
         break;
       }
       case WM_DPICHANGED: {
-        //$$ fix the dpi member, possibly move the the base class.
-        break;
+        return dpi_changed_handler(lparam);
       }
     }
 
@@ -297,6 +298,23 @@ public:
     current_visual_->rect.bottom = current_visual_->rect.top + h;
 
     viman_->commit();
+    return 0;
+  }
+
+  LRESULT dpi_changed_handler(LPARAM lparam) {
+    auto suggested = reinterpret_cast<const RECT*> (lparam);
+    RECT r = { 
+          0, 0,
+          static_cast<long>(dpi_.to_physical_x(width_)),
+          static_cast<long>(dpi_.to_physical_x(height_))
+    };
+    ::AdjustWindowRectEx(&r, 
+        ::GetWindowLong(window_, GWL_STYLE),
+        FALSE,
+        ::GetWindowLong(window_, GWL_EXSTYLE));
+    ::SetWindowPos(window_, nullptr, suggested->left, suggested->top,
+                   r.right - r.left, r.bottom - r.top,
+                   SWP_NOACTIVATE | SWP_NOZORDER);
     return 0;
   }
 
