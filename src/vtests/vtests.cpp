@@ -42,7 +42,6 @@
 //                                  |            | +
 //                                  +------------+   
 //
-#define NANOSVG_IMPLEMENTATION 1
 
 #include "stdafx.h"
 #include "vtests.h"
