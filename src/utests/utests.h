@@ -87,4 +87,5 @@ TEST(Test_Globals);
 TEST(Test_VEHManager);
 TEST(Test_DemandPagedMemory);
 TEST(Test_ArgPack);
+TEST(Test_RectLSizeL);
 #undef TEST

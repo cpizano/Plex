@@ -117,4 +117,6 @@ catalog 1 {
   plx::CreateDCoDeviceCtx plx\gfx\dco_device_ctx.h;
   plx::CreateWICDecoder plx\gfx\wic_decoder.h;
   plx::CreateWICBitmapBGRA plx\gfx\wic_bitmap_bgra.h;
+  plx::SizeL plx\size_l.h;
+  plx::RectL plx\rect_l.h;
 }

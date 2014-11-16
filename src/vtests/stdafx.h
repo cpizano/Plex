@@ -325,6 +325,32 @@ plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::SizeL : windows compatilbe SIZE wrapper.
+//
+
+struct SizeL : public ::SIZE {
+  SizeL() : SIZE() {}
+  SizeL(long width, long height) : SIZE({width, height}) {}
+  bool empty() const { return (cx == 0L) && (cy == 0L); }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::RectL : windows compatilbe RECT wrapper.
+//
+
+struct RectL : public ::RECT {
+  RectL() : RECT() {}
+  RectL(long x0, long y0, long x1, long y1) : RECT({x0, y0, x1, y1}) {}
+  RectL(const plx::SizeL& size): RECT({ 0L, 0L, size.cx, size.cy }) {}
+
+  plx::SizeL size() { return SizeL(right - left, bottom - top); }
+  long width() const { return right - left; }
+  long height() const { return bottom - top; }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::User32Exception (thrown by user32 functions)
 //
 class User32Exception : public plx::Exception {

@@ -1286,3 +1286,18 @@ void Test_ArgPack::Exec() {
   int r = ArgAdder(false, 3, char(2), x);
   CheckEQ(r, 6);
 }
+
+void Test_RectLSizeL::Exec() {
+  plx::SizeL s1;
+  CheckEQ((s1.cx == 0L) && (s1.cy == 0L) , true);
+  CheckEQ(s1.empty(), true);
+
+  plx::RectL r1;
+  CheckEQ((r1.top == 0L) && (r1.bottom == 0L), true);
+  CheckEQ((r1.left == 0L) && (r1.right == 0L), true);
+  CheckEQ(r1.size().empty(), true);
+
+  plx::RectL r2(plx::SizeL(10, 20));
+  CheckEQ(r2.width() == 10L, true);
+  CheckEQ(r2.height() == 20, true);
+}

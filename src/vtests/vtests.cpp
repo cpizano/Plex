@@ -152,13 +152,12 @@ public:
   }
 
   void set_background_surface(HWND window, Surface& surface) {
-    RECT rect = {};
+    plx::RectL rect;
     ::GetClientRect(window, &rect);
-    auto width = rect.right - rect.left;
-    auto height = rect.bottom - rect.top;
+    auto size = rect.size();
     background_->SetTransform(
-        D2D1::Matrix3x2F::Scale(static_cast<float>(width),
-                                static_cast<float>(height)));
+        D2D1::Matrix3x2F::Scale(static_cast<float>(size.cx),
+                                static_cast<float>(size.cy)));
     background_->SetContent(surface.ics_.Get());
   }
 
@@ -307,18 +306,18 @@ public:
   }
 
   LRESULT dpi_changed_handler(LPARAM lparam) {
-    auto suggested = reinterpret_cast<const RECT*> (lparam);
-    RECT r = { 
-          0, 0,
+    
+    plx::RectL r(plx::SizeL(
           static_cast<long>(dpi_.to_physical_x(width_)),
-          static_cast<long>(dpi_.to_physical_x(height_))
-    };
+          static_cast<long>(dpi_.to_physical_x(height_))));
+    
+    auto suggested = reinterpret_cast<const RECT*> (lparam);
     ::AdjustWindowRectEx(&r, 
         ::GetWindowLong(window_, GWL_STYLE),
         FALSE,
         ::GetWindowLong(window_, GWL_EXSTYLE));
     ::SetWindowPos(window_, nullptr, suggested->left, suggested->top,
-                   r.right - r.left, r.bottom - r.top,
+                   r.width(), r.height(),
                    SWP_NOACTIVATE | SWP_NOZORDER);
     return 0;
   }
