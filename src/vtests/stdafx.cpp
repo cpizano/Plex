@@ -144,6 +144,12 @@ plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
     throw plx::ComException(__LINE__, hr);
   return decoder;
 }
+float WidthRectF(const D2D_RECT_F& r) {
+  return r.right - r.left;
+}
+float HeightRectF(const D2D_RECT_F& r) {
+  return r.bottom - r.top;
+}
 }
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;

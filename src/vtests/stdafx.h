@@ -325,7 +325,7 @@ plx::ComPtr<IWICBitmapDecoder> CreateWICDecoder(
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::SizeL : windows compatilbe SIZE wrapper.
+// plx::SizeL : windows compatible SIZE wrapper.
 //
 
 struct SizeL : public ::SIZE {
@@ -336,7 +336,7 @@ struct SizeL : public ::SIZE {
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::RectL : windows compatilbe RECT wrapper.
+// plx::RectL : windows compatible RECT wrapper.
 //
 
 struct RectL : public ::RECT {
@@ -377,6 +377,16 @@ public:
 private:
   Kind type_;
 };
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+//
+//
+
+float WidthRectF(const D2D_RECT_F& r) ;
+
+float HeightRectF(const D2D_RECT_F& r) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

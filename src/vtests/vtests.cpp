@@ -55,6 +55,7 @@
 
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
+
 plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
     plx::ComPtr<ID2D1DeviceContext> dc, plx::ComPtr<IWICBitmapSource> src) {
   plx::ComPtr<ID2D1Bitmap> bitmap;
@@ -171,8 +172,7 @@ public:
 
   Surface surface_from_visual(Visual& visual) {
     return Surface(visual.ics, dpi_,
-                   visual.rect.right - visual.rect.left,
-                   visual.rect.bottom - visual.rect.top);
+        plx::WidthRectF(visual.rect), plx::HeightRectF(visual.rect));
   }
 
   std::vector<Visual*> get_visuals(D2D1_POINT_2F point) {
@@ -293,8 +293,8 @@ public:
     current_visual_->icv->SetOffsetX(pts.x - dx_);
     current_visual_->icv->SetOffsetY(pts.y - dy_);
 
-    auto w = current_visual_->rect.right - current_visual_->rect.left;
-    auto h = current_visual_->rect.bottom - current_visual_->rect.top;
+    auto w = plx::WidthRectF(current_visual_->rect);
+    auto h = plx::HeightRectF(current_visual_->rect);
 
     current_visual_->rect.left = pts.x - dx_;
     current_visual_->rect.top = pts.y - dy_;
