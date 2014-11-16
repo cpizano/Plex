@@ -406,7 +406,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
     {
-      auto dc = surface1.begin_draw(D2D1::ColorF(0.4f, 0.4f, 0.4f, 0.4f));
+      auto dc = surface1.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
       dc->FillGeometry(circle_geom.Get(), brush.Get());
@@ -441,7 +441,13 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
         "C:\\Test\\svg\\3_red_arrows_angles.svg",
         window.dpi(), d2d1_factory);
 
-    auto surface3 = viman.make_surface(600.0f, 600.0f);
+    D2D1_RECT_F svg_bounds = {};
+    hr = svg->GetBounds(nullptr, &svg_bounds);
+    // we could use a thight surface size (right - left, bottom - top) but we would
+    // have to do more math to displace the surface.
+    auto surface3 = viman.make_surface(
+        window.dpi().to_physical_x(svg_bounds.right + 1),
+        window.dpi().to_physical_y(svg_bounds.bottom + 1));
     {
       auto dc = surface3.begin_draw(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.4f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
