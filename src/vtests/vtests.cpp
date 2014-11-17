@@ -445,12 +445,23 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     // we could use a thight surface size (right - left, bottom - top) but we would
     // have to do more math to displace the surface.
     auto surface3 = viman.make_surface(
-        window.dpi().to_physical_x(svg_bounds.right + 1),
-        window.dpi().to_physical_y(svg_bounds.bottom + 1));
+        window.dpi().to_physical_x(svg_bounds.right - svg_bounds.left + 1),
+        window.dpi().to_physical_y(svg_bounds.bottom - svg_bounds.top + 1));
     {
       auto dc = surface3.begin_draw(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.4f));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
-      dc->CreateSolidColorBrush(D2D1::ColorF(0.5f, 0.0f, 1.0f, 0.4f), brush.GetAddressOf());
+      dc->CreateSolidColorBrush(
+          D2D1::ColorF(0.5f, 0.0f, 1.0f, 0.4f), brush.GetAddressOf());
+      // the dc already has a transform for the visual but we need to also transform
+      // for the svg since we are only creating a surfacve the size of the svg.
+      if ((svg_bounds.left != 0.0f) || (svg_bounds.top != 0.0f)) {
+        D2D1_MATRIX_3X2_F existing_transform;
+        dc->GetTransform(&existing_transform);
+        auto svg_origin_transform = D2D1::Matrix3x2F::Translation(
+            D2D1::SizeF(-svg_bounds.left, -svg_bounds.top));
+        dc->SetTransform(existing_transform * svg_origin_transform);
+      }
+      // Now we can paint and we can draw.
       dc->FillGeometry(svg.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
       dc->DrawGeometry(svg.Get(), brush.Get());
