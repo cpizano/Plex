@@ -233,7 +233,8 @@ plx::ComPtr<IWICImagingFactory> CreateWICFactory() ;
 //
 
 plx::ComPtr<ID2D1DeviceContext> CreateDCoDeviceCtx(
-    plx::ComPtr<IDCompositionSurface> surface, const plx::DPI& dpi) ;
+    plx::ComPtr<IDCompositionSurface> surface,
+    const plx::DPI& dpi, const D2D1_SIZE_F& extra_offset) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

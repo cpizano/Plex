@@ -83,8 +83,9 @@ public:
       dpi_(dpi) {
   }
 
-  plx::ComPtr<ID2D1DeviceContext> begin_draw(const D2D1_COLOR_F& clear_color) {
-    auto dc = plx::CreateDCoDeviceCtx(ics_, dpi_);
+  plx::ComPtr<ID2D1DeviceContext> begin_draw(const D2D1_COLOR_F& clear_color,
+                                             const D2D1_SIZE_F& offset) {
+    auto dc = plx::CreateDCoDeviceCtx(ics_, dpi_, offset);
     dc->Clear(clear_color);
     drawing_ = true;
     return dc;
@@ -362,6 +363,7 @@ plx::ComPtr<ID2D1PathGeometry> RealizeSVG(
   return geom;
 }
 
+
 int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
                        wchar_t* cmdline, int cmd_show) {
 
@@ -394,9 +396,11 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     VisualManager viman(window.window(), window.dpi(), device2D);
     window.set_visual_manager(&viman);
 
+    const D2D1_SIZE_F zero_offset = {0};
+
     auto background = viman.make_surface(1.0f, 1.0f);
     {
-      auto dc = background.begin_draw(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.7f));
+      auto dc = background.begin_draw(D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.7f), zero_offset);
       background.end_draw();
     }
     viman.set_background_surface(window.window(), background);
@@ -405,7 +409,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     // scale-dependent resources.
     auto surface1 = viman.make_surface(100.0f, 100.0f);
     {
-      auto dc = surface1.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f));
+      auto dc = surface1.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.0f), zero_offset);
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(D2D1::ColorF(0.0f, 0.5f, 1.0f, 0.4f), brush.GetAddressOf());
       dc->FillGeometry(circle_geom.Get(), brush.Get());
@@ -424,7 +428,7 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
     auto sc_height = window.dpi().to_physical_y(as_height * 0.5f);
     auto surface2 = viman.make_surface(sc_width, sc_height);
     {
-      auto dc = surface2.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f));
+      auto dc = surface2.begin_draw(D2D1::ColorF(0.0f, 0.0f, 0.4f, 0.0f), zero_offset);
       auto bmp1 = CreateD2D1Bitmap(dc, png1_cv);
       auto dr = D2D1::Rect(0.0f, 0.0f, sc_width, sc_height);
       dc->DrawBitmap(bmp1.Get(), &dr, 1.0f);
@@ -442,25 +446,16 @@ int __stdcall wWinMain(HINSTANCE instance, HINSTANCE,
 
     D2D1_RECT_F svg_bounds = {};
     hr = svg->GetBounds(nullptr, &svg_bounds);
-    // we could use a thight surface size (right - left, bottom - top) but we would
-    // have to do more math to displace the surface.
     auto surface3 = viman.make_surface(
         window.dpi().to_physical_x(svg_bounds.right - svg_bounds.left + 1),
         window.dpi().to_physical_y(svg_bounds.bottom - svg_bounds.top + 1));
     {
-      auto dc = surface3.begin_draw(D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.4f));
+      auto dc = surface3.begin_draw(
+           D2D1::ColorF(0.7f, 0.7f, 0.7f, 0.4f), 
+           D2D1::SizeF(-svg_bounds.left, -svg_bounds.top));
       plx::ComPtr<ID2D1SolidColorBrush> brush;
       dc->CreateSolidColorBrush(
           D2D1::ColorF(0.5f, 0.0f, 1.0f, 0.4f), brush.GetAddressOf());
-      // the dc already has a transform for the visual but we need to also transform
-      // for the svg since we are only creating a surfacve the size of the svg.
-      if ((svg_bounds.left != 0.0f) || (svg_bounds.top != 0.0f)) {
-        D2D1_MATRIX_3X2_F existing_transform;
-        dc->GetTransform(&existing_transform);
-        auto svg_origin_transform = D2D1::Matrix3x2F::Translation(
-            D2D1::SizeF(-svg_bounds.left, -svg_bounds.top));
-        dc->SetTransform(existing_transform * svg_origin_transform);
-      }
       // Now we can paint and we can draw.
       dc->FillGeometry(svg.Get(), brush.Get());
       brush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
