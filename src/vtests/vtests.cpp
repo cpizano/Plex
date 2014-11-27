@@ -186,6 +186,17 @@ public:
     return hits;
   }
 
+  void rotate_visual(Visual& visual, float angle) {
+    plx::ComPtr<IDCompositionRotateTransform> transform;
+    dc_device_->CreateRotateTransform(transform.GetAddressOf());
+    transform->SetCenterX(plx::WidthRectF(visual.rect)/2.0f);
+    transform->SetCenterY(plx::HeightRectF(visual.rect)/2.0f);
+    transform->SetAngle(angle);
+    visual.icv->SetBitmapInterpolationMode(
+        DCOMPOSITION_BITMAP_INTERPOLATION_MODE_LINEAR);
+    visual.icv->SetTransform(transform.Get());
+  }
+
   void commit() {
     dc_device_->Commit();
   }
@@ -278,10 +289,10 @@ public:
       current_visual_ = nullptr;
       return 0;
     }
-
     current_visual_ = visuals[0];
     dx_ = pts.x - current_visual_->rect.left;
     dy_ = pts.y - current_visual_->rect.top;
+    viman_->rotate_visual(*current_visual_, 45.0f);
     return 0;
   }
 
