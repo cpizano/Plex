@@ -2315,7 +2315,7 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::SizeL : windows compatilbe SIZE wrapper.
+// plx::SizeL : windows compatible SIZE wrapper.
 //
 
 struct SizeL : public ::SIZE {
@@ -2326,7 +2326,7 @@ struct SizeL : public ::SIZE {
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::RectL : windows compatilbe RECT wrapper.
+// plx::RectL : windows compatible RECT wrapper.
 //
 
 struct RectL : public ::RECT {

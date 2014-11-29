@@ -74,12 +74,12 @@ catalog 1 {
   plx::To plx\to.h;
   plx::MakeGuard plx\scope_guard.h;
   plx::DecodeUTF8 plx\decode_utf8.h;
-  plx::JsonType plx\json_type.h;
-  plx::JsonValue plx\json_value.h;
+  plx::JsonType plx\json\type.h;
+  plx::JsonValue plx\json\value.h;
   plx::HexASCII plx\hex_ascii.h;
   plx::HexASCIIStr plx\hex_ascii_str.h;
   plx::SkipWhitespace plx\skip_whitespace.h;
-  plx::ParseJsonValue plx\parse_json.h;
+  plx::ParseJsonValue plx\json\parse.h;
   plx::DecodeString plx\decode_string.h;
   plx::CRC32C plx\crc32_sse4.h;
   plx::PlatformCheck plx\platform_check.h;
