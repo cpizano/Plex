@@ -122,4 +122,5 @@ catalog 1 {
   plx::RectL plx\rect_l.h;
   plx::WidthRectF plx\gfx\d2d_rect_helpers.h;
   plx::GetAppDataPath \plx\io\appdata_path.h;
+  plx::JsonFromFile \plx\json\from_file.h;
 }
