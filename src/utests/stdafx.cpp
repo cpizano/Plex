@@ -49,6 +49,16 @@ std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
   }
   return str;
 }
+plx::FilePath GetAppDataPath(bool roaming) {
+  auto folder = roaming? FOLDERID_RoamingAppData : FOLDERID_LocalAppData;
+  wchar_t* path = nullptr;
+  auto hr = ::SHGetKnownFolderPath(folder, 0, nullptr, &path);
+  if (hr != S_OK)
+    throw plx::IOException(__LINE__, L"<appdata folder>");
+  auto fp = FilePath(path);
+  ::CoTaskMemFree(path);
+  return fp;
+}
 plx::FilePath GetExePath() {
   wchar_t* pp = nullptr;
   _get_wpgmptr(&pp);

@@ -52,6 +52,7 @@ include 2 {
   ::GetDpiForMonitor <shellscalingapi.h>;
   IWICImagingFactory <wincodec.h>;
   ::CoInitializeEx <objbase.h>;
+  ::SHGetKnownFolderPath <Shlobj.h>;
 }
 
 catalog 1 {
@@ -120,4 +121,5 @@ catalog 1 {
   plx::SizeL plx\size_l.h;
   plx::RectL plx\rect_l.h;
   plx::WidthRectF plx\gfx\d2d_rect_helpers.h;
+  plx::GetAppDataPath \plx\io\appdata_path.h;
 }

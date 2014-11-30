@@ -933,6 +933,13 @@ void Test_File::Exec() {
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
   }
 
+  {
+    auto fp = plx::GetAppDataPath(false);
+    auto par = plx::FileParams::Directory_ShareAll();
+    plx::File f = plx::File::Create(fp, par, plx::FileSecurity());
+    CheckEQ(f.status(), plx::File::directory | plx::File::existing);
+  }
+
 }
 
 void Test_IOCPLoop::Exec() {

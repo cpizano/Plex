@@ -9,6 +9,7 @@
 
 
 
+#include <Shlobj.h>
 #include <intrin.h>
 #include <stdlib.h>
 #include <nmmintrin.h>
@@ -759,6 +760,12 @@ public:
     return ScopedReadLock(&lock_);
   }
 };
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::GetAppDataPath
+//
+plx::FilePath GetAppDataPath(bool roaming) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
