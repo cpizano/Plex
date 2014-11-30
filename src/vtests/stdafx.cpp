@@ -153,5 +153,3 @@ float HeightRectF(const D2D_RECT_F& r) {
   return r.bottom - r.top;
 }
 }
-
-extern "C" IMAGE_DOS_HEADER __ImageBase;

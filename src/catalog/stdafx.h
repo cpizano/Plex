@@ -6,3 +6,4 @@
 #include <SDKDDKVer.h>
 #include <windows.h>
 
+extern "C" IMAGE_DOS_HEADER __ImageBase;

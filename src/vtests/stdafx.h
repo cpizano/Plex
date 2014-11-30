@@ -490,3 +490,5 @@ public:
 };
 
 }
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;

@@ -395,5 +395,3 @@ std::string StringPrintf(const char* fmt, ...) {
   return std::string(mem.get());
 }
 }
-
-extern "C" IMAGE_DOS_HEADER __ImageBase;
