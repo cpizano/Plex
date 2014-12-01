@@ -47,13 +47,6 @@
 #include "vtests.h"
 #include "nanosvg.h"
 
-//$$ fix this in plex itself
-#pragma comment(lib, "d2d1.lib")
-#pragma comment(lib, "d3d11.lib")
-#pragma comment(lib, "dcomp.lib")
-#pragma comment(lib, "shcore.lib")
-
-
 plx::ComPtr<ID2D1Bitmap> CreateD2D1Bitmap(
     plx::ComPtr<ID2D1DeviceContext> dc, plx::ComPtr<IWICBitmapSource> src) {
   plx::ComPtr<ID2D1Bitmap> bitmap;

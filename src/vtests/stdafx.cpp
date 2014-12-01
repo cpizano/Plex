@@ -5,6 +5,10 @@
 
 
 
+#pragma comment(lib, "shcore.lib")
+#pragma comment(lib, "d2d1.lib")
+#pragma comment(lib, "d3d11.lib")
+#pragma comment(lib, "dcomp.lib")
 namespace plx {
 plx::ComPtr<IDCompositionSurface> CreateDCoSurface(
     plx::ComPtr<IDCompositionDesktopDevice> device, unsigned int w, unsigned int h) {

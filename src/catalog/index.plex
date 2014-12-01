@@ -46,10 +46,10 @@ include 2 {
   _get_wpgmptr <stdlib.h>;
   va_list <stdarg.h>;
   Microsoft::WRL::ComPtr <wrl.h>;
-  ID2D1Factory2 <d2d1_2.h>;
-  ID3D11Device <d3d11_2.h>;
-  IDCompositionDesktopDevice <dcomp.h>;
-  ::GetDpiForMonitor <shellscalingapi.h>;
+  ID2D1Factory2 <d2d1_2.h> [d2d1.lib];
+  ID3D11Device <d3d11_2.h> [d3d11.lib];
+  IDCompositionDesktopDevice <dcomp.h> [dcomp.lib];
+  ::GetDpiForMonitor <shellscalingapi.h> [shcore.lib];
   IWICImagingFactory <wincodec.h>;
   ::CoInitializeEx <objbase.h>;
   ::SHGetKnownFolderPath <Shlobj.h>;

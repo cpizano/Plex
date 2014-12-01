@@ -1751,12 +1751,22 @@ struct XternDef {
   Type type;
   Range<char> name;
   Range<char> path;
+  Range<char> extra;
   XEntity* entity;
 
-  XternDef(Type type, const Range<char>& name, const Range<char>& path)
+  XternDef(Type type,
+           const Range<char>& name, const Range<char>& value)
       : type(type),
-        name(name), path(path),
+        name(name), path(value),
         entity(nullptr) {
+
+    if (type == include) {
+      auto r = path.Find('[', ']');
+      if (r.Size() >= 2) {
+        extra = Range<char>(r.Start() + 1, r.End() - 1);
+        path = Range<char>(path.Start(), r.Start() - 1);
+      }
+    }
   }
 
   XternDef()
@@ -2081,11 +2091,14 @@ void ProcessCatalog(CppTokenVector& tv, XternDefs& defs) {
 struct XInclude {
   Range<char> name;
   Range<char> src;
-  // |insert| is only here to keep alive the memory backing
+  Range<char> library;
+  // Next two members here just to keep alive the memory backing
   // the MemRange on the final tree.
-  std::string insert;
+  std::string backing_include;
+  std::string backing_library;
 
-  XInclude(XternDef& def) : name(def.name), src(def.path) {}
+  XInclude(XternDef& def) : name(def.name), src(def.path), library(def.extra) {
+  }
 
   // The processing order is alphabetic.
   bool Order(const XInclude& other) const {
@@ -2100,6 +2113,20 @@ struct XEntities {
   void Add_Front(const XEntities& other) {
     includes.insert(begin(includes), begin(other.includes), end(other.includes));
     code.insert(begin(code), begin(other.code), end(other.code));
+  }
+
+  void Dedup_Includes() {
+    // The way that LoadEntities recurses means that Add_Front() introduces
+    // several copies of each include. Take care of that here.
+    std::sort(begin(includes), end(includes), 
+      [] (const XInclude& e1, const XInclude& e2) {
+        return e1.Order(e2);
+      });
+    auto last = std::unique(begin(includes), end(includes),
+      [] (const XInclude& e1, const XInclude& e2) {
+        return e1.name.Equal(e2.name);
+      });
+    includes.erase(last, end(includes));
   }
 };
 
@@ -2214,8 +2241,8 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
     // Include not found in source. We currently insert after the first include.
     Logger::Get().ProcessInclude(incl.src);
 
-    incl.insert = std::string("#include ") + ToString(incl.src);
-    CppToken newtoken(FromString(incl.insert), CppToken::prep_include, 1, 1);
+    incl.backing_include = std::string("#include ") + ToString(incl.src);
+    CppToken newtoken(FromString(incl.backing_include), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
     InsertAtToken(in_src[pos_include], Insert::keep_original, itv);
     // insert in kels to avoid a second include of the same.
@@ -2289,7 +2316,9 @@ void ProcessEntities(CppTokenVector& in_src, XEntities& ent) {
 
 }
 
-void SplitEntities(std::deque<XEntity*>& code, CppTokenVector& cpp_dest) {
+void SplitEntities(std::deque<XEntity*>& code,
+                   std::deque<XInclude>& xincl,
+                   CppTokenVector& cpp_dest) {
   auto& includes = cpp_dest[0].kelems->includes;
   auto lik = includes.find(Range<char>(last_include_key));
   const auto pos_code = (lik != end(includes)) ? lik->second : 1;
@@ -2300,6 +2329,18 @@ void SplitEntities(std::deque<XEntity*>& code, CppTokenVector& cpp_dest) {
     CppTokenVector itv = {newtoken};
     InsertAtToken(cpp_dest[pos_code], Insert::keep_original, itv);
   };
+
+  // Insert the library records. They come from the index.plex as the second item
+  // on an include entry.
+  for (auto& incl :xincl) {
+    if (incl.library.Size() < 2)
+      continue;
+    incl.backing_library = std::string("#pragma comment(lib, \"") + ToString(incl.library);
+    incl.backing_library += "\")";
+    CppToken newtoken(FromString(incl.backing_library), CppToken::prep_pragma, 1, 1);
+    CppTokenVector itv = {newtoken};
+    InsertAtToken(cpp_dest[pos_code], Insert::keep_original, itv);
+  }
 
   std::string last_namespace;
 
@@ -2532,8 +2573,8 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
     // Include not found in source. We currently insert after the first include.
     Logger::Get().ProcessInclude(incl.src);
 
-    incl.insert = std::string("#include ") + ToString(incl.src);
-    CppToken newtoken(FromString(incl.insert), CppToken::prep_include, 1, 1);
+    incl.backing_include = std::string("#include ") + ToString(incl.src);
+    CppToken newtoken(FromString(incl.backing_include), CppToken::prep_include, 1, 1);
     CppTokenVector itv = {newtoken};
     InsertAtToken(header_dest[pos_include], Insert::keep_original, itv);
     // insert in kels to avoid a second include of the same.
@@ -2562,7 +2603,7 @@ void ProcessEntities2(CppTokenVector& header_dest, CppTokenVector& cpp_dest, XEn
     }
   }
 
-  SplitEntities(ent.code, cpp_dest);
+  SplitEntities(ent.code, ent.includes, cpp_dest);
 
   // Insert code after the integer definitions.
   auto lik = kel.includes.find(Range<char>(last_include_key));
@@ -2834,6 +2875,7 @@ int wmain(int argc, wchar_t* argv[]) {
     GetExternalDefinitions(cc_tv, xdefs);
     XEntities entities = 
         LoadEntities(xdefs, catalog.Parent());
+    entities.Dedup_Includes();
 
     // Phase 4: process each entity augmenting the source.
     CppTokenVector* target_tv = nullptr;
