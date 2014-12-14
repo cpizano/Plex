@@ -38,6 +38,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_To_Integer().Run();
     Test_ScopeGuard().Run();
     Test_Utf8decode().Run();
+    Test_Utf8Utf16Conv().Run();
     Test_JsonValue().Run();
     Test_Hex().Run();
     Test_Whitespace().Run();

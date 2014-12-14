@@ -32,6 +32,14 @@ ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
   auto s = reinterpret_cast<const uint8_t*>(start);
   return ItRange<const uint8_t*>(s, s + count);
 }
+ItRange<const uint8_t*> RangeFromString(const std::string& str) {
+  auto s = reinterpret_cast<const uint8_t*>(str.c_str());
+  return ItRange<const uint8_t*>(s, s + str.size());
+}
+ItRange<const uint16_t*> RangeFromString(const std::wstring& str) {
+  auto s = reinterpret_cast<const uint16_t*>(str.c_str());
+  return ItRange<const uint16_t*>(s, s + str.size());
+}
 char* HexASCII(uint8_t byte, char* out) {
   *out++ = HexASCIITable[(byte >> 4) & 0x0F];
   *out++ = HexASCIITable[byte & 0x0F];

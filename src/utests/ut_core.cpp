@@ -112,6 +112,19 @@ void Test_Range::Exec() {
     CheckEQ(v, q);
   }
 
+  {
+    std::string s("12x345");
+    auto r1 = plx::RangeFromString(s);
+    CheckEQ(r1.equals(plx::RangeFromLitStr("12x345").const_bytes()), true);
+  }
+
+  {
+    auto src = L"12345";
+    std::wstring s(src);
+    auto r1 = plx::RangeFromString(s);
+    CheckEQ(r1.equals(plx::Range<const uint16_t>(
+        reinterpret_cast<const uint16_t*>(src), 5L)), true);
+  }
 }
 
 void Test_BitSlice::Exec() {
@@ -574,6 +587,71 @@ void Test_Utf8decode::Exec() {
       CheckEQ(e.bytes(), "F8,80,80,80,8A");
     }
   }
+}
+
+std::wstring UTF16FromUTF8(const std::string & utf8) {
+  if (utf8.empty())
+      return std::wstring();
+  // Get length and validate string.
+  const int utf16_len = ::MultiByteToWideChar(
+      CP_UTF8, MB_ERR_INVALID_CHARS,
+      utf8.data(),
+      plx::To<int>(utf8.length()),
+      NULL,
+      0);
+  if (utf16_len == 0) {
+    throw plx::CodecException(__LINE__, nullptr);
+  }
+
+  std::wstring utf16;
+  utf16.resize(utf16_len);
+  // Now do the conversion without validation.
+  if (!::MultiByteToWideChar(
+      CP_UTF8, 0,
+      utf8.data(),
+      plx::To<int>(utf8.length()),
+      &utf16[0],
+      utf16_len)) {
+    throw plx::CodecException(__LINE__, nullptr);
+  }
+  return utf16;
+}
+
+std::string UTF8FromUTF16(const std::wstring & utf16) {
+  if (utf16.empty())
+      return std::string();
+  // compute length.
+  const int utf8_len = ::WideCharToMultiByte(
+      CP_UTF8, 0,
+      utf16.data(),
+      plx::To<int>(utf16.length()),
+      NULL,
+      0,
+      NULL, NULL);
+  if (utf8_len == 0) {
+    throw plx::CodecException(__LINE__, nullptr);
+  }
+
+  std::string utf8;
+  utf8.resize(utf8_len);
+  // now do the conversion.
+  if (!::WideCharToMultiByte(
+      CP_UTF8, 0,
+      utf16.data(),
+      plx::To<int>(utf16.length()),
+      &utf8[0],
+      utf8_len,
+      NULL, NULL)) {
+    throw plx::CodecException(__LINE__, nullptr);
+  }
+  return utf8;
+}
+
+void Test_Utf8Utf16Conv::Exec() {
+  auto source = L"Euro sign (U+20AC): \x20AC";
+  auto utf_8 = UTF8FromUTF16(source);
+  auto utf_16 = UTF16FromUTF8(utf_8);
+  CheckEQ(source == utf_16, true);
 }
 
 void Test_JsonValue::Exec() {
@@ -1308,3 +1386,5 @@ void Test_RectLSizeL::Exec() {
   CheckEQ(r2.width() == 10L, true);
   CheckEQ(r2.height() == 20, true);
 }
+
+

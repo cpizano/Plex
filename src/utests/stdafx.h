@@ -150,6 +150,7 @@ public:
 
 
 
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::ItRange
 // s_ : first element
@@ -343,6 +344,10 @@ ItRange<const U*> RangeFromVector(const std::vector<U>& vec, size_t len = 0) {
 ItRange<uint8_t*> RangeFromBytes(void* start, size_t count) ;
 
 ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) ;
+
+ItRange<const uint8_t*> RangeFromString(const std::string& str) ;
+
+ItRange<const uint16_t*> RangeFromString(const std::wstring& str) ;
 
 template <typename U>
 std::string StringFromRange(const ItRange<U>& r) {
