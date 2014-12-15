@@ -77,7 +77,6 @@ catalog 1 {
   plx::NextInt plx\next_int.h;
   plx::To plx\to.h;
   plx::MakeGuard plx\scope_guard.h;
-  plx::DecodeUTF8 plx\decode_utf8.h;
   plx::JsonType plx\json\type.h;
   plx::JsonValue plx\json\value.h;
   plx::HexASCII plx\hex_ascii.h;
@@ -126,4 +125,7 @@ catalog 1 {
   plx::WidthRectF plx\gfx\d2d_rect_helpers.h;
   plx::GetAppDataPath \plx\io\appdata_path.h;
   plx::JsonFromFile \plx\json\from_file.h;
+  plx::DecodeUTF8 plx\unicode\decode_utf8_char.h;
+  plx::UTF8FromUTF16 plx\unicode\utf8_from_utf16.h;
+  plx::UTF16FromUTF8 plx\unicode\utf16_from_utf8.h;
 }
