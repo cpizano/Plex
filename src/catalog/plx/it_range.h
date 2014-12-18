@@ -203,13 +203,23 @@ ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) {
 }
 
 ItRange<const uint8_t*> RangeFromString(const std::string& str) {
-  auto s = reinterpret_cast<const uint8_t*>(str.c_str());
+  auto s = reinterpret_cast<const uint8_t*>(&str.front());
   return ItRange<const uint8_t*>(s, s + str.size());
 }
 
+ItRange<uint8_t*> RangeFromString(std::string& str) {
+  auto s = reinterpret_cast<uint8_t*>(&str.front());
+  return ItRange<uint8_t*>(s, s + str.size());
+}
+
 ItRange<const uint16_t*> RangeFromString(const std::wstring& str) {
-  auto s = reinterpret_cast<const uint16_t*>(str.c_str());
+  auto s = reinterpret_cast<const uint16_t*>(&str.front());
   return ItRange<const uint16_t*>(s, s + str.size());
+}
+
+ItRange<uint16_t*> RangeFromString(std::wstring& str) {
+  auto s = reinterpret_cast<uint16_t*>(&str.front());
+  return ItRange<uint16_t*>(s, s + str.size());
 }
 
 template <typename U>

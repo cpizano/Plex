@@ -347,7 +347,11 @@ ItRange<const uint8_t*> RangeFromBytes(const void* start, size_t count) ;
 
 ItRange<const uint8_t*> RangeFromString(const std::string& str) ;
 
+ItRange<uint8_t*> RangeFromString(std::string& str) ;
+
 ItRange<const uint16_t*> RangeFromString(const std::wstring& str) ;
+
+ItRange<uint16_t*> RangeFromString( std::wstring& str) ;
 
 template <typename U>
 std::string StringFromRange(const ItRange<U>& r) {

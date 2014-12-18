@@ -113,14 +113,14 @@ void Test_Range::Exec() {
   }
 
   {
-    std::string s("12x345");
+    const std::string s("12x345");
     auto r1 = plx::RangeFromString(s);
     CheckEQ(r1.equals(plx::RangeFromLitStr("12x345").const_bytes()), true);
   }
 
   {
     auto src = L"12345";
-    std::wstring s(src);
+    const std::wstring s(src);
     auto r1 = plx::RangeFromString(s);
     CheckEQ(r1.equals(plx::Range<const uint16_t>(
         reinterpret_cast<const uint16_t*>(src), 5L)), true);
