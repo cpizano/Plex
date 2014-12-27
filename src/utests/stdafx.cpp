@@ -44,7 +44,7 @@ ItRange<const uint16_t*> RangeFromString(const std::wstring& str) {
   auto s = reinterpret_cast<const uint16_t*>(&str.front());
   return ItRange<const uint16_t*>(s, s + str.size());
 }
-ItRange<uint16_t*> RangeFromString( std::wstring& str) {
+ItRange<uint16_t*> RangeFromString(std::wstring& str) {
   auto s = reinterpret_cast<uint16_t*>(&str.front());
   return ItRange<uint16_t*>(s, s + str.size());
 }

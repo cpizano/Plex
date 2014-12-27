@@ -107,12 +107,16 @@ public:
     return li.QuadPart;
   }
 
-  size_t read(plx::Range<uint8_t>& mem, unsigned int from) {
+  size_t read(plx::Range<uint8_t>& mem, unsigned int from = -1) {
+    return read(mem.start(), mem.size(), from);
+  }
+
+  size_t read(uint8_t* buf, size_t len, int from) {
     OVERLAPPED ov = {0};
     ov.Offset = from;
     DWORD read = 0;
-    if (!::ReadFile(handle_, mem.start(), static_cast<DWORD>(mem.size()),
-                    &read, &ov))
+    if (!::ReadFile(handle_, buf, static_cast<DWORD>(len),
+                    &read, (from < 0) ? nullptr : &ov))
       return 0;
     return read;
   }
