@@ -130,4 +130,5 @@ catalog 1 {
   plx::UTF16FromUTF8 plx\unicode\utf16_from_utf8.h;
   plx::CreateDWriteFactory plx\gfx\dwrite_factory.h;
   plx::CreateDWTextLayout plx\gfx\dwrite_text_layout.h;
+  plx::ScopedClipboard plx\ui\scoped_clipboard.h;
 }
