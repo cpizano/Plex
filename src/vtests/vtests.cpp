@@ -253,7 +253,7 @@ public:
       }
     }
 
-    return ::DefWindowProc(window_, message, wparam, lparam);
+    return ::DefWindowProc(window(), message, wparam, lparam);
   }
 
   void paint_handler() {
@@ -311,15 +311,15 @@ public:
   LRESULT dpi_changed_handler(LPARAM lparam) {
     
     plx::RectL r(plx::SizeL(
-          static_cast<long>(dpi_.to_physical_x(width_)),
-          static_cast<long>(dpi_.to_physical_x(height_))));
+          static_cast<long>(dpi().to_physical_x(width_)),
+          static_cast<long>(dpi().to_physical_x(height_))));
     
     auto suggested = reinterpret_cast<const RECT*> (lparam);
     ::AdjustWindowRectEx(&r, 
-        ::GetWindowLong(window_, GWL_STYLE),
+        ::GetWindowLong(window(), GWL_STYLE),
         FALSE,
-        ::GetWindowLong(window_, GWL_EXSTYLE));
-    ::SetWindowPos(window_, nullptr, suggested->left, suggested->top,
+        ::GetWindowLong(window(), GWL_EXSTYLE));
+    ::SetWindowPos(window(), nullptr, suggested->left, suggested->top,
                    r.width(), r.height(),
                    SWP_NOACTIVATE | SWP_NOZORDER);
     return 0;
