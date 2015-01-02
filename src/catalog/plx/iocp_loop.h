@@ -32,12 +32,13 @@ class IOCPLoop {
   HANDLE port_;
   unsigned int calls_;
 
+  IOCPLoop(const IOCPLoop&) = delete;
+  IOCPLoop& operator=(const IOCPLoop&)= delete;
+
 public:
   IOCPLoop() : port_(nullptr), calls_(0) {
     port_ = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
   }
-
-  IOCPLoop(const IOCPLoop&) = delete;
 
   ~IOCPLoop() {
     ::CloseHandle(port_);

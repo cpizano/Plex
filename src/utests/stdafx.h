@@ -798,6 +798,9 @@ class Globals {
     return services[id];
   }
 
+  Globals(const Globals&) = delete;
+  Globals& operator=(const Globals&) = delete;
+
 public:
   Globals() {
     memset(services_, 0, sizeof(services_));
@@ -973,12 +976,13 @@ class IOCPLoop {
   HANDLE port_;
   unsigned int calls_;
 
+  IOCPLoop(const IOCPLoop&) = delete;
+  IOCPLoop& operator=(const IOCPLoop&)= delete;
+
 public:
   IOCPLoop() : port_(nullptr), calls_(0) {
     port_ = ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 1);
   }
-
-  IOCPLoop(const IOCPLoop&) = delete;
 
   ~IOCPLoop() {
     ::CloseHandle(port_);
@@ -1147,12 +1151,13 @@ class VEHManager {
   std::vector<Node> handlers_;
   void* veh_handler_;
 
+  VEHManager(const VEHManager&) = delete;
+  VEHManager& operator=(const VEHManager&) = delete;
+
 public:
   typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
 
   VEHManager() = default;
-  VEHManager(const VEHManager&) = delete;
-  VEHManager& operator=(const VEHManager&) = delete;
 
   void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
     auto wl = lock_.write_lock();
@@ -1333,12 +1338,14 @@ class CmdLine {
   };
 
   struct KeyEqual {
-    bool operator()(const plx::Range<const wchar_t>& lhs, const plx::Range<const wchar_t>& rhs) const {
+    bool operator()(const plx::Range<const wchar_t>& lhs,
+                    const plx::Range<const wchar_t>& rhs) const {
       return lhs.equals(rhs);
     }
   };
 
-  std::unordered_map<plx::Range<const wchar_t>, plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
+  std::unordered_map<plx::Range<const wchar_t>,
+                     plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
   std::vector<plx::Range<const wchar_t>> extra_;
   plx::Range<const wchar_t> program_;
 
@@ -1759,6 +1766,9 @@ class DemandPagedMemory {
   size_t block_size_;
   plx::Range<uint8_t> range_;
 
+  DemandPagedMemory(const DemandPagedMemory&) = delete;
+  DemandPagedMemory& operator=(const DemandPagedMemory&) = delete;
+
 public:
   DemandPagedMemory(size_t max_bytes, size_t block_pages)
       : page_faults_(0),
@@ -2043,6 +2053,9 @@ class Inflater {
   std::unique_ptr<plx::HuffmanCodec> liter_len_;
   std::unique_ptr<plx::HuffmanCodec> distance_;
 
+  Inflater(const Inflater&) = delete;
+  Inflater& operator=(const Inflater&) = delete;
+
 public:
   enum Errors {
     success = 0,
@@ -2059,9 +2072,6 @@ public:
 
   Inflater() : error_(success)  {
   }
-
-  Inflater(const Inflater&) = delete;
-  Inflater& operator=(const Inflater&) = delete;
 
   const plx::Range<uint8_t>& output() const {
     return output_;

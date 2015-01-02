@@ -13,12 +13,14 @@ class CmdLine {
   };
 
   struct KeyEqual {
-    bool operator()(const plx::Range<const wchar_t>& lhs, const plx::Range<const wchar_t>& rhs) const {
+    bool operator()(const plx::Range<const wchar_t>& lhs,
+                    const plx::Range<const wchar_t>& rhs) const {
       return lhs.equals(rhs);
     }
   };
 
-  std::unordered_map<plx::Range<const wchar_t>, plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
+  std::unordered_map<plx::Range<const wchar_t>,
+                     plx::Range<const wchar_t>, KeyHash, KeyEqual> opts_;
   std::vector<plx::Range<const wchar_t>> extra_;
   plx::Range<const wchar_t> program_;
 

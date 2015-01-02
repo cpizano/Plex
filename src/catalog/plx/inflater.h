@@ -12,6 +12,9 @@ class Inflater {
   std::unique_ptr<plx::HuffmanCodec> liter_len_;
   std::unique_ptr<plx::HuffmanCodec> distance_;
 
+  Inflater(const Inflater&) = delete;
+  Inflater& operator=(const Inflater&) = delete;
+
 public:
   enum Errors {
     success = 0,
@@ -28,9 +31,6 @@ public:
 
   Inflater() : error_(success)  {
   }
-
-  Inflater(const Inflater&) = delete;
-  Inflater& operator=(const Inflater&) = delete;
 
   const plx::Range<uint8_t>& output() const {
     return output_;

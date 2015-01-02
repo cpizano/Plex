@@ -15,6 +15,9 @@ class Globals {
     return services[id];
   }
 
+  Globals(const Globals&) = delete;
+  Globals& operator=(const Globals&) = delete;
+
 public:
   Globals() {
     memset(services_, 0, sizeof(services_));

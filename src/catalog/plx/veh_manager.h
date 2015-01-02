@@ -52,12 +52,13 @@ class VEHManager {
   std::vector<Node> handlers_;
   void* veh_handler_;
 
+  VEHManager(const VEHManager&) = delete;
+  VEHManager& operator=(const VEHManager&) = delete;
+
 public:
   typedef std::function<bool(EXCEPTION_RECORD*)> HandlerFn;
 
   VEHManager() = default;
-  VEHManager(const VEHManager&) = delete;
-  VEHManager& operator=(const VEHManager&) = delete;
 
   void add_av_handler(const plx::Range<uint8_t>& address, HandlerFn& fn) {
     auto wl = lock_.write_lock();

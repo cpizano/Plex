@@ -7,6 +7,9 @@ class DemandPagedMemory {
   size_t page_faults_;
   size_t block_size_;
   plx::Range<uint8_t> range_;
+
+  DemandPagedMemory(const DemandPagedMemory&) = delete;
+  DemandPagedMemory& operator=(const DemandPagedMemory&) = delete;
   
 public:
   DemandPagedMemory(size_t max_bytes, size_t block_pages)
