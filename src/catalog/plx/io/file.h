@@ -15,9 +15,9 @@ private:
       status_(status) {
   }
 
-  File();
-  File(const File&);
-  File& operator=(const File&);
+  File() = delete;
+  File(const File&) = delete;
+  File& operator=(const File&) = delete;
 
 public:
   enum Status {

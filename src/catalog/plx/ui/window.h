@@ -6,9 +6,18 @@ namespace plx {
 
 template <typename Derived>
 class Window {
-protected:
-  HWND window_ = nullptr;
+  HWND window_;
   plx::DPI dpi_;
+
+  Window(const Window&) = delete;
+  Window& operator=(const Window&) = delete;
+
+public:
+  HWND window() { return window_; }
+  const plx::DPI& dpi() const { return dpi_; }
+
+protected:
+  Window() : window_(nullptr) {}
 
   HWND create_window(DWORD ex_style, DWORD style,
                      LPCWSTR window_name,
@@ -87,15 +96,6 @@ protected:
     }
 
     return ::DefWindowProc(window, message, wparam, lparam);
-  }
-
-public:
-  HWND window() {
-    return window_;
-  }
-
-  const plx::DPI& dpi() const {
-    return dpi_;
   }
 };
 

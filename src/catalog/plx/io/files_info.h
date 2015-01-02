@@ -4,11 +4,16 @@
 //
 namespace plx {
 #pragma comment(user, "plex.define=plex_vista_support")
+
 class FilesInfo {
 private:
   FILE_ID_BOTH_DIR_INFO* info_;
   plx::LinkedBuffers link_buffs_;
   mutable bool done_;
+
+private:
+  FilesInfo() : info_(nullptr), done_(false) {}
+  FilesInfo(const FilesInfo&) = delete;
 
 public:
   static FilesInfo FromDir(plx::File& file, long buffer_hint = 32) {
@@ -80,12 +85,6 @@ public:
   bool is_directory() const {
     return info_->FileAttributes & FILE_ATTRIBUTE_DIRECTORY? true : false; 
   }
-
-private:
-  FilesInfo() : info_(nullptr), done_(false) {
-  }
-
-  FilesInfo(const FilesInfo&);
 };
 
 }
