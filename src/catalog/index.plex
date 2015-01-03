@@ -131,4 +131,5 @@ catalog 1 {
   plx::CreateDWriteFactory plx\gfx\dwrite_factory.h;
   plx::CreateDWTextLayout plx\gfx\dwrite_text_layout.h;
   plx::ScopedClipboard plx\ui\scoped_clipboard.h;
+  plx::ScopedD2D1DeviceContext plx\gfx\d2d_device_ctx.h;
 }
