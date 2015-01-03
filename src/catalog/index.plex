@@ -132,4 +132,6 @@ catalog 1 {
   plx::CreateDWTextLayout plx\gfx\dwrite_text_layout.h;
   plx::ScopedClipboard plx\ui\scoped_clipboard.h;
   plx::ScopedD2D1DeviceContext plx\gfx\d2d_device_ctx.h;
+  plx::FontWSSParams plx\gfx\dwrite_wss_params.h;
+  plx::CreateDWriteSystemTextFormat plx\gfx\dwrite_system_text_format.h;
 }
