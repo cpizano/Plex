@@ -13,6 +13,7 @@ include 1 {
   std::isdigit <cctype>;
   std::iterator_traits <iterator>;
   std::list <list>;
+  std::lower_bound <algorithm>;
   std::make_unique <memory>;
   std::map <map>;
   std::max <algorithm>;
