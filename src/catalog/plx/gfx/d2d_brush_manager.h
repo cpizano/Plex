@@ -23,7 +23,9 @@ public:
   }
 
   void release_all() {
-    sb_.clear();
+    for (auto& b : sb_) {
+      b.Reset();
+    }
   }
 };
 
