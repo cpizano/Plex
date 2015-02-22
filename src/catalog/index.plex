@@ -136,4 +136,5 @@ catalog 1 {
   plx::FontWSSParams plx\gfx\dwrite_wss_params.h;
   plx::CreateDWriteSystemTextFormat plx\gfx\dwrite_system_text_format.h;
   plx::D2D1BrushManager plx\gfx\d2d_brush_manager.h;
+  plx::CreateD2D1Geometry plx\gfx\d2d_geometry.h;
 }
