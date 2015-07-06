@@ -55,8 +55,9 @@ include 2 {
   ::GetDpiForMonitor <shellscalingapi.h> [shcore.lib];
   IWICImagingFactory <wincodec.h>;
   ::CoInitializeEx <objbase.h>;
-  ::SHGetKnownFolderPath <Shlobj.h>;
+  ::SHGetKnownFolderPath <shlobj.h>;
   ::DWriteCreateFactory <dwrite.h> [dwrite.lib];
+  ::MFStartup <mfapi.h> [mfplat.lib];
 }
 
 catalog 1 {
