@@ -58,6 +58,7 @@ include 2 {
   ::SHGetKnownFolderPath <shlobj.h>;
   ::DWriteCreateFactory <dwrite.h> [dwrite.lib];
   ::MFStartup <mfapi.h> [mfplat.lib];
+  ::MFEnumDeviceSources <mfidl.h> [mf.lib];
 }
 
 catalog 1 {
