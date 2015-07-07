@@ -113,6 +113,7 @@ catalog 1 {
   plx::Window plx\ui\window.h;
   plx::DPI plx\ui\dpi.h;
   plx::ComPtr plx\com_ptr.h;
+  plx::ComObject plx\com_object.h;
   plx::CreateDeviceD3D11 plx\gfx\d3d_device.h;
   plx::CreateDeviceD2D1 plx\gfx\d2d_device.h;
   plx::CreateWICFactory plx\gfx\wic_factory.h;
