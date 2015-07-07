@@ -59,6 +59,7 @@ include 2 {
   ::DWriteCreateFactory <dwrite.h> [dwrite.lib];
   ::MFStartup <mfapi.h> [mfplat.lib];
   ::MFEnumDeviceSources <mfidl.h> [mf.lib];
+  MF_E_NO_MORE_TYPES <mferror.h>;
 }
 
 catalog 1 {
