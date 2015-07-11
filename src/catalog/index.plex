@@ -60,6 +60,11 @@ include 2 {
   ::MFStartup <mfapi.h> [mfplat.lib];
   ::MFEnumDeviceSources <mfidl.h> [mf.lib];
   MF_E_NO_MORE_TYPES <mferror.h>;
+  MF_MT_SUBTYPE <mfapi.h> [mfuuid.lib];
+  AM_MEDIA_TYPE <dshow.h>;
+  FORMAT_VideoInfo2 <uuids.h> [strmiids.lib];
+  VIDEOINFOHEADER2 <dvdmedia.h>;
+  CColorConvertDMO <wmcodecdsp.h>;
 }
 
 catalog 1 {
