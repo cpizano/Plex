@@ -4,6 +4,7 @@ include 1 {
   std::array <array>;
   std::bind <functional>;
   std::bitset <bitset>;
+  std::ctime <ctime>;
   std::deque <deque>;
   std::floor <cmath>;
   std::forward_list <forward_list>;
@@ -24,6 +25,7 @@ include 1 {
   std::remove_reference <type_traits>;
   std::stod <string>;
   std::stoll <string>;
+  std::strftime <ctime>;
   std::string <string>;
   std::stringstream <sstream>;
   std::thread <thread>;
