@@ -592,7 +592,7 @@ void Test_Utf8decode::Exec() {
 void Test_Utf8Utf16Conv::Exec() {
   auto source = std::wstring(L"Euro sign (U+20AC): \x20AC");
   auto utf_8 = plx::UTF8FromUTF16(plx::RangeFromString(source));
-  auto utf_16 = plx::UTF16FromUTF8(plx::RangeFromString(utf_8));
+  auto utf_16 = plx::UTF16FromUTF8(plx::RangeFromString(utf_8), true);
   CheckEQ(source == utf_16, true);
 }
 
@@ -1329,4 +1329,105 @@ void Test_RectLSizeL::Exec() {
   CheckEQ(r2.height() == 20, true);
 }
 
+class SharedMemory {
+  plx::Range<uint8_t> range_;
+  friend class SharedSection;
 
+public:
+  SharedMemory(SharedMemory&& other) : range_(other.range_) {
+    other.range_.clear();
+  }
+
+  SharedMemory(const SharedMemory&) = delete;
+  SharedMemory& operator=(const SharedMemory&) = delete;
+
+  ~SharedMemory() {
+    if (!range_.empty())
+      ::UnmapViewOfFile(range_.start());
+  }
+
+  plx::Range<uint8_t> range() { return range_; }
+
+protected:
+  SharedMemory(const plx::Range<uint8_t>& range)
+    : range_(range) {
+  }
+
+};
+
+class SharedSection {
+  HANDLE mapping_;
+
+public:
+  enum SP {
+    section_r = PAGE_READONLY,
+    section_rw = PAGE_READWRITE,
+  };
+
+  enum MP {
+    map_r = SECTION_MAP_READ,
+    map_rw = SECTION_MAP_READ | SECTION_MAP_WRITE
+  };
+
+  SharedSection(const std::wstring name, SP protect, size_t size) : mapping_(0) {
+    LARGE_INTEGER li;
+    li.QuadPart = size;
+    mapping_ = ::CreateFileMapping(INVALID_HANDLE_VALUE,
+                                   nullptr,
+                                   protect,
+                                   li.HighPart, li.LowPart,
+                                   name.c_str());
+    if (!mapping_)
+      throw 1;
+  }
+
+  ~SharedSection() {
+    ::CloseHandle(mapping_);
+  }
+
+  SharedSection(const SharedMemory&) = delete;
+  SharedSection& operator=(const SharedMemory&) = delete;
+
+  SharedMemory map(size_t start, size_t size, MP protect) {
+    LARGE_INTEGER li;
+    li.QuadPart = start;
+    auto addr = reinterpret_cast<uint8_t*>(
+        ::MapViewOfFileEx(mapping_, protect, li.HighPart, li.LowPart, size, nullptr));
+    if (!addr)
+      throw 2;
+    return SharedMemory(plx::Range<uint8_t>(addr, size));
+  }
+
+};
+
+void Test_SharedMemory::Exec() {
+  SharedSection section(L"lala_foo", SharedSection::section_rw, 8 * 1024);
+  auto sh_mem1 = section.map(0, 4 * 1024, SharedSection::map_rw);
+  auto sh_mem2 = section.map(0, 2 * 1024, SharedSection::map_r);
+
+  sh_mem1.range()[5] = 0x66;
+  sh_mem1.range()[6] = 0x55;
+
+  CheckEQ(sh_mem2.range()[4], 0);
+  CheckEQ(sh_mem2.range()[5], 0x66);
+  CheckEQ(sh_mem2.range()[6], 0x55);
+}
+
+// Logger system
+/*
+
+01. There is a shared section with a well known name, created by the master. Clients write to it
+02. The shared section has a header which has version, size etc. Then it has a user count and
+    a 'head' value.
+03. When the client writes it atomically increments the head and the writes the message
+    in the space [prev_head, head). Other clients can then write at the same time.
+04. The master is in charge reading the messages, decoding and writting them to disk from time to time.
+05. There are a fixed number of possible messages with a variable payload. The messages are not printf
+    text, they are only the values and an id that identifies the message.
+06. There is a hello message where a client points the master to the message table. The
+    master will read the message table and use it to decode each message.
+07. The master can reset the head value, the clients only increment it. The master resets the head
+    when the messages have been written to disk.
+
+
+*/

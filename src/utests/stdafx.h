@@ -9,7 +9,7 @@
 
 
 
-#include <Shlobj.h>
+#include <shlobj.h>
 #include <intrin.h>
 #include <stdlib.h>
 #include <nmmintrin.h>
@@ -2475,7 +2475,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 // plx::UTF16FromUTF8
-std::wstring UTF16FromUTF8(const plx::Range<const uint8_t>& utf8) ;
+std::wstring UTF16FromUTF8(const plx::Range<const uint8_t>& utf8, bool strict) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////

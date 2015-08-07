@@ -89,4 +89,5 @@ TEST(Test_VEHManager);
 TEST(Test_DemandPagedMemory);
 TEST(Test_ArgPack);
 TEST(Test_RectLSizeL);
+TEST(Test_SharedMemory);
 #undef TEST
