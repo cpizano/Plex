@@ -116,7 +116,7 @@ catalog 1 {
   plx::ReaderWriterLock plx\concurrent\reader_writer_lock.h;
   plx::Globals plx\globals.h;
   plx::VEHManager plx\veh_manager.h;
-  plx::DemandPagedMemory plx\demand_paged_memory.h;
+  plx::DemandPagedMemory plx\memory\demand_paged_memory.h;
   plx::ArgInfo plx\arg_pack.h;
   plx::Window plx\ui\window.h;
   plx::DPI plx\ui\dpi.h;
@@ -148,4 +148,5 @@ catalog 1 {
   plx::CreateDWriteSystemTextFormat plx\gfx\dwrite_system_text_format.h;
   plx::D2D1BrushManager plx\gfx\d2d_brush_manager.h;
   plx::CreateD2D1Geometry plx\gfx\d2d_geometry.h;
+  plx::SharedSection plx\memory\shared_memory.h;
 }
