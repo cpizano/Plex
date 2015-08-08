@@ -149,5 +149,6 @@ catalog 1 {
   plx::CreateDWriteSystemTextFormat plx\gfx\dwrite_system_text_format.h;
   plx::D2D1BrushManager plx\gfx\d2d_brush_manager.h;
   plx::CreateD2D1Geometry plx\gfx\d2d_geometry.h;
-  plx::SharedSection plx\memory\shared_memory.h;
+  plx::SharedSection plx\memory\shared_section.h;
+  plx::SharedMemory plx\memory\shared_memory.h;
 }

@@ -2382,9 +2382,8 @@ struct SizeL : public ::SIZE {
 };
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
-// plx::SharedMemory, SharedSection
+// plx::SharedMemory
 //
 class SharedMemory {
   plx::Range<uint8_t> range_;
@@ -2422,6 +2421,10 @@ protected:
   }
 };
 
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::SharedSection
+//
 class SharedSection {
   HANDLE mapping_;
 
@@ -2450,11 +2453,10 @@ public:
   SharedSection(const SharedMemory&) = delete;
   SharedSection& operator=(const SharedMemory&) = delete;
 
-  SharedMemory map(size_t start, size_t size, SP protect) const {
+  plx::SharedMemory map(size_t start, size_t size, SP protect) const {
     auto p = protect == read_only ? SharedMemory::map_r : SharedMemory::map_rw;
     return SharedMemory(mapping_, start, size, p);
   }
-
 };
 
 
