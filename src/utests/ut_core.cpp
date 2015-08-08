@@ -1330,9 +1330,9 @@ void Test_RectLSizeL::Exec() {
 }
 
 void Test_SharedMemory::Exec() {
-  plx::SharedSection section(L"lala_foo", plx::SharedSection::section_rw, 8 * 1024);
-  auto sh_mem1 = section.map(0, 4 * 1024, plx::SharedSection::map_rw);
-  auto sh_mem2 = section.map(0, 2 * 1024, plx::SharedSection::map_r);
+  plx::SharedSection section(L"lala_foo", plx::SharedSection::read_write, 8 * 1024);
+  auto sh_mem1 = section.map(0, 4 * 1024, plx::SharedSection::read_write);
+  auto sh_mem2 = section.map(0, 2 * 1024, plx::SharedSection::read_only);
 
   sh_mem1.range()[5] = 0x66;
   sh_mem1.range()[6] = 0x55;
