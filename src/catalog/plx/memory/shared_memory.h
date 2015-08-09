@@ -20,7 +20,7 @@ public:
       ::UnmapViewOfFile(range_.start());
   }
 
-  plx::Range<uint8_t> range() { return range_; }
+  plx::Range<uint8_t> range() const { return range_; }
 
 protected:
   enum MP {
