@@ -80,6 +80,12 @@ plx::FilePath GetExePath() {
   _get_wpgmptr(&pp);
   return FilePath(pp).parent();
 }
+uint64_t GetLuid() {
+  LUID luid;
+  ::AllocateLocallyUniqueId(&luid);
+  ULARGE_INTEGER li = {luid.LowPart, luid.HighPart};
+  return li.QuadPart;
+}
 uint32_t Hash_FNV1a_32(const plx::Range<const uint8_t>& r) {
   auto bp = r.start();
   auto be = r.end();

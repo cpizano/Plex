@@ -1342,20 +1342,7 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
-// Logger system
-/*
-
-01. There is a shared section with a well known name, created by the master. Clients write to it
-02. The shared section has a header which has version, size etc. Then it has a user count and
-    a 'head' value.
-03. When the client writes it atomically increments the head and the writes the message
-    in the space [prev_head, head). Other clients can then write at the same time.
-04. The master is in charge reading the messages, decoding and writting them to disk from time to time.
-05. There are a fixed number of possible messages with a variable payload. The messages are not printf
-    text, they are only the values and an id that identifies the message.
-06. There is a hello message where a client points the master to the message table. The
-    master will read the message table and use it to decode each message.
-07. The master can reset the head value, the clients only increment it. The master resets the head
-    when the messages have been written to disk.
-*/
-
+void Test_LUID::Exec() {
+  auto luid = plx::GetLuid();
+  CheckEQ(luid != 0ULL, true);
+}
