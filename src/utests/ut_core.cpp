@@ -1346,3 +1346,94 @@ void Test_LUID::Exec() {
   auto luid = plx::GetLuid();
   CheckEQ(luid != 0ULL, true);
 }
+
+// Logger system
+/*
+
+01. There is a shared section with a well known name, created by the master. Clients write to it
+02. The shared section has a header which has version, size etc. Then it has a user count and
+    a 'head' value.
+03. When the client writes it atomically increments the head and the writes the message
+    in the space [prev_head, head). Other clients can then write at the same time.
+04. The master is in charge reading the messages, decoding and writting them to disk from time to time.
+05. There are a fixed number of possible messages with a variable payload. The messages are not printf
+    text, they are only the values and an id that identifies the message.
+06. There is a hello message where a client points the master to the message table. The
+    master will read the message table and use it to decode each message.
+07. The master can reset the head value, the clients only increment it. The master resets the head
+    when the messages have been written to disk.
+*/
+
+struct SharedBuffer {
+  uint32_t magic;
+  uint32_t version;
+  int32_t size;
+  uint32_t head;
+  uint8_t body[1];
+
+  enum {
+    magic_one = 0x26871329,
+    magic_two = 0x12066200,
+    version_1 = 0x101,
+  };
+
+  struct Packet {
+    uint32_t size;
+    uint32_t src;
+    uint32_t mid;
+    uint8_t body[4];
+  };
+
+  static std::wstring name(uint32_t id) {
+    return L"plx!shm!n" + std::to_wstring(id);
+  }
+
+  bool write(const Packet& packet) {
+    auto sz = plx::To<long>(packet.size);
+    auto nh = _InterlockedAdd(reinterpret_cast<long*>(&head), sz);
+    if (nh >= size) {
+      // Not enough room, undo operation and exit.
+      _InterlockedAdd(reinterpret_cast<long*>(&head), -sz);
+      return false;
+    }
+    auto dest = &body[nh - sz];
+    memcpy(dest, &packet, sz);
+    return true;
+  }
+};
+
+class SharedBufferMaster {
+  SharedBuffer* sb_;
+  uint32_t next_id_;
+  const size_t size_ = 2 * 1024 * 1024;
+  plx::SharedMemory shmem_;
+
+public:
+  SharedBufferMaster() : sb_(nullptr), next_id_(0) {
+    create();
+  }
+
+protected:
+  bool create() {
+    auto name = SharedBuffer::name(next_id_);
+    plx::SharedSection section(name.c_str(), plx::SharedSection::read_write, size_);
+    if (section.existing())
+      return false;
+    ++next_id_;
+    shmem_ = section.map(0, size_, plx::SharedSection::read_write);
+    sb_ = reinterpret_cast<SharedBuffer*>(shmem_.range().start());
+    // Initialize the header.
+    sb_->magic = SharedBuffer::magic_one;
+    sb_->version = SharedBuffer::version_1;
+    sb_->size = plx::To<int32_t>(size_ - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
+    return true;
+  }
+
+};
+
+class SharedBufferWriter {
+  SharedBuffer* sb_;
+
+public:
+  SharedBufferWriter() {}
+};

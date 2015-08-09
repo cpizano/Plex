@@ -2396,12 +2396,18 @@ class SharedMemory {
   friend class SharedSection;
 
 public:
+  SharedMemory() = default;
+
   SharedMemory(SharedMemory&& other) : range_(other.range_) {
     other.range_.clear();
   }
 
   SharedMemory(const SharedMemory&) = delete;
   SharedMemory& operator=(const SharedMemory&) = delete;
+
+  SharedMemory& operator=(SharedMemory&& other) {
+    std::swap(other.range_, range_);
+  }
 
   ~SharedMemory() {
     if (!range_.empty())
