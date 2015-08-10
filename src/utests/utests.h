@@ -91,4 +91,5 @@ TEST(Test_ArgPack);
 TEST(Test_RectLSizeL);
 TEST(Test_SharedMemory);
 TEST(Test_LUID);
+TEST(Test_SharedBuffer);
 #undef TEST

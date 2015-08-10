@@ -1976,6 +1976,12 @@ bool PlatformCheck() ;;
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::ProcessCreationTime.
+//
+uint64_t ProcessCreationTime(HANDLE process) ;
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::HuffmanCodec : implements a huffman decoder.
 // it maps bit patterns (codes) of up to 15 bits to 16 bit symbols.
 //
@@ -2407,6 +2413,7 @@ public:
 
   SharedMemory& operator=(SharedMemory&& other) {
     std::swap(other.range_, range_);
+    return *this;
   }
 
   ~SharedMemory() {
@@ -2417,12 +2424,7 @@ public:
   plx::Range<uint8_t> range() const { return range_; }
 
 protected:
-  enum MP {
-    map_r = SECTION_MAP_READ,
-    map_rw = SECTION_MAP_READ | SECTION_MAP_WRITE
-  };
-
-  SharedMemory(HANDLE section, size_t start, size_t size, MP protect) {
+  SharedMemory(HANDLE section, size_t start, size_t size, DWORD protect) {
     LARGE_INTEGER li;
     li.QuadPart = start;
     auto addr = reinterpret_cast<uint8_t*>(
@@ -2443,17 +2445,20 @@ class SharedSection {
 
 public:
   enum SP {
-    read_only = PAGE_READONLY | SEC_COMMIT,
-    read_write = PAGE_READWRITE | SEC_COMMIT,
+    read_only,
+    read_write
   };
+
+  SharedSection() : mapping_(0), existing_(false) {}
 
   SharedSection(const std::wstring name, SP protect, size_t size)
       : mapping_(0), existing_(false) {
     LARGE_INTEGER li;
     li.QuadPart = size;
+    auto p = protect == read_only ? PAGE_READONLY : PAGE_READWRITE;
     mapping_ = ::CreateFileMapping(INVALID_HANDLE_VALUE,
                                    nullptr,
-                                   protect,
+                                   p | SEC_COMMIT,
                                    li.HighPart, li.LowPart,
                                    name.c_str());
     if (!mapping_)
@@ -2462,17 +2467,33 @@ public:
       existing_ = true;
   }
 
+  SharedSection(SP protect, const std::wstring name)
+      : mapping_(0), existing_(false) {
+    // Note the use of FILE_MAP constants, unlike CreateFileMapping.
+    auto p = protect == read_only ? FILE_MAP_READ : FILE_MAP_READ | FILE_MAP_WRITE;
+    mapping_ = ::OpenFileMapping(p, FALSE, name.c_str());
+    if (mapping_)
+      existing_ = true;
+  }
+
   bool existing() const { return existing_; }
 
   ~SharedSection() {
-    ::CloseHandle(mapping_);
+    if (mapping_)
+      ::CloseHandle(mapping_);
   }
 
   SharedSection(const SharedMemory&) = delete;
   SharedSection& operator=(const SharedMemory&) = delete;
 
+  SharedSection& operator=(SharedSection&& other) {
+    std::swap(other.mapping_, mapping_);
+    std::swap(other.existing_, existing_);
+    return *this;
+  }
+
   plx::SharedMemory map(size_t start, size_t size, SP protect) const {
-    auto p = protect == read_only ? SharedMemory::map_r : SharedMemory::map_rw;
+    auto p = protect == read_only ? FILE_MAP_READ : FILE_MAP_READ | FILE_MAP_WRITE;
     return SharedMemory(mapping_, start, size, p);
   }
 };

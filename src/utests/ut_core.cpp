@@ -1379,61 +1379,165 @@ struct SharedBuffer {
 
   struct Packet {
     uint32_t size;
-    uint32_t src;
-    uint32_t mid;
-    uint8_t body[4];
+    uint32_t pkid;
+    uint64_t time;
+    uint64_t luid;
   };
 
   static std::wstring name(uint32_t id) {
     return L"plx!shm!n" + std::to_wstring(id);
   }
 
-  bool write(const Packet& packet) {
+  bool write(const Packet& packet) volatile {
     auto sz = plx::To<long>(packet.size);
-    auto nh = _InterlockedAdd(reinterpret_cast<long*>(&head), sz);
+    auto nh = _InterlockedAdd(reinterpret_cast<volatile long*>(&head), sz);
     if (nh >= size) {
       // Not enough room, undo operation and exit.
-      _InterlockedAdd(reinterpret_cast<long*>(&head), -sz);
+      _InterlockedAdd(reinterpret_cast<volatile long*>(&head), -sz);
       return false;
     }
     auto dest = &body[nh - sz];
-    memcpy(dest, &packet, sz);
+    memcpy(const_cast<uint8_t*>(dest), &packet, sz);
     return true;
+  }
+
+  bool verify() {
+    return ((magic == magic_two) && (version == version_1));
+  }
+
+};
+
+template<typename T>
+struct PacketHeader {
+  SharedBuffer::Packet pkt;
+
+  PacketHeader(uint64_t luid) {
+    pkt.size = sizeof(pkt) + sizeof(T);
+    pkt.pkid = T::packet_id;
+    pkt.time = ::GetTickCount64();
+    pkt.luid = luid;
   }
 };
 
-class SharedBufferMaster {
-  SharedBuffer* sb_;
-  uint32_t next_id_;
-  const size_t size_ = 2 * 1024 * 1024;
-  plx::SharedMemory shmem_;
+struct HelloPacket0 : PacketHeader<HelloPacket0> {
+  static const uint32_t packet_id = 0x01;
+  char name[16];
+  uint32_t tid;
+  uint32_t pid;
+  uint64_t ctime;
+  
+  HelloPacket0(plx::Range<const char>& name, uint32_t tid, uint64_t luid) 
+      : PacketHeader(luid), tid(tid) {
+    pid = ::GetCurrentProcessId();
+    ctime = plx::ProcessCreationTime(::GetCurrentProcess());
+    name.CopyToArray(this->name);
+  }
+};
+
+struct ByePacket0 : PacketHeader<ByePacket0> {
+  static const uint32_t packet_id = 0x02;
+  int32_t ret_code;
+
+  ByePacket0(uint64_t luid, int32_t ret_code) : PacketHeader(luid), ret_code(ret_code) {
+  }
+};
+
+class ProcessManager {
+  uint64_t luid_;
+  const char* name_;
 
 public:
-  SharedBufferMaster() : sb_(nullptr), next_id_(0) {
-    create();
+  ProcessManager(const char* name) : name_(name) {
+    luid_ = plx::GetLuid();
+    auto mtx_name = mutex_name(luid_);
+    auto mh = ::CreateMutex(nullptr, TRUE, mtx_name.c_str());
+    if (!mh)
+      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::waitable);
+    if (strlen(name_) != 15)
+      throw plx::InvalidParamException(__LINE__, 1);
+  }
+
+  uint64_t luid() const { return luid_; }
+  plx::Range<const char> name() const { return plx::Range<const char>(name_, &name_[16]); }
+
+  static std::wstring mutex_name(uint64_t luid) {
+    return L"plx!mtx!" + std::to_wstring(luid);
+  }
+};
+
+
+class SharedBufferMaster {
+  ProcessManager* pman_;
+  volatile SharedBuffer* sb_;
+  uint32_t next_id_;
+  plx::SharedMemory shmem_;
+  plx::SharedSection section_;
+
+public:
+  SharedBufferMaster(ProcessManager* pman, size_t size_MB) 
+      : pman_(pman), sb_(nullptr), next_id_(0) {
+    create(pman->luid(), size_MB * (1024UL * 1024UL));
+    // $$ handle faiure of create.
+    HelloPacket0 hello(pman_->name(), 0, pman_->luid());
+    sb_->write(hello.pkt);
+    sb_->magic = SharedBuffer::magic_two;
   }
 
 protected:
-  bool create() {
+  bool create(uint64_t luid, size_t size) {
     auto name = SharedBuffer::name(next_id_);
-    plx::SharedSection section(name.c_str(), plx::SharedSection::read_write, size_);
-    if (section.existing())
+    section_ = plx::SharedSection(name.c_str(), plx::SharedSection::read_write, size);
+    if (section_.existing())
       return false;
     ++next_id_;
-    shmem_ = section.map(0, size_, plx::SharedSection::read_write);
+    shmem_ = section_.map(0, size, plx::SharedSection::read_write);
     sb_ = reinterpret_cast<SharedBuffer*>(shmem_.range().start());
     // Initialize the header.
     sb_->magic = SharedBuffer::magic_one;
     sb_->version = SharedBuffer::version_1;
-    sb_->size = plx::To<int32_t>(size_ - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
+    sb_->size = plx::To<int32_t>(size - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
     return true;
   }
 
 };
 
 class SharedBufferWriter {
-  SharedBuffer* sb_;
+  ProcessManager* pman_;
+  volatile SharedBuffer* sb_;
+  plx::SharedMemory shmem_;
 
 public:
-  SharedBufferWriter() {}
+  SharedBufferWriter(ProcessManager* pman) : pman_(pman) {
+    open();
+    // $$ handle failure.
+    HelloPacket0 hello(pman_->name(), 0, pman_->luid());
+    sb_->write(hello.pkt);
+  }
+
+protected:
+  bool open() {
+    auto name = SharedBuffer::name(0);
+    plx::SharedSection section(plx::SharedSection::read_write, name.c_str());
+    if (!section.existing())
+      return false;
+    {
+      // scope block.
+      auto shm1 = section.map(0UL, 4 * 1024UL, plx::SharedSection::read_only);
+      auto probe = reinterpret_cast<SharedBuffer*>(shm1.range().start());
+      if (!probe->verify())
+        return false;
+    }
+    shmem_ = section.map(0UL, 4 * 1024UL, plx::SharedSection::read_write);
+    sb_ = reinterpret_cast<SharedBuffer*>(shmem_.range().start());
+    return true;
+  }
+
 };
+
+
+void Test_SharedBuffer::Exec() {
+  ProcessManager pman1("xyz_abc_123.456");
+  SharedBufferMaster master(&pman1, 2);
+  ProcessManager pman2("kuv_naa_000.111");
+  SharedBufferWriter writer(&pman2);
+}
