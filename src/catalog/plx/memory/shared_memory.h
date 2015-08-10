@@ -30,12 +30,7 @@ public:
   plx::Range<uint8_t> range() const { return range_; }
 
 protected:
-  enum MP {
-    map_r = SECTION_MAP_READ,
-    map_rw = SECTION_MAP_READ | SECTION_MAP_WRITE
-  };
-
-  SharedMemory(HANDLE section, size_t start, size_t size, MP protect) {
+  SharedMemory(HANDLE section, size_t start, size_t size, DWORD protect) {
     LARGE_INTEGER li;
     li.QuadPart = start;
     auto addr = reinterpret_cast<uint8_t*>(
