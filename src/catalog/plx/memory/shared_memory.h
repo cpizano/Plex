@@ -19,6 +19,7 @@ public:
 
   SharedMemory& operator=(SharedMemory&& other) {
     std::swap(other.range_, range_);
+    return *this;
   }
 
   ~SharedMemory() {
