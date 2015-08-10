@@ -152,4 +152,5 @@ catalog 1 {
   plx::SharedSection plx\memory\shared_section.h;
   plx::SharedMemory plx\memory\shared_memory.h;
   plx::GetLuid plx\luid.h;
+  plx::ProcessCreationTime plx\process_ctime.h;
 }
