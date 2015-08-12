@@ -1384,8 +1384,12 @@ struct SharedBuffer {
     uint64_t luid;
   };
 
-  static std::wstring name(uint32_t id) {
-    return L"plx!shm!n" + std::to_wstring(id);
+  static std::wstring section_name(uint32_t id) {
+    return L"plx.shm.n" + std::to_wstring(id);
+  }
+
+  static std::wstring event_name() {
+    return L"plx.evt.shbuf";
   }
 
   bool write(const Packet& packet) volatile {
@@ -1461,42 +1465,94 @@ public:
   plx::Range<const char> name() const { return plx::Range<const char>(name_, &name_[16]); }
 
   static std::wstring mutex_name(uint64_t luid) {
-    return L"plx!mtx!" + std::to_wstring(luid);
+    return L"plx.mtx.live." + std::to_wstring(luid);
   }
 };
 
+void __stdcall EmptyAPC(ULONG_PTR) {
+}
 
 class SharedBufferMaster {
-  ProcessManager* pman_;
-  volatile SharedBuffer* sb_;
-  uint32_t next_id_;
-  plx::SharedMemory shmem_;
-  plx::SharedSection section_;
+  HANDLE thread_;
+  static const DWORD wait_ms = 30000;
 
 public:
-  SharedBufferMaster(ProcessManager* pman, size_t size_MB) 
-      : pman_(pman), sb_(nullptr), next_id_(0) {
-    create(pman->luid(), size_MB * (1024UL * 1024UL));
-    // $$ handle faiure of create.
-    HelloPacket0 hello(pman_->name(), 0, pman_->luid());
-    sb_->write(hello.pkt);
-    sb_->magic = SharedBuffer::magic_two;
+  SharedBufferMaster(ProcessManager* pman, size_t size_MB) {
+    std::thread t(&SharedBufferMaster::run, this, pman, size_MB * (1024UL * 1024UL));
+    thread_ = t.native_handle();
+  }
+
+  ~SharedBufferMaster() {
+    ::QueueUserAPC(&EmptyAPC, thread_, 0);
+    ::WaitForSingleObject(thread_, INFINITE);
+    ::CloseHandle(thread_);
   }
 
 protected:
-  bool create(uint64_t luid, size_t size) {
-    auto name = SharedBuffer::name(next_id_);
-    section_ = plx::SharedSection(name.c_str(), plx::SharedSection::read_write, size);
-    if (section_.existing())
-      return false;
-    ++next_id_;
-    shmem_ = section_.map(0, size, plx::SharedSection::read_write);
-    sb_ = reinterpret_cast<SharedBuffer*>(shmem_.range().start());
-    // Initialize the header.
-    sb_->magic = SharedBuffer::magic_one;
-    sb_->version = SharedBuffer::version_1;
-    sb_->size = plx::To<int32_t>(size - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
-    return true;
+  void run(ProcessManager* pman, size_t size) {    
+    auto full_event = 
+        ::CreateEventW(nullptr, FALSE, FALSE, SharedBuffer::event_name().c_str());
+    if (!full_event)
+      throw 2;
+
+    uint32_t section_id = 0;
+    do {
+      // Create the public section and map the whole view.
+      auto name = SharedBuffer::section_name(section_id++);
+      plx::SharedSection section(name.c_str(), plx::SharedSection::read_write, size);
+      if (section.existing())
+        throw 1;
+      auto shmem = section.map(0, size, plx::SharedSection::read_write);
+      auto sb = reinterpret_cast<volatile SharedBuffer*>(shmem.range().start());
+      // Initialize the header.
+      sb->magic = SharedBuffer::magic_one;
+      sb->version = SharedBuffer::version_1;
+      sb->size = plx::To<int32_t>(size - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
+      // Write the first packet.
+      HelloPacket0 hello(pman->name(), 0, pman->luid());
+      sb->write(hello.pkt);
+      // Open the section for writters.
+      sb->magic = SharedBuffer::magic_two;
+      // Periodic wake-and-read section, then write to file.
+      bool section_full = false;
+      long old_head = 0;
+      while (!section_full) {
+        // Read head position.
+        auto new_head = _InterlockedAdd(reinterpret_cast<volatile long*>(&sb->head), 0L);
+        if (new_head + sizeof(SharedBuffer::Packet) >= sb->size) {
+          // Not enough room for another packet.
+          sb->magic = 0UL;
+          section_full = true;
+        }
+        auto size = (new_head - old_head);
+        if (size < sizeof(SharedBuffer::Packet)) {
+          // Alertable wait.
+          auto rc = ::WaitForSingleObjectEx(full_event, wait_ms, TRUE);
+          if (rc == WAIT_OBJECT_0) {
+            // Shared section is (aledgedly) full.
+            continue;
+          } else if (rc == WAIT_IO_COMPLETION) {
+            // Time to exit.
+            goto exit_loop;
+          } else if (rc != WAIT_TIMEOUT) {
+            // Unexpected.
+            throw 3;
+          }
+        } else {
+          auto hh = reinterpret_cast<uint8_t*>(sb->body[old_head]);
+          write_file(plx::Range<uint8_t>(hh, hh + size));
+          old_head = new_head;
+          ::Sleep(0);
+        }
+      }
+    } while (true);
+
+   exit_loop:
+    ::CloseHandle(full_event);
+  }
+
+  void write_file(const plx::Range<uint8_t>& range) {
+
   }
 
 };
@@ -1504,30 +1560,55 @@ protected:
 class SharedBufferWriter {
   ProcessManager* pman_;
   volatile SharedBuffer* sb_;
+  uint32_t section_id_;
   plx::SharedMemory shmem_;
+  HANDLE full_event_;
 
 public:
-  SharedBufferWriter(ProcessManager* pman) : pman_(pman) {
-    open();
-    // $$ handle failure.
+  SharedBufferWriter(ProcessManager* pman) 
+    : pman_(pman), sb_(nullptr), section_id_(0), full_event_(0) {
+    // Make event which to signal owner.    
+    auto event_name = SharedBuffer::event_name();
+    full_event_ = ::OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE,  event_name.c_str());
+    if (!full_event_)
+      return;
+    // Find which section is writable.
+    while (true) {
+      if (open(section_id_))
+        break;
+      ++section_id_;
+      if (section_id_ == 10)
+        throw 5;
+    }
+    // Write the greeting
     HelloPacket0 hello(pman_->name(), 0, pman_->luid());
-    sb_->write(hello.pkt);
+    write(hello.pkt);
+  }
+
+  void write(const SharedBuffer::Packet& pkt) {
+    if (sb_->write(pkt))
+      return;
+    // Section is full. Signal owner and go to the next one.    
+    if (!::SetEvent(full_event_))
+      throw 6;
+    Sleep(10);
+    open(++section_id_);
   }
 
 protected:
-  bool open() {
-    auto name = SharedBuffer::name(0);
+  bool open(uint32_t id) {
+    auto name = SharedBuffer::section_name(id);
     plx::SharedSection section(plx::SharedSection::read_write, name.c_str());
     if (!section.existing())
       return false;
     {
-      // scope block.
+      // Scope block.
       auto shm1 = section.map(0UL, 4 * 1024UL, plx::SharedSection::read_only);
       auto probe = reinterpret_cast<SharedBuffer*>(shm1.range().start());
       if (!probe->verify())
         return false;
     }
-    shmem_ = section.map(0UL, 4 * 1024UL, plx::SharedSection::read_write);
+    shmem_ = section.map(0UL, 0UL, plx::SharedSection::read_write);
     sb_ = reinterpret_cast<SharedBuffer*>(shmem_.range().start());
     return true;
   }
