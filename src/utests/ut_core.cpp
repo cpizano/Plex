@@ -1405,8 +1405,33 @@ struct SharedBuffer {
     return true;
   }
 
-  bool verify() {
-    return ((magic == magic_two) && (version == version_1));
+  enum VerifyResult {
+    sec_not_ready,
+    sec_full,
+    sec_ready,
+    sec_bad
+  };
+
+  VerifyResult verify() volatile {
+    if (version == 0UL)
+      return sec_not_ready;
+    if (version != version_1)
+      return sec_bad;
+    if (magic == 0)
+      return sec_not_ready;
+    if (magic == magic_two)
+      return sec_full;
+    if (magic != magic_one)
+      return sec_bad;
+    return sec_ready;
+  }
+
+  void ready() volatile {
+    magic = magic_one;
+  }
+
+  void full() volatile {
+    magic = magic_two;
   }
 
 };
@@ -1480,6 +1505,7 @@ public:
   SharedBufferMaster(ProcessManager* pman, size_t size_MB) {
     std::thread t(&SharedBufferMaster::run, this, pman, size_MB * (1024UL * 1024UL));
     thread_ = t.native_handle();
+    t.detach();
   }
 
   ~SharedBufferMaster() {
@@ -1505,14 +1531,13 @@ protected:
       auto shmem = section.map(0, size, plx::SharedSection::read_write);
       auto sb = reinterpret_cast<volatile SharedBuffer*>(shmem.range().start());
       // Initialize the header.
-      sb->magic = SharedBuffer::magic_one;
       sb->version = SharedBuffer::version_1;
       sb->size = plx::To<int32_t>(size - sizeof(SharedBuffer) - sizeof(SharedBuffer::Packet) - 1);
       // Write the first packet.
       HelloPacket0 hello(pman->name(), 0, pman->luid());
       sb->write(hello.pkt);
       // Open the section for writters.
-      sb->magic = SharedBuffer::magic_two;
+      sb->ready();
       // Periodic wake-and-read section, then write to file.
       bool section_full = false;
       long old_head = 0;
@@ -1521,7 +1546,7 @@ protected:
         auto new_head = _InterlockedAdd(reinterpret_cast<volatile long*>(&sb->head), 0L);
         if (new_head + sizeof(SharedBuffer::Packet) >= sb->size) {
           // Not enough room for another packet.
-          sb->magic = 0UL;
+          sb->full();
           section_full = true;
         }
         auto size = (new_head - old_head);
@@ -1539,8 +1564,9 @@ protected:
             throw 3;
           }
         } else {
-          auto hh = reinterpret_cast<uint8_t*>(sb->body[old_head]);
-          write_file(plx::Range<uint8_t>(hh, hh + size));
+          // remove volatile qualifier.
+          auto hh = const_cast<uint8_t*>(&sb->body[old_head]);
+          process(plx::Range<uint8_t>(hh, hh + size));
           old_head = new_head;
           ::Sleep(0);
         }
@@ -1551,8 +1577,21 @@ protected:
     ::CloseHandle(full_event);
   }
 
-  void write_file(const plx::Range<uint8_t>& range) {
+  void process(const plx::Range<uint8_t>& range) {
+    auto ro = range;
+    while (ro.size()) {
+      auto ph = reinterpret_cast<SharedBuffer::Packet*>(ro.start());
+      if ((ph->size == 0) || (ph->size > range.size()))
+        break;
+      ro.advance(ph->size);
+    }
+    write_file(plx::Range<uint8_t>(range.start(), ro.start()));
+  }
 
+  void write_file(const plx::Range<uint8_t>& range) {
+    if (range.empty())
+      return;
+    // $$ write to file here.
   }
 
 };
@@ -1572,7 +1611,7 @@ public:
     full_event_ = ::OpenEvent(EVENT_MODIFY_STATE | SYNCHRONIZE, FALSE,  event_name.c_str());
     if (!full_event_)
       return;
-    // Find which section is writable.
+    // Find which section is ready and writable.
     while (true) {
       if (open(section_id_))
         break;
@@ -1586,26 +1625,52 @@ public:
   }
 
   void write(const SharedBuffer::Packet& pkt) {
-    if (sb_->write(pkt))
-      return;
-    // Section is full. Signal owner and go to the next one.    
-    if (!::SetEvent(full_event_))
-      throw 6;
-    Sleep(10);
-    open(++section_id_);
+    while (true) {
+      if (sb_->write(pkt))
+        return;
+      // Section is full.
+      int tries = 5;
+      do {
+        // Open a new section.
+        if (open(section_id_))
+          break;       
+        ::Sleep(10);
+      } while (--tries);
+    }
   }
 
 protected:
-  bool open(uint32_t id) {
+  bool probe(volatile SharedBuffer* sb) {
+    int tries = 10;
+    do {
+      switch (sb->verify()) {
+      case SharedBuffer::sec_bad:
+        return false;
+      case::SharedBuffer::sec_full:
+        return false;
+      case::SharedBuffer::sec_not_ready:
+        ::Sleep(1);
+      default:
+        return true;
+      }
+    } while (--tries);
+    return false;
+  }
+
+  bool open(uint32_t& id) {
     auto name = SharedBuffer::section_name(id);
     plx::SharedSection section(plx::SharedSection::read_write, name.c_str());
-    if (!section.existing())
+    if (!section.existing()) {
+      // Signal the master to create a new section.
+      if (!::SetEvent(full_event_))
+        throw 6;
       return false;
+    }
+    ++id;
     {
       // Scope block.
       auto shm1 = section.map(0UL, 4 * 1024UL, plx::SharedSection::read_only);
-      auto probe = reinterpret_cast<SharedBuffer*>(shm1.range().start());
-      if (!probe->verify())
+      if (!probe(reinterpret_cast<SharedBuffer*>(shm1.range().start())))
         return false;
     }
     shmem_ = section.map(0UL, 0UL, plx::SharedSection::read_write);
