@@ -86,6 +86,7 @@
 #include <string>
 #include <set>
 #include <iomanip>
+#include <iterator>
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -613,7 +614,7 @@ public:
   ~File() {
     if (handle_ != INVALID_HANDLE_VALUE) {
       if (!::CloseHandle(handle_)) {
-        throw IOException(__LINE__, nullptr);
+		__debugbreak();
       }
     }
   }
@@ -623,7 +624,7 @@ public:
     BY_HANDLE_FILE_INFORMATION bhfi;
     if (!::GetFileInformationByHandle(handle_, &bhfi))
       throw IOException(__LINE__, nullptr);
-    LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
+    LARGE_INTEGER li = { bhfi.nFileIndexLow, static_cast<long>(bhfi.nFileIndexHigh) };
     return li.QuadPart;
   }
 
@@ -725,12 +726,12 @@ public:
   ~FileView() {
     if (Start()) {
       if (!::UnmapViewOfFile(Start())) {
-        throw IOException(__LINE__, nullptr);
+		__debugbreak();
       }
     }
     if (map_) {
       if (!::CloseHandle(map_)) {
-        throw IOException(__LINE__, nullptr);
+		__debugbreak();
       }
     }
   }
@@ -753,7 +754,7 @@ public:
     if (!file_.IsValid()) {
       throw IOException(__LINE__, path.Raw());
     }
-    file_.Write("@ Plex genlog [0.4] "__DATE__"\n");
+    file_.Write("@ Plex genlog [0.4] " __DATE__ "\n");
     instance = this;
   }
 
@@ -2829,7 +2830,7 @@ int wmain(int argc, wchar_t* argv[]) {
   if (cmdline.HasSwitch("pch")) op_mode += PCHGen;
 
   if (op_mode == None) {
-    printf("plex by carlos.pizano@gmail.com. Version "__DATE__"\n");
+    printf("plex by carlos.pizano@gmail.com. Version " __DATE__ "\n");
     wprintf(L"usage: plex.exe options cc_file\n");
     wprintf(L"options:  --dump-tree and|or --generate\n");
     wprintf(L"          --pch --catalog=<path>\n");
