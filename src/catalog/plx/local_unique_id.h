@@ -5,9 +5,9 @@
 //
 namespace plx {
 uint64_t LocalUniqueId() {
-  LUID luid = {0};
+  LUID luid;
   ::AllocateLocallyUniqueId(&luid);
-  ULARGE_INTEGER li = {luid.LowPart, luid.HighPart};
+  LARGE_INTEGER li = {luid.LowPart, luid.HighPart};
   return li.QuadPart;
 }
 }

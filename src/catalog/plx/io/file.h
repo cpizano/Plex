@@ -79,7 +79,7 @@ public:
   ~File() {
     if (handle_ != INVALID_HANDLE_VALUE) {
       if (!::CloseHandle(handle_)) {
-        throw IOException(__LINE__, nullptr);
+        __debugbreak();
       }
     }
   }
@@ -89,7 +89,7 @@ public:
     BY_HANDLE_FILE_INFORMATION bhfi;
     if (!::GetFileInformationByHandle(handle_, &bhfi))
       throw IOException(__LINE__, nullptr);
-    LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
+    ULARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
     return li.QuadPart;
   }
 

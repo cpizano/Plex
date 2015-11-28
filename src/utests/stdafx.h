@@ -693,31 +693,42 @@ public:
 //
 class ScopedWriteLock {
   SRWLOCK* lock_;
-  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
 
 public:
   ScopedWriteLock() = delete;
   ScopedWriteLock(const ScopedWriteLock&) = delete;
-  // void* operator new(std::size_t) =delete
+
+  ScopedWriteLock(ScopedWriteLock&& rhs) : lock_(rhs.lock_) {
+    rhs.lock_ = nullptr;
+  }
+
+  explicit ScopedWriteLock(SRWLOCK* lock) : lock_(lock) {}
+
 
   ~ScopedWriteLock() {
-    ::ReleaseSRWLockExclusive(lock_);
+    if (lock_) {
+      ::ReleaseSRWLockExclusive(lock_);
+    }
   }
 };
 
 class ScopedReadLock {
   SRWLOCK* lock_;
-  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
-  friend class ReaderWriterLock;
 
 public:
   ScopedReadLock() = delete;
   ScopedReadLock(const ScopedReadLock&) = delete;
-  // void* operator new(std::size_t) =delete
+
+  explicit ScopedReadLock(SRWLOCK* lock) : lock_(lock) {}
+
+  ScopedReadLock(ScopedReadLock&& rhs) : lock_(rhs.lock_) {
+    rhs.lock_ = nullptr;
+  }
 
   ~ScopedReadLock() {
-    ::ReleaseSRWLockShared(lock_);
+    if (lock_) {
+      ::ReleaseSRWLockShared(lock_);
+    }
   }
 };
 
@@ -1274,7 +1285,7 @@ public:
   ~File() {
     if (handle_ != INVALID_HANDLE_VALUE) {
       if (!::CloseHandle(handle_)) {
-        throw IOException(__LINE__, nullptr);
+        __debugbreak();
       }
     }
   }
@@ -1284,7 +1295,7 @@ public:
     BY_HANDLE_FILE_INFORMATION bhfi;
     if (!::GetFileInformationByHandle(handle_, &bhfi))
       throw IOException(__LINE__, nullptr);
-    LARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
+    ULARGE_INTEGER li = { bhfi.nFileIndexLow, bhfi.nFileIndexHigh };
     return li.QuadPart;
   }
 

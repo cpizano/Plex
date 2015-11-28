@@ -17,7 +17,7 @@ Test::Test(const char* name) : tick_time_(0) {
 }
 
 Test::~Test() {
-  wprintf(L"[done] %d ms\n", tick_time_);
+  wprintf(L"[done] %lld ms\n", tick_time_);
 }
 
 void Test::Run() {
