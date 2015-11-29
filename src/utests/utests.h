@@ -1,6 +1,9 @@
 // utests.h : unittests for the plex catalog.
 //
 
+const char hx[] = "0123456789ABCDEF";
+#define ToHEX(x)  '0', 'x', hx[((x >> 12) & 0x0f)], hx[((x >> 8) & 0x0f)], hx[((x >> 4) & 0x0f)], hx[(x & 0x0f)]
+
 class Test {
   static int run_count;
   static const char* test_name;
@@ -33,22 +36,32 @@ void NotReached(A&&) {
 }
 
 template <typename A, typename B>
-void CheckEQ(A&& a, B&& b) {
-  if (a != b)
-    throw Fail("EQ", Test::GetTestName());
+void CheckEQ(A&& a, B&& b, int ln) {
+  if (a != b) {
+    const char reason[] = { 'E','Q',' ', ToHEX(ln), 0 };
+    throw Fail(reason, Test::GetTestName());
+  }
 }
 
 template <typename A, typename B>
-void CheckGT(A&& a, B&& b) {
-  if (a <= b)
-    throw Fail("GT", Test::GetTestName());
+void CheckGT(A&& a, B&& b, int ln) {
+  if (a <= b) {
+    const char reason[] = { 'G','T',' ', ToHEX(ln), 0 };
+    throw Fail(reason, Test::GetTestName());
+  }
 }
 
 template <typename A, typename B>
-void CheckLT(A&& a, B&& b) {
-  if (a >= b)
-    throw Fail("LT", Test::GetTestName());
+void CheckLT(A&& a, B&& b, int ln) {
+  if (a >= b) {
+    const char reason[] = { 'L','T',' ', ToHEX(ln), 0 };
+    throw Fail(reason, Test::GetTestName());
+  }
 }
+
+#define CheckEQ(l, r) CheckEQ(l, r, __LINE__)
+#define CheckGT(l, r) CheckGT(l, r, __LINE__)
+#define CheckLT(l, r) CheckLT(l, r, __LINE__)
 
 #define TEST(name) \
 class name : public Test {\
