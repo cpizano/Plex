@@ -960,6 +960,22 @@ void Test_File::Exec() {
     CheckEQ(f.status(), plx::File::directory | plx::File::existing);
   }
 
+  {
+    plx::File f;
+    CheckEQ(f.is_valid(), false);
+  }
+
+  {
+    plx::FilePath fp1(L"data\\file_io\\data_001.txt");
+    plx::File f = plx::File::Create(fp1, par3, plx::FileSecurity());
+    CheckEQ(f.is_valid(), true);
+    plx::File f2;
+    f2 = std::move(f);
+    CheckEQ(f.is_valid(), false);
+    CheckEQ(f2.is_valid(), true);
+    CheckEQ(f2.size_in_bytes(), 2048UL);
+  }
+
 }
 
 void Test_IOCPLoop::Exec() {

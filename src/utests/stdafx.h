@@ -1215,7 +1215,6 @@ private:
       status_(status) {
   }
 
-  File() = delete;
   File(const File&) = delete;
   File& operator=(const File&) = delete;
 
@@ -1231,11 +1230,30 @@ public:
     information       = 64,
   };
 
+  File()
+    : handle_(INVALID_HANDLE_VALUE),
+      status_(none) {
+  }
+
   File(File&& file)
     : handle_(INVALID_HANDLE_VALUE),
       status_(none) {
     std::swap(file.handle_, handle_);
     std::swap(file.status_, status_);
+  }
+
+  ~File() {
+    if (handle_ != INVALID_HANDLE_VALUE) {
+      if (!::CloseHandle(handle_)) {
+        __debugbreak();
+      }
+    }
+  }
+
+  File& operator=(File&& file) {
+    std::swap(file.handle_, handle_);
+    std::swap(file.status_, status_);
+    return *this;
   }
 
   static File Create(const plx::FilePath& path,
@@ -1274,14 +1292,6 @@ public:
     }
 
     return File(file, status);
-  }
-
-  ~File() {
-    if (handle_ != INVALID_HANDLE_VALUE) {
-      if (!::CloseHandle(handle_)) {
-        __debugbreak();
-      }
-    }
   }
 
   // $$ this ignores the volume id, so technically incorrect.
