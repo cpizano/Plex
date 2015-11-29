@@ -1342,11 +1342,6 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
-void Test_LUID::Exec() {
-  auto luid = plx::GetLuid();
-  CheckEQ(luid != 0ULL, true);
-}
-
 // Logger system
 /*
 
@@ -1477,7 +1472,7 @@ class ProcessManager {
 
 public:
   ProcessManager(const char* name) : name_(name) {
-    luid_ = plx::GetLuid();
+    luid_ = plx::LocalUniqueId();
     auto mtx_name = mutex_name(luid_);
     auto mh = ::CreateMutex(nullptr, TRUE, mtx_name.c_str());
     if (!mh)
@@ -1566,7 +1561,7 @@ protected:
         } else {
           // remove volatile qualifier.
           auto hh = const_cast<uint8_t*>(&sb->body[old_head]);
-          process(plx::Range<uint8_t>(hh, hh + size));
+          process_buffer(plx::Range<uint8_t>(hh, hh + size));
           old_head = new_head;
           ::Sleep(0);
         }
@@ -1577,7 +1572,7 @@ protected:
     ::CloseHandle(full_event);
   }
 
-  void process(const plx::Range<uint8_t>& range) {
+  void process_buffer(const plx::Range<uint8_t>& range) {
     auto ro = range;
     while (ro.size()) {
       auto ph = reinterpret_cast<SharedBuffer::Packet*>(ro.start());
