@@ -1346,7 +1346,7 @@ void Test_RectLSizeL::Exec() {
 }
 
 void Test_SharedMemory::Exec() {
-  plx::SharedSection section(L"lala_foo", plx::SharedSection::read_write, 8 * 1024);
+  plx::SharedSection section = plx::SharedSection::Create(L"lala_foo", plx::SharedSection::read_write, 8 * 1024);
   auto sh_mem1 = section.map(0, 4 * 1024, plx::SharedSection::read_write);
   auto sh_mem2 = section.map(0, 2 * 1024, plx::SharedSection::read_only);
 
@@ -1536,7 +1536,7 @@ protected:
     do {
       // Create the public section and map the whole view.
       auto name = SharedBuffer::section_name(section_id++);
-      plx::SharedSection section(name.c_str(), plx::SharedSection::read_write, size);
+      plx::SharedSection section = plx::SharedSection::Create(name.c_str(), plx::SharedSection::read_write, size);
       if (section.existing())
         throw 1;
       auto shmem = section.map(0, size, plx::SharedSection::read_write);
@@ -1670,7 +1670,7 @@ protected:
 
   bool open(uint32_t& id) {
     auto name = SharedBuffer::section_name(id);
-    plx::SharedSection section(plx::SharedSection::read_write, name.c_str());
+    plx::SharedSection section = plx::SharedSection::Open(name.c_str(), plx::SharedSection::read_write);
     if (!section.existing()) {
       // Signal the master to create a new section.
       if (!::SetEvent(full_event_))
@@ -1695,6 +1695,4 @@ protected:
 void Test_SharedBuffer::Exec() {
   ProcessManager pman1("xyz_abc_123.456");
   SharedBufferMaster master(&pman1, 2);
-  ProcessManager pman2("kuv_naa_000.111");
-  SharedBufferWriter writer(&pman2);
 }

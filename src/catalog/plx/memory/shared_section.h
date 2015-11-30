@@ -7,54 +7,67 @@ class SharedSection {
   HANDLE mapping_;
   bool existing_;
 
+private:
+  SharedSection(const SharedSection&) = delete;
+  SharedSection& operator=(const SharedSection&) = delete;
+
+  SharedSection(HANDLE mapping, bool existing)
+      : mapping_(mapping),
+        existing_(existing) {
+  }
+
 public:
   enum SP {
     read_only,
     read_write
   };
 
-  SharedSection() : mapping_(0), existing_(false) {}
-
-  SharedSection(const std::wstring name, SP protect, size_t size)
-      : mapping_(0), existing_(false) {
-    LARGE_INTEGER li;
-    li.QuadPart = size;
-    auto p = protect == read_only ? PAGE_READONLY : PAGE_READWRITE;
-    mapping_ = ::CreateFileMapping(INVALID_HANDLE_VALUE,
-                                   nullptr,
-                                   p | SEC_COMMIT,
-                                   li.HighPart, li.LowPart,
-                                   name.c_str());
-    if (!mapping_)
-      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::memory);
-    if (::GetLastError() == ERROR_ALREADY_EXISTS)
-      existing_ = true;
+  SharedSection() 
+      : mapping_(0),
+        existing_(false) {
   }
 
-  SharedSection(SP protect, const std::wstring name)
-      : mapping_(0), existing_(false) {
-    // Note the use of FILE_MAP constants, unlike CreateFileMapping.
-    auto p = protect == read_only ? FILE_MAP_READ : FILE_MAP_READ | FILE_MAP_WRITE;
-    mapping_ = ::OpenFileMapping(p, FALSE, name.c_str());
-    if (mapping_)
-      existing_ = true;
+  SharedSection(SharedSection&& section)
+      : mapping_(0),
+        existing_(false) {
+    std::swap(section.mapping_, mapping_);
+    std::swap(section.existing_, existing_);
   }
-
-  bool existing() const { return existing_; }
 
   ~SharedSection() {
     if (mapping_)
       ::CloseHandle(mapping_);
   }
 
-  SharedSection(const SharedMemory&) = delete;
-  SharedSection& operator=(const SharedMemory&) = delete;
-
-  SharedSection& operator=(SharedSection&& other) {
-    std::swap(other.mapping_, mapping_);
-    std::swap(other.existing_, existing_);
+  SharedSection& operator=(SharedSection&& section) {
+    std::swap(section.mapping_, mapping_);
+    std::swap(section.existing_, existing_);
     return *this;
   }
+
+  static SharedSection Create(const std::wstring& name, SP protect, size_t size) {
+    LARGE_INTEGER li;
+    li.QuadPart = size;
+    auto p = protect == read_only ? PAGE_READONLY : PAGE_READWRITE;
+    auto mapping = ::CreateFileMapping(INVALID_HANDLE_VALUE,
+                                   nullptr,
+                                   p | SEC_COMMIT,
+                                   li.HighPart, li.LowPart,
+                                   name.c_str());
+    if (!mapping)
+      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::memory);
+    
+    return SharedSection(mapping, ::GetLastError() == ERROR_ALREADY_EXISTS);
+  }
+
+  static SharedSection Open(const std::wstring& name, SP protect) {
+    // Note the use of FILE_MAP constants, unlike CreateFileMapping.
+    auto p = protect == read_only ? FILE_MAP_READ : FILE_MAP_READ | FILE_MAP_WRITE;
+    auto mapping = ::OpenFileMapping(p, FALSE, name.c_str());
+    return SharedSection(mapping, mapping ? true : false);
+  }
+
+  bool existing() const { return existing_; }
 
   plx::SharedMemory map(size_t start, size_t size, SP protect) const {
     auto p = protect == read_only ? FILE_MAP_READ : FILE_MAP_READ | FILE_MAP_WRITE;
