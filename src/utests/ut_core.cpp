@@ -1050,7 +1050,6 @@ void Test_Inflater::Exec() {
     CheckEQ(inflater.status(), plx::Inflater::invalid_block_type);
     CheckEQ(inflater.output().size(), 0); 
   }
-
   {
     // A last block with stored block (00) with 0 bytes.
     const uint8_t deflated_data[] = {
@@ -1691,8 +1690,327 @@ protected:
 
 };
 
-
 void Test_SharedBuffer::Exec() {
   ProcessManager pman1("xyz_abc_123.456");
   SharedBufferMaster master(&pman1, 2);
+}
+
+class CompletionPort {
+  HANDLE port_;
+
+private:
+  CompletionPort() = delete;
+  CompletionPort(const CompletionPort&) = delete;
+  CompletionPort& operator=(const CompletionPort&) = delete;
+
+public:
+  class IOHandler {
+  public:
+    virtual bool OnCompleted(OVERLAPPED* ov) = 0;
+    virtual bool OnFailure(OVERLAPPED* ov, unsigned long error) = 0;
+  };
+
+  CompletionPort(unsigned long concurrent)
+      : port_(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrent)) {
+    if (!port_)
+      throw 78;
+  }
+
+  ~CompletionPort() {
+    ::CloseHandle(port_);
+  }
+
+  void add_handler(HANDLE handle, IOHandler* handler) {
+    auto h =::CreateIoCompletionPort(handle, port_, ULONG_PTR(handler), 0);
+    if (!h)
+      throw 76;
+  }
+
+  bool wait_for_op(unsigned long timeout) {
+    unsigned long bytes;
+    ULONG_PTR key;
+    OVERLAPPED* ov;
+    if (!::GetQueuedCompletionStatus(port_, &bytes, &key, &ov, timeout)) {
+      if (!ov) {
+        if (::GetLastError() == WAIT_TIMEOUT) {
+          return true;
+        } else {
+          throw 81;
+        }
+      } else if (key) {
+        // io op failed. 
+        return reinterpret_cast<IOHandler*>(key)->OnFailure(ov, ::GetLastError());
+      } else {
+        throw 79;
+      }
+      return false;
+    } else if (key) {
+      // io op succeded.
+      return reinterpret_cast<IOHandler*>(key)->OnCompleted(ov);
+    } else {
+      throw 80;
+    }
+  }
+
+};
+
+struct OverlappedContext : public OVERLAPPED {
+  enum OverlappedOp {
+    none_op,
+    connect_op,
+    read_op,
+    write_op,
+    disconnect_op
+  };
+
+  OverlappedOp operation;
+  OverlappedOp next_operation;
+
+  void* ctx;
+  plx::Range<uint8_t> data;
+
+  OverlappedContext(OverlappedOp op, void* ctx, plx::Range<uint8_t> data)
+    : OVERLAPPED({}), operation(op), next_operation(none_op), ctx(ctx), data(data) {
+  }
+
+  OverlappedContext* reuse(OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
+    this->operation = op;
+    this->next_operation = none_op;
+    this->ctx = ctx;
+    this->data = data;
+    return this;
+  }
+
+  OverlappedContext* reuse(OverlappedOp op, void* ctx) {
+    operation = op;
+    ctx = ctx;
+    return this;
+  }
+
+  size_t number_of_bytes() const {
+    return InternalHigh;
+  }
+
+  size_t status_code() const {
+    return Internal;
+  }
+
+  plx::Range<uint8_t> valid_data() {
+    return plx::Range<uint8_t>(data.start(), number_of_bytes());
+  }
+
+  ~OverlappedContext() {
+    if (hEvent)
+      ::CloseHandle(hEvent);
+  }
+
+  void make_event() {
+    hEvent = ::CreateEvent(nullptr, true, false, nullptr);
+  }
+};
+
+class IORequestPipeHandler {
+public:
+  virtual void OnConnect(OverlappedContext* ovc, unsigned long error) = 0;
+  virtual void OnRead(OverlappedContext* ovc, unsigned long error) = 0;
+  virtual void OnWrite(OverlappedContext* ovc, unsigned long error) = 0;
+};
+
+class ServerPipe : public CompletionPort::IOHandler {
+  HANDLE pipe_;
+  IORequestPipeHandler* handler_;
+
+  __declspec(thread) static OverlappedContext* th_ovc;
+
+private:
+  ServerPipe(const ServerPipe&) = delete;
+  ServerPipe& operator=(const ServerPipe&) = delete;
+
+  explicit ServerPipe(HANDLE pipe) 
+      : pipe_(pipe) {
+  }
+
+  bool on_completed_helper(OVERLAPPED* ov, unsigned long error) {
+    if (!handler_)
+      return false;
+    auto ovc = reinterpret_cast<OverlappedContext*>(ov);
+    th_ovc = ovc;
+    switch (ovc->operation) {
+      case OverlappedContext::connect_op: handler_->OnConnect(ovc, error); break;
+      case OverlappedContext::read_op: handler_->OnRead(ovc, error); break;
+      case OverlappedContext::write_op: handler_->OnWrite(ovc, error); break;
+      default:  __debugbreak();
+    }
+    if (th_ovc) {
+      delete th_ovc;
+      th_ovc = nullptr;
+    }
+    return true;
+  }
+
+  bool OnCompleted(OVERLAPPED* ov) override {
+    return on_completed_helper(ov, 0);
+  }
+
+  bool OnFailure(OVERLAPPED* ov, unsigned long error) override {
+    return on_completed_helper(ov, error);
+  }
+
+  bool do_async(BOOL s) {
+    if (s)
+      return true;
+    auto gle = ::GetLastError();
+    if (gle == ERROR_IO_PENDING)
+      return true;
+    else
+      throw 60;
+  }
+
+public:
+  ServerPipe()
+      : pipe_(0) {
+  }
+
+  ServerPipe(ServerPipe&& other)
+      : pipe_(INVALID_HANDLE_VALUE) {
+    std::swap(other.pipe_, pipe_);
+  }
+
+  ~ServerPipe() {
+    if (pipe_ != INVALID_HANDLE_VALUE)
+      ::CloseHandle(pipe_);
+  }
+
+  enum Options {
+    overlapped = 1,
+    message_out = 2,
+    message_in = 4
+  };
+
+  static ServerPipe Create(const std::wstring& name, int options) {
+    auto type = PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE;
+    if (options & overlapped) {
+      type |= FILE_FLAG_OVERLAPPED;
+    }
+    auto mode =  PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
+    if (options & message_out) {
+      mode |= PIPE_TYPE_MESSAGE;
+    }
+    if (options & message_in) {
+      mode |= PIPE_READMODE_MESSAGE;
+    }
+
+    auto timeout_ms = 100UL;
+    auto buf_sz = 4096UL;
+    auto pipe = ::CreateNamedPipeW(name.c_str(), type, mode, 1, buf_sz, buf_sz, timeout_ms, nullptr);
+    if (pipe == INVALID_HANDLE_VALUE)
+      throw 77;
+    return ServerPipe(pipe);
+  }
+
+  void associate_cp(CompletionPort* cp, IORequestPipeHandler* handler) {
+    handler_ = handler;
+    cp->add_handler(pipe_, this);
+  }
+
+  OVERLAPPED* get_overlapped(OverlappedContext::OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
+    if (!ctx)
+      return nullptr;
+    if (th_ovc) {
+      OverlappedContext* ovc = nullptr;
+      std::swap(th_ovc, ovc);
+      return ovc->reuse(op, ctx, data);
+    }
+    return new OverlappedContext(OverlappedContext::connect_op, ctx, data);
+  }
+
+  bool connect(void* ctx) {
+    auto ovc = get_overlapped(OverlappedContext::connect_op, ctx, plx::Range<uint8_t>());
+    return do_async(::ConnectNamedPipe(pipe_, ovc));
+  }
+
+  bool disconnect() {
+    ::DisconnectNamedPipe(pipe_);
+  }
+
+  bool read(plx::Range<uint8_t> buf, void* ctx) {
+    auto ovc = get_overlapped(OverlappedContext::read_op, ctx, buf);
+    return do_async(::ReadFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
+  }
+
+};
+
+__declspec(thread) OverlappedContext* ServerPipe::th_ovc = nullptr;
+
+class TestPipeHandler : public IORequestPipeHandler {
+  ServerPipe srv_pipe_;
+  int idsn;
+  const int topic_sz = 64;
+
+  struct RQ {
+    int id;
+    unsigned long pid;
+    std::vector<std::string*> topic;
+
+    RQ(int id) : id(id), pid(0) {}
+
+  };
+
+public:
+  TestPipeHandler()
+    : srv_pipe_(ServerPipe::Create(L"\\\\.\\pipe\\fracus_been",
+                    ServerPipe::overlapped |
+                    ServerPipe::message_in | ServerPipe::message_out)),
+                    idsn(5) {
+  }
+
+  bool start(CompletionPort& cp) {
+    srv_pipe_.associate_cp(&cp, this);
+    return srv_pipe_.connect(new RQ(idsn));
+  }
+
+  void OnConnect(OverlappedContext* ovc, unsigned long error) override {
+    auto rq = reinterpret_cast<RQ*>(ovc->ctx);
+    auto m = plx::RangeFromBytes(new uint8_t[topic_sz], topic_sz);
+    srv_pipe_.read(m, rq);
+  }
+
+  void OnRead(OverlappedContext* ovc, unsigned long error) override {
+    auto rq = reinterpret_cast<RQ*>(ovc->ctx);
+    //auto res = 
+  }
+
+  void OnWrite(OverlappedContext* ovc, unsigned long error) override {
+
+  }
+};
+
+
+void Test_ServerPipe::Exec() {
+  CompletionPort cp(3);
+
+  std::thread t1([&cp] {
+    while (true) {
+      if (!cp.wait_for_op(INFINITE))
+        break;
+    }
+  });
+
+  TestPipeHandler tph;
+  tph.start(cp);
+
+  std::thread t2([&cp] {
+    plx::FilePath fp(L"\\\\.\\pipe\\fracus_been");
+    auto topic = plx::RangeFromArray("=topic:0001=").const_bytes();
+    auto params = plx::FileParams::ReadWrite_SharedRead(OPEN_EXISTING);
+
+    while (true) {
+      plx::File pipe = plx::File::Create(fp, params, plx::FileSecurity());
+      pipe.write(topic);
+      break;
+    }
+  });
+
+  t2.join();
+  t1.join();
 }
