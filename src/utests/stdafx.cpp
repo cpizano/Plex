@@ -205,15 +205,6 @@ bool PlatformCheck() {
   }
   return true;
 }
-uint64_t ProcessCreationTime(HANDLE process) {
-  FILETIME creat, exit, kernel, user;
-  if (::GetProcessTimes(process, &creat, &exit, &kernel, &user) == 0)
-    return 0ULL;
-  LARGE_INTEGER li;
-  li.HighPart = creat.dwHighDateTime;
-  li.LowPart = creat.dwLowDateTime;
-  return li.QuadPart;
-}
 char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) {
   if (!ir.valid() || (ir.size() == 0))
     throw plx::CodecException(__LINE__, nullptr);

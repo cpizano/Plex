@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <nmmintrin.h>
 #include <string.h>
-#include <stdio.h>
 #include <array>
 #include <functional>
 #include <initializer_list>
@@ -2139,12 +2138,6 @@ SkipWhitespace(const plx::Range<T>& r) {
 // plx::PlatformCheck : checks if the code can be run in this setting.
 //
 bool PlatformCheck() ;;
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::ProcessCreationTime.
-//
-uint64_t ProcessCreationTime(HANDLE process) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
