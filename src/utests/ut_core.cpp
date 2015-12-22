@@ -1710,7 +1710,7 @@ public:
     virtual bool OnFailure(OVERLAPPED* ov, unsigned long error) = 0;
   };
 
-  CompletionPort(unsigned long concurrent)
+  explicit CompletionPort(unsigned long concurrent)
       : port_(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrent)) {
     if (!port_)
       throw 78;
@@ -1726,101 +1726,67 @@ public:
       throw 76;
   }
 
-  bool wait_for_op(unsigned long timeout) {
+  void release_waiter() {
+    ::PostQueuedCompletionStatus(port_, 0, 1, nullptr);
+  }
+
+  enum WaitResult {
+    op_exit,
+    op_ok,
+    op_timeout,
+    op_error
+  };
+
+  WaitResult wait_for_op(unsigned long timeout) {
     unsigned long bytes;
     ULONG_PTR key;
     OVERLAPPED* ov;
+    //
+    // return  | ov | bytes 
+    // ----------------------------------------------------
+    //   false |  0 | na   The call to GQCS failed, and no data was dequeued from the IO port.
+    //                     Usually means wrong parameters.
+    //   false |  x | na   The call to GQCS failed, but data was read or written. There is an
+    //                     error condition on the underlying HANDLE. Usually seen when the other
+    //                     end has been forcibly closed but there's still data in the send or
+    //                     receive queue.
+    //   true  |  0 |  y   Only possible via PostQueuedCompletionStatus(). Can use y or key to
+    //                     communicate condtions.
+    //   true  |  x |  0   End of file for a file HANDLE, or the connection has been gracefully
+    //                     closed (for network connections).
+    //   true  |  x |  y   Sucess. y bytes of data have been transferred.
+
     if (!::GetQueuedCompletionStatus(port_, &bytes, &key, &ov, timeout)) {
       if (!ov) {
-        if (::GetLastError() == WAIT_TIMEOUT) {
-          return true;
-        } else {
-          throw 81;
-        }
+        if (::GetLastError() == WAIT_TIMEOUT)
+          return op_timeout;
+        throw 81;
       } else if (key) {
-        // io op failed. 
-        return reinterpret_cast<IOHandler*>(key)->OnFailure(ov, ::GetLastError());
-      } else {
-        throw 79;
+        return reinterpret_cast<IOHandler*>(key)->OnFailure(ov, ::GetLastError()) ? op_ok : op_error;
       }
-      return false;
+    } else if (!ov) {
+      return op_exit;
     } else if (key) {
-      // io op succeded.
-      return reinterpret_cast<IOHandler*>(key)->OnCompleted(ov);
-    } else {
-      throw 80;
-    }
+      return reinterpret_cast<IOHandler*>(key)->OnCompleted(ov) ? op_ok : op_error;
+    } 
+    throw 80;
   }
 
 };
 
-struct OverlappedContext : public OVERLAPPED {
-  enum OverlappedOp {
-    none_op,
-    connect_op,
-    read_op,
-    write_op,
-    disconnect_op
-  };
-
-  OverlappedOp operation;
-  OverlappedOp next_operation;
-
-  void* ctx;
-  plx::Range<uint8_t> data;
-
-  OverlappedContext(OverlappedOp op, void* ctx, plx::Range<uint8_t> data)
-    : OVERLAPPED({}), operation(op), next_operation(none_op), ctx(ctx), data(data) {
-  }
-
-  OverlappedContext* reuse(OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
-    this->operation = op;
-    this->next_operation = none_op;
-    this->ctx = ctx;
-    this->data = data;
-    return this;
-  }
-
-  OverlappedContext* reuse(OverlappedOp op, void* ctx) {
-    operation = op;
-    ctx = ctx;
-    return this;
-  }
-
-  size_t number_of_bytes() const {
-    return InternalHigh;
-  }
-
-  size_t status_code() const {
-    return Internal;
-  }
-
-  plx::Range<uint8_t> valid_data() {
-    return plx::Range<uint8_t>(data.start(), number_of_bytes());
-  }
-
-  ~OverlappedContext() {
-    if (hEvent)
-      ::CloseHandle(hEvent);
-  }
-
-  void make_event() {
-    hEvent = ::CreateEvent(nullptr, true, false, nullptr);
-  }
-};
 
 class IORequestPipeHandler {
 public:
-  virtual void OnConnect(OverlappedContext* ovc, unsigned long error) = 0;
-  virtual void OnRead(OverlappedContext* ovc, unsigned long error) = 0;
-  virtual void OnWrite(OverlappedContext* ovc, unsigned long error) = 0;
+  virtual void OnConnect(plx::OverlappedContext* ovc, unsigned long error) = 0;
+  virtual void OnRead(plx::OverlappedContext* ovc, unsigned long error) = 0;
+  virtual void OnWrite(plx::OverlappedContext* ovc, unsigned long error) = 0;
 };
 
 class ServerPipe : public CompletionPort::IOHandler {
   HANDLE pipe_;
   IORequestPipeHandler* handler_;
 
-  __declspec(thread) static OverlappedContext* th_ovc;
+  __declspec(thread) static plx::OverlappedContext* th_ovc;
 
 private:
   ServerPipe(const ServerPipe&) = delete;
@@ -1833,12 +1799,12 @@ private:
   bool on_completed_helper(OVERLAPPED* ov, unsigned long error) {
     if (!handler_)
       return false;
-    auto ovc = reinterpret_cast<OverlappedContext*>(ov);
+    auto ovc = reinterpret_cast<plx::OverlappedContext*>(ov);
     th_ovc = ovc;
     switch (ovc->operation) {
-      case OverlappedContext::connect_op: handler_->OnConnect(ovc, error); break;
-      case OverlappedContext::read_op: handler_->OnRead(ovc, error); break;
-      case OverlappedContext::write_op: handler_->OnWrite(ovc, error); break;
+      case plx::OverlappedContext::connect_op: handler_->OnConnect(ovc, error); break;
+      case plx::OverlappedContext::read_op: handler_->OnRead(ovc, error); break;
+      case plx::OverlappedContext::write_op: handler_->OnWrite(ovc, error); break;
       default:  __debugbreak();
     }
     if (th_ovc) {
@@ -1864,6 +1830,17 @@ private:
       return true;
     else
       throw 60;
+  }
+
+  OVERLAPPED* get_overlapped(plx::OverlappedContext::OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
+    if (!ctx)
+      return nullptr;
+    if (th_ovc) {
+      plx::OverlappedContext* ovc = nullptr;
+      std::swap(th_ovc, ovc);
+      return ovc->reuse(op, ctx, data);
+    }
+    return new plx::OverlappedContext(plx::OverlappedContext::connect_op, ctx, data);
   }
 
 public:
@@ -1913,34 +1890,27 @@ public:
     cp->add_handler(pipe_, this);
   }
 
-  OVERLAPPED* get_overlapped(OverlappedContext::OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
-    if (!ctx)
-      return nullptr;
-    if (th_ovc) {
-      OverlappedContext* ovc = nullptr;
-      std::swap(th_ovc, ovc);
-      return ovc->reuse(op, ctx, data);
-    }
-    return new OverlappedContext(OverlappedContext::connect_op, ctx, data);
-  }
-
   bool connect(void* ctx) {
-    auto ovc = get_overlapped(OverlappedContext::connect_op, ctx, plx::Range<uint8_t>());
+    auto ovc = get_overlapped(plx::OverlappedContext::connect_op, ctx, plx::Range<uint8_t>());
     return do_async(::ConnectNamedPipe(pipe_, ovc));
   }
 
   bool disconnect() {
-    ::DisconnectNamedPipe(pipe_);
+    return ::DisconnectNamedPipe(pipe_) ? true : false;
   }
 
   bool read(plx::Range<uint8_t> buf, void* ctx) {
-    auto ovc = get_overlapped(OverlappedContext::read_op, ctx, buf);
+    auto ovc = get_overlapped(plx::OverlappedContext::read_op, ctx, buf);
     return do_async(::ReadFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
   }
 
+  bool write(plx::Range<uint8_t> buf, void* ctx) {
+    auto ovc = get_overlapped(plx::OverlappedContext::write_op, ctx, buf);
+    return do_async(::WriteFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
+  }
 };
 
-__declspec(thread) OverlappedContext* ServerPipe::th_ovc = nullptr;
+__declspec(thread) plx::OverlappedContext* ServerPipe::th_ovc = nullptr;
 
 class TestPipeHandler : public IORequestPipeHandler {
   ServerPipe srv_pipe_;
@@ -1951,9 +1921,7 @@ class TestPipeHandler : public IORequestPipeHandler {
     int id;
     unsigned long pid;
     std::vector<std::string*> topic;
-
     RQ(int id) : id(id), pid(0) {}
-
   };
 
 public:
@@ -1969,19 +1937,29 @@ public:
     return srv_pipe_.connect(new RQ(idsn));
   }
 
-  void OnConnect(OverlappedContext* ovc, unsigned long error) override {
+  void OnConnect(plx::OverlappedContext* ovc, unsigned long error) override {
     auto rq = reinterpret_cast<RQ*>(ovc->ctx);
     auto m = plx::RangeFromBytes(new uint8_t[topic_sz], topic_sz);
-    srv_pipe_.read(m, rq);
+    if (!srv_pipe_.read(m, rq))
+      throw 62;
   }
 
-  void OnRead(OverlappedContext* ovc, unsigned long error) override {
+  void OnRead(plx::OverlappedContext* ovc, unsigned long error) override {
     auto rq = reinterpret_cast<RQ*>(ovc->ctx);
-    //auto res = 
+    if (ovc->number_of_bytes() < 2)
+      throw 61;
+    auto data = ovc->valid_data();
+    data[0] = '<';
+    data[data.size() - 1] = '>';
+    if (!srv_pipe_.write(data, rq))
+      throw 63;
   }
 
-  void OnWrite(OverlappedContext* ovc, unsigned long error) override {
-
+  void OnWrite(plx::OverlappedContext* ovc, unsigned long error) override {
+    auto rq = reinterpret_cast<RQ*>(ovc->ctx);
+    delete rq;
+    srv_pipe_.disconnect();
+    srv_pipe_.connect(new RQ(++idsn));
   }
 };
 
@@ -1991,7 +1969,8 @@ void Test_ServerPipe::Exec() {
 
   std::thread t1([&cp] {
     while (true) {
-      if (!cp.wait_for_op(INFINITE))
+      auto res = cp.wait_for_op(INFINITE);
+      if (res == CompletionPort::op_exit)
         break;
     }
   });
@@ -2002,15 +1981,18 @@ void Test_ServerPipe::Exec() {
   std::thread t2([&cp] {
     plx::FilePath fp(L"\\\\.\\pipe\\fracus_been");
     auto topic = plx::RangeFromArray("=topic:0001=").const_bytes();
+    auto mem = plx::RangeFromBytes(new uint8_t[topic.size()], topic.size());
+
     auto params = plx::FileParams::ReadWrite_SharedRead(OPEN_EXISTING);
 
-    while (true) {
+    for (int ix = 0; ix != 3; ++ix) {
       plx::File pipe = plx::File::Create(fp, params, plx::FileSecurity());
-      pipe.write(topic);
-      break;
+      auto sz = pipe.write(topic);
+      sz = pipe.read(mem);
     }
   });
 
   t2.join();
+  cp.release_waiter();
   t1.join();
 }
