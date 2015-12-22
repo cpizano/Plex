@@ -153,4 +153,6 @@ catalog 1 {
   plx::SharedMemory plx\memory\shared_memory.h;
   plx::ProcessCreationTime plx\process_ctime.h;
   plx::OverlappedContext plx\io\overlapped_ctx.h;
+  plx::OverlappedChannelHandler plx\io\overlapped_channel_handler.h;
+  plx::CompletionPort plx\io\completion_port.h;
 }

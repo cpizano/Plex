@@ -9,7 +9,8 @@ public:
     memory,
     thread,
     process,
-    waitable
+    waitable,
+    port
   };
 
   Kernel32Exception(int line, Kind type)
