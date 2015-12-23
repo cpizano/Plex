@@ -567,6 +567,10 @@ private:
   friend class File;
 
 public:
+  static FilePath for_pipe(const wchar_t* path) {
+    return FilePath(std::wstring(L"\\\\.\\pipe\\").append(path));
+  }
+
   explicit FilePath(const wchar_t* path)
     : path_(path) {
   }

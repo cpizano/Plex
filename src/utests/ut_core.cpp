@@ -1422,26 +1422,28 @@ public:
 
   enum Options {
     overlapped = 1,
-    message_out = 2,
-    message_in = 4
+    byte_read =  2,
+    byte_write = 4
   };
 
-  static ServerPipe Create(const std::wstring& name, int options) {
+  static ServerPipe Create(const wchar_t* name, int options) {
     auto type = PIPE_ACCESS_DUPLEX | FILE_FLAG_FIRST_PIPE_INSTANCE;
     if (options & overlapped) {
       type |= FILE_FLAG_OVERLAPPED;
     }
     auto mode =  PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS;
-    if (options & message_out) {
-      mode |= PIPE_TYPE_MESSAGE;
+    if (options & byte_write) {
+      mode |= PIPE_TYPE_BYTE;
     }
-    if (options & message_in) {
-      mode |= PIPE_READMODE_MESSAGE;
+    if (options & byte_read) {
+      mode |= PIPE_READMODE_BYTE;
     }
 
     auto timeout_ms = 100UL;
     auto buf_sz = 4096UL;
-    auto pipe = ::CreateNamedPipeW(name.c_str(), type, mode, 1, buf_sz, buf_sz, timeout_ms, nullptr);
+    auto path = plx::FilePath::for_pipe(name);
+    auto pipe = ::CreateNamedPipeW(
+        path.raw(), type, mode, 1, buf_sz, buf_sz, timeout_ms, nullptr);
     if (pipe == INVALID_HANDLE_VALUE)
       throw 77;
     return ServerPipe(pipe);
@@ -1478,27 +1480,26 @@ public:
 
 class TestPipeHandler : public plx::OverlappedChannelHandler {
   ServerPipe srv_pipe_;
-  int idsn;
+  int transactions_;
   const int topic_sz = 64;
 
   struct RQ {
     int id;
     unsigned long pid;
     std::vector<std::string*> topic;
-    RQ(int id) : id(id), pid(0) {}
+    RQ(int id) : id(id), pid(0) {
+    }
   };
 
 public:
   TestPipeHandler()
-    : srv_pipe_(ServerPipe::Create(L"\\\\.\\pipe\\fracus_been",
-                    ServerPipe::overlapped |
-                    ServerPipe::message_in | ServerPipe::message_out)),
-                    idsn(5) {
+    : srv_pipe_(ServerPipe::Create(L"fracus_been", ServerPipe::overlapped)),
+      transactions_(0) {
   }
 
   bool start(plx::CompletionPort& cp) {
     srv_pipe_.associate_cp(&cp, this);
-    return srv_pipe_.connect(new RQ(idsn));
+    return srv_pipe_.connect(new RQ(transactions_));
   }
 
   void OnConnect(plx::OverlappedContext* ovc, unsigned long error) override {
@@ -1523,8 +1524,10 @@ public:
     auto rq = reinterpret_cast<RQ*>(ovc->ctx);
     delete rq;
     srv_pipe_.disconnect();
-    srv_pipe_.connect(new RQ(++idsn));
+    srv_pipe_.connect(new RQ(++transactions_));
   }
+
+  int transactions() const { return transactions_; }
 };
 
 
@@ -1543,20 +1546,22 @@ void Test_ServerPipe::Exec() {
   tph.start(cp);
 
   std::thread t2([&cp] {
-    plx::FilePath fp(L"\\\\.\\pipe\\fracus_been");
+    //auto fp = ;
     auto topic = plx::RangeFromArray("=topic:0001=").const_bytes();
     auto mem = plx::RangeFromBytes(new uint8_t[topic.size()], topic.size());
 
     auto params = plx::FileParams::ReadWrite_SharedRead(OPEN_EXISTING);
 
     for (int ix = 0; ix != 3; ++ix) {
-      plx::File pipe = plx::File::Create(fp, params, plx::FileSecurity());
+      auto pipe = plx::File::Create(
+          plx::FilePath::for_pipe(L"fracus_been"), params, plx::FileSecurity());
       auto sz = pipe.write(topic);
       sz = pipe.read(mem);
     }
   });
 
   t2.join();
+  CheckEQ(tph.transactions(), 3);
   cp.release_waiter();
   t1.join();
 }
