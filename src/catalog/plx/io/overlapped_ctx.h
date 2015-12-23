@@ -21,6 +21,10 @@ struct OverlappedContext : public OVERLAPPED {
     : OVERLAPPED({}), operation(op), ctx(ctx), data(data) {
   }
 
+  OverlappedContext(OverlappedOp op, void* ctx)
+    : OVERLAPPED({}), operation(op), ctx(ctx) {
+  }
+
   ~OverlappedContext() {
     if (hEvent)
       ::CloseHandle(hEvent);
@@ -28,11 +32,6 @@ struct OverlappedContext : public OVERLAPPED {
 
   OverlappedContext(const OverlappedContext&) = delete;
   OverlappedContext operator=(const OverlappedContext&) = delete;
-
-  OverlappedContext* reuse(OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
-    this->~OverlappedContext();
-    return new (this) OverlappedContext(op, ctx, data);
-  }
 
   size_t number_of_bytes() const {
     return InternalHigh;

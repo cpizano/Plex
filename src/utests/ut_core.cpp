@@ -1357,11 +1357,40 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
+template <typename T>
+struct ReuseObject {
+  __declspec(thread) static T* th_obj;
+
+  void set(T* obj) {
+    th_obj = obj;
+  }
+
+  void reset() {
+    if (th_obj) {
+      delete th_obj;
+      th_obj = nullptr;
+    }
+  }
+
+  template <typename... Args>
+  T* get(Args... args) {
+    if (th_obj) {
+      T* t = nullptr;
+      std::swap(t, th_obj);
+      t->~T();
+      return new (t) T(args...);
+    }
+    return new T(args...);
+  }
+};
+
+template<typename T>
+__declspec(thread) T* ReuseObject<T>::th_obj = nullptr;
+
 class ServerPipe : public plx::OvIOHandler {
   HANDLE pipe_;
   plx::OverlappedChannelHandler* handler_;
-
-  __declspec(thread) static plx::OverlappedContext* th_ovc;
+  ReuseObject<plx::OverlappedContext> reuse_ovc;
 
 private:
   ServerPipe(const ServerPipe&) = delete;
@@ -1375,17 +1404,16 @@ private:
     if (!handler_)
       return false;
     auto ovc = reinterpret_cast<plx::OverlappedContext*>(ov);
-    th_ovc = ovc;
+    reuse_ovc.set(ovc);
+
     switch (ovc->operation) {
       case plx::OverlappedContext::connect_op: handler_->OnConnect(ovc, error); break;
       case plx::OverlappedContext::read_op: handler_->OnRead(ovc, error); break;
       case plx::OverlappedContext::write_op: handler_->OnWrite(ovc, error); break;
       default:  __debugbreak();
     }
-    if (th_ovc) {
-      delete th_ovc;
-      th_ovc = nullptr;
-    }
+
+    reuse_ovc.reset();
     return true;
   }
 
@@ -1405,17 +1433,6 @@ private:
       return true;
     else
       throw 60;
-  }
-
-  OVERLAPPED* get_overlapped(plx::OverlappedContext::OverlappedOp op, void* ctx, plx::Range<uint8_t> data) {
-    if (!ctx)
-      return nullptr;
-    if (th_ovc) {
-      plx::OverlappedContext* ovc = nullptr;
-      std::swap(th_ovc, ovc);
-      return ovc->reuse(op, ctx, data);
-    }
-    return new plx::OverlappedContext(plx::OverlappedContext::connect_op, ctx, data);
   }
 
 public:
@@ -1466,26 +1483,28 @@ public:
   }
 
   bool connect(void* ctx) {
-    auto ovc = get_overlapped(plx::OverlappedContext::connect_op, ctx, plx::Range<uint8_t>());
+    auto ovc =  ctx ?
+        reuse_ovc.get(plx::OverlappedContext::connect_op, ctx) : nullptr;
     return do_async(::ConnectNamedPipe(pipe_, ovc));
+  }
+
+  bool read(plx::Range<uint8_t> buf, void* ctx) {
+    auto ovc = ctx ?
+        reuse_ovc.get(plx::OverlappedContext::read_op, ctx, buf) : nullptr;
+    return do_async(::ReadFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
+  }
+
+  bool write(plx::Range<uint8_t> buf, void* ctx) {
+    auto ovc = ctx ?
+        reuse_ovc.get(plx::OverlappedContext::write_op, ctx, buf) : nullptr;
+    return do_async(::WriteFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
   }
 
   bool disconnect() {
     return ::DisconnectNamedPipe(pipe_) ? true : false;
   }
 
-  bool read(plx::Range<uint8_t> buf, void* ctx) {
-    auto ovc = get_overlapped(plx::OverlappedContext::read_op, ctx, buf);
-    return do_async(::ReadFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
-  }
-
-  bool write(plx::Range<uint8_t> buf, void* ctx) {
-    auto ovc = get_overlapped(plx::OverlappedContext::write_op, ctx, buf);
-    return do_async(::WriteFile(pipe_, buf.start(), plx::To<DWORD>(buf.size()), NULL, ovc));
-  }
 };
-
-__declspec(thread) plx::OverlappedContext* ServerPipe::th_ovc = nullptr;
 
 class TestPipeHandler : public plx::OverlappedChannelHandler {
   ServerPipe srv_pipe_;
