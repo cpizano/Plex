@@ -103,5 +103,5 @@ TEST(Test_DemandPagedMemory);
 TEST(Test_ArgPack);
 TEST(Test_RectLSizeL);
 TEST(Test_SharedMemory);
-TEST(Test_SharedBuffer);
+TEST(Test_ServerPipe);
 #undef TEST

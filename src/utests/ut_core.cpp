@@ -1357,10 +1357,6 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
-void Test_SharedBuffer::Exec() {
-  // used to have stuff, deleted 12/21/2015.
-}
-
 class ServerPipe : public plx::OvIOHandler {
   HANDLE pipe_;
   plx::OverlappedChannelHandler* handler_;

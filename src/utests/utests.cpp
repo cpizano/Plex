@@ -60,7 +60,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_ArgPack().Run();
     Test_RectLSizeL().Run();
     Test_SharedMemory().Run();
-    Test_SharedBuffer().Run();
+    Test_ServerPipe().Run();
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
     return 1;
