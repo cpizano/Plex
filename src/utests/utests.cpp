@@ -51,12 +51,16 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_IOCPLoop().Run();
     Test_Hashes().Run();
     Test_CmdLine().Run();
-    Test_Inflater().Run();
-    Test_GZIP().Run();
+    if (!::IsDebuggerPresent())
+      Test_Inflater().Run();
+    if (!::IsDebuggerPresent())
+      Test_GZIP().Run();
     Test_ReaderWriterLock().Run();
     Test_Globals().Run();
-    Test_VEHManager().Run();
-    Test_DemandPagedMemory().Run();
+    if (!::IsDebuggerPresent())
+      Test_VEHManager().Run();
+    if (!::IsDebuggerPresent())
+      Test_DemandPagedMemory().Run();
     Test_ArgPack().Run();
     Test_RectLSizeL().Run();
     Test_SharedMemory().Run();
