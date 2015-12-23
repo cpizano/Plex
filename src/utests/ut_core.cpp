@@ -1357,40 +1357,10 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
-template <typename T>
-struct ReuseObject {
-  __declspec(thread) static T* th_obj;
-
-  void set(T* obj) {
-    th_obj = obj;
-  }
-
-  void reset() {
-    if (th_obj) {
-      delete th_obj;
-      th_obj = nullptr;
-    }
-  }
-
-  template <typename... Args>
-  T* get(Args... args) {
-    if (th_obj) {
-      T* t = nullptr;
-      std::swap(t, th_obj);
-      t->~T();
-      return new (t) T(args...);
-    }
-    return new T(args...);
-  }
-};
-
-template<typename T>
-__declspec(thread) T* ReuseObject<T>::th_obj = nullptr;
-
 class ServerPipe : public plx::OvIOHandler {
   HANDLE pipe_;
   plx::OverlappedChannelHandler* handler_;
-  ReuseObject<plx::OverlappedContext> reuse_ovc;
+  plx::ReuseObject<plx::OverlappedContext> reuse_ovc;
 
 private:
   ServerPipe(const ServerPipe&) = delete;

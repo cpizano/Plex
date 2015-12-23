@@ -155,4 +155,5 @@ catalog 1 {
   plx::OverlappedContext plx\io\overlapped_ctx.h;
   plx::OverlappedChannelHandler plx\io\overlapped_channel_handler.h;
   plx::CompletionPort plx\io\completion_port.h;
+  plx::ReuseObject plx\reuse_object.h;
 }
