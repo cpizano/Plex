@@ -10,11 +10,14 @@ public:
     thread,
     process,
     waitable,
-    port
+    port,
+    pipe
   };
 
   Kernel32Exception(int line, Kind type)
-      : Exception(line, "kernel 32"), type_(type) {
+      : Exception(line, "kernel 32"),
+        error_code_(::GetLastError()),
+        type_(type) {
     PostCtor();
   }
 
@@ -24,5 +27,7 @@ public:
 
 private:
   Kind type_;
+  unsigned long error_code_;
 };
+
 }
