@@ -13,11 +13,8 @@ enum class DispatchResult {
   no_handler
 };
 
-#define MsgALIGNED alignas(16) Message
-
-struct MsgALIGNED {
+struct alignas(16) Message {
   static const uint32_t msg_bom = 0x5ca1ab1e;
-
   uint32_t bom;
   uint32_t id;
   uint32_t size;
@@ -38,8 +35,6 @@ struct MsgALIGNED {
     m->size = size;
   }
 };
-
-#undef MsgALIGNED
 
 template<typename M>
 M* MsgMakeNew() {

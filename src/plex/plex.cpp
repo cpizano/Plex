@@ -1231,6 +1231,19 @@ CppToken::Type GetTwoTokenType(const CppToken& first, const CppToken& second) {
 
 typedef std::vector<CppToken> CppTokenVector;
 
+void DbgDumpTokens(CppTokenVector::iterator b, CppTokenVector::iterator e) {
+  if (b > e)
+    std::swap(e, b);
+  wprintf(L"== token dump (%td) begin ==\n", (e - b) + 1);
+  while (b <= e) {
+    auto t = ToString(b->range);
+    wprintf(L" [%S]  type:%d  line:%d\n", t.c_str(), b->type, b->line);
+    ++b;
+  }
+  wprintf(L"== token dump end ==\n");
+}
+
+
 #pragma region tokenizer
 
 CppTokenVector TokenizeCpp(const FilePath& path, Range<char>* e_range = nullptr) {
@@ -1555,6 +1568,11 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
           } else if (it2->type == CppToken::identifier) {
             auto it3 = it2 - 1;
             name = it2->range;
+
+            if (it3->type == CppToken::kw_alignas) {
+              it3 = it3 - 1;
+            }
+
             if (it3->type == CppToken::kw_namespace)
               block_type = ScopeBlock::named_namespace;
             else if ((it3->type == CppToken::kw_class)   ||
@@ -1564,7 +1582,7 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
                      (it3->type == CppToken::kw_union))
               block_type = ScopeBlock::block_aggregate;
             else if (it3->type == CppToken::kw_enum)
-              block_type = ScopeBlock::block_enum; //$$ handle enum class.
+              block_type = ScopeBlock::block_enum;
             else if (it3->type == CppToken::deref_ptr)
               block_type = ScopeBlock::block_scope;
             else
@@ -1622,6 +1640,20 @@ bool LexCppTokens(LexMode mode, CppTokenVector& tokens) {
       CppToken::Type type = GetCppKeywordType(it->range);
       if (type != CppToken::unknown) {
         it->type = type;
+
+        if (type == CppToken::kw_alignas) {
+          auto it2 = it + 1;
+          if (it2->type != CppToken::open_paren)
+            throw TokenizerException(path, __LINE__, it->line);
+          while (it2->type != CppToken::close_paren) {
+            if (it2->type == CppToken::eos)
+              throw TokenizerException(path, __LINE__, it->line);
+            ++it2;
+          }
+          CoaleseToken(it, it2, CppToken::kw_alignas);
+          tokens.erase(it + 1, it2 + 1);
+        }
+
       } else {
         const char c = *it->range.Start();
         if ((c >= '0') && (c <= '9')) {
