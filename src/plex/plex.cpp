@@ -1186,7 +1186,7 @@ CppToken::Type GetCppPreprocessorKeyword(const Range<char>& r) {
   const char* kw[] = {
     "define", "else", "endif", "error",
     "if", "ifdef", "ifndef", "include",
-    "line", "pragma", "undefine",
+    "line", "pragma", "undef",
   };
   size_t off = FindToken(kw, r);
   return (off == -1) ?
