@@ -104,4 +104,5 @@ TEST(Test_ArgPack);
 TEST(Test_RectLSizeL);
 TEST(Test_SharedMemory);
 TEST(Test_ServerPipe);
+TEST(Test_IPCMsgDispatch);
 #undef TEST

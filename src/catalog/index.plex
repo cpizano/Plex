@@ -157,4 +157,6 @@ catalog 1 {
   plx::CompletionPort plx\io\completion_port.h;
   plx::ReuseObject plx\reuse_object.h;
   plx::ServerPipe plx\io\server_pipe.h;
+  plx::DispatchResult plx\ipc\msg_defs.h;
+  plx::DispatchMap plx\ipc\msg_dispatch.h;
 }

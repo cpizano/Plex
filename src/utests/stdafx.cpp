@@ -53,6 +53,27 @@ char* HexASCII(uint8_t byte, char* out) {
   *out++ = HexASCIITable[byte & 0x0F];
   return out;
 }
+plx::DispatchResult MsgDispatch(DispatchMap dm, plx::Range<uint8_t>& r) {
+  using Make = decltype(MsgFromMem<Message>);
+  using Handle = decltype(MsgHandler<Message>);
+
+  uint32_t id = 0;
+  auto res = Message::validate_header(r, &id);
+  if (res != DispatchResult::dispatch_ok)
+    return res;
+
+  auto e = dm.find(id);
+  if (e == dm.end())
+    return DispatchResult::no_handler;
+
+  auto msg = reinterpret_cast<Make*>(e->second.maker)(r);
+  if (!msg)
+    return DispatchResult::bad_buffer;
+  if (!reinterpret_cast<Handle*>(e->second.handler)(msg, e->second.ctx))
+    return DispatchResult::handler_abort;
+  r.advance(msg->size);
+  return DispatchResult::dispatch_ok;
+}
 std::string HexASCIIStr(const plx::Range<const uint8_t>& r, char separator) {
   if (r.empty())
     return std::string();

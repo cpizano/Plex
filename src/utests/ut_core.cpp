@@ -1357,8 +1357,6 @@ void Test_SharedMemory::Exec() {
   CheckEQ(sh_mem2.range()[6], 0x55);
 }
 
-
-
 class TestPipeHandler : public plx::OverlappedChannelHandler {
   plx::ServerPipe srv_pipe_;
   int transactions_;
@@ -1446,4 +1444,71 @@ void Test_ServerPipe::Exec() {
   CheckEQ(tph.transactions(), 3);
   cp.release_waiter();
   t1.join();
+}
+
+// http://en.cppreference.com/w/cpp/memory/align
+
+struct TstMessage_1 : public plx::Message {
+  enum { M_ID = 100 };
+  char a;
+};
+
+struct TstMessage_2 : public plx::Message {
+  enum { M_ID = 101 };
+  float f1;
+  float f2;
+  int b;
+};
+
+struct TstMessage_3 : public plx::Message {
+  enum { M_ID = 102 };
+  char x[20];
+  int  y;
+};
+
+template<>
+bool plx::MsgHandler<TstMessage_1>(TstMessage_1* m, void* ctx) {
+  *reinterpret_cast<int*>(ctx) = 1;
+  return true;
+}
+
+template<>
+bool plx::MsgHandler<TstMessage_2>(TstMessage_2* m, void* ctx) {
+  *reinterpret_cast<int*>(ctx) = 2;
+  return m->b == 667;
+}
+
+template<>
+bool plx::MsgHandler<TstMessage_3>(TstMessage_3* m, void* ctx) {
+  *reinterpret_cast<int*>(ctx) = 3;
+  return false;
+}
+
+void Test_IPCMsgDispatch::Exec() {
+  int received = 0;
+
+  plx::DispatchMap dm;
+  plx::AddToDispatchMap<TstMessage_3>(dm, &received);
+  plx::AddToDispatchMap<TstMessage_1>(dm, &received);
+  plx::AddToDispatchMap<TstMessage_2>(dm, &received);
+
+  {
+    auto m = plx::MsgMakeNew<TstMessage_2>();
+    m->b = 667;
+    plx::Range<uint8_t> buf(reinterpret_cast<uint8_t*>(m), sizeof(TstMessage_2));
+    auto res = plx::MsgDispatch(dm, buf);
+    CheckEQ(res, plx::DispatchResult::dispatch_ok);
+    CheckEQ(received, 2);
+    delete m;
+  }
+
+  {
+    auto m = plx::MsgMakeNew<TstMessage_3>();
+    plx::Range<uint8_t> buf(reinterpret_cast<uint8_t*>(m), sizeof(TstMessage_3));
+    auto res = plx::MsgDispatch(dm, buf);
+    CheckEQ(res, plx::DispatchResult::handler_abort);
+    CheckEQ(received, 3);
+    delete m;
+  }
+  
 }
