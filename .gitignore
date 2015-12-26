@@ -39,3 +39,4 @@ src/data/gen/*.dmp
 src/vtests/plex_log.txt
 src/utests/plex_log.txt
 src/data/plex_log.txt
+*.opendb
