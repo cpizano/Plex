@@ -159,4 +159,7 @@ catalog 1 {
   plx::ServerPipe plx\io\server_pipe.h;
   plx::DispatchResult plx\ipc\msg_defs.h;
   plx::DispatchMap plx\ipc\msg_dispatch.h;
+  plx::Version plx\version.h;
+  plx::ParseUnsignedInt plx\string\parse_uint.h;
+  plx::ParseSignedInt plx\string\parse_int.h;
 }

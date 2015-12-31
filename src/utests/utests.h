@@ -105,4 +105,5 @@ TEST(Test_RectLSizeL);
 TEST(Test_SharedMemory);
 TEST(Test_ServerPipe);
 TEST(Test_IPCMsgDispatch);
+TEST(Test_Version);
 #undef TEST
