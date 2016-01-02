@@ -162,4 +162,6 @@ catalog 1 {
   plx::Version plx\version.h;
   plx::ParseUnsignedInt plx\string\parse_uint.h;
   plx::ParseSignedInt plx\string\parse_int.h;
+  plx::Process plx\process.h;
+  plx::ProcessParams plx\process.h;
 }

@@ -2239,6 +2239,39 @@ uint64_t ParseUnsignedInt(plx::Range<const uint8_t>& r) {
 bool PlatformCheck() ;;
 
 
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::StringPrintf  (c-style printf for std strings)
+//
+
+int vsnprintf(char* buffer, size_t size,
+              const char* format, va_list arguments) ;
+
+int vsnprintf(wchar_t* buffer, size_t size,
+              const wchar_t* format, va_list arguments) ;
+
+
+template <typename CH>
+std::basic_string<CH> StringPrintf(const CH* fmt, ...) {
+  int fmt_size = 128;
+  std::unique_ptr<CH> mem;
+
+  va_list args;
+  va_start(args, fmt);
+
+  while (true) {
+    mem.reset(new CH[fmt_size]);
+    int sz = vsnprintf(mem.get(), fmt_size, fmt, args);
+    if (sz < fmt_size)
+      break;
+    fmt_size = sz + 1;
+  }
+
+  va_end(args);
+  return mem.get();
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::HuffmanCodec : implements a huffman decoder.
 // it maps bit patterns (codes) of up to 15 bits to 16 bit symbols.
@@ -2958,35 +2991,108 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::StringPrintf  (c-style printf for std strings)
+// plx::Process
 //
 
-int vsnprintf(char* buffer, size_t size,
-              const char* format, va_list arguments) ;
+class ProcessParams {
+  bool inherit_;
+  unsigned long flags_;
+  void* env_;
 
-int vsnprintf(wchar_t* buffer, size_t size,
-              const wchar_t* format, va_list arguments) ;
-
-
-template <typename CH>
-std::basic_string<CH> StringPrintf(const CH* fmt, ...) {
-  int fmt_size = 128;
-  std::unique_ptr<CH> mem;
-
-  va_list args;
-  va_start(args, fmt);
-
-  while (true) {
-    mem.reset(new CH[fmt_size]);
-    int sz = vsnprintf(mem.get(), fmt_size, fmt, args);
-    if (sz < fmt_size)
-      break;
-    fmt_size = sz + 1;
+public:
+  ProcessParams(bool inherit, unsigned long flags)
+    : inherit_(inherit),
+    flags_(flags),
+    env_(nullptr) {
   }
 
-  va_end(args);
-  return mem.get();
-}
+  bool inherit_handles() const { return inherit_; }
+  unsigned long creation_flags() const { return flags_; }
+  void* environment() const { return env_; }
+
+  void set_enviroment(void* env) { env_ = env; }
+};
+
+class Process {
+  HANDLE handle_;
+  HANDLE thread_;
+  unsigned long error_;
+
+private:
+  Process(HANDLE handle, HANDLE thread, unsigned long error)
+    : handle_(handle), thread_(thread), error_(error) {
+  }
+
+  Process(const Process&) = delete;
+  Process& operator=(const Process&) = delete;
+
+public:
+  Process() : handle_(0), thread_(0), error_(NO_ERROR) {}
+
+  Process(Process&& process)
+    : handle_(0), thread_(0), error_(NO_ERROR) {
+    std::swap(process.handle_, handle_);
+    std::swap(process.thread_, thread_);
+    std::swap(process.error_, error_);
+  }
+
+  bool wait_termination(unsigned long millisecs) {
+    if (WAIT_OBJECT_0 == ::WaitForSingleObject(handle_, millisecs)) {
+      ::GetExitCodeProcess(handle_, &error_);
+      return true;
+    }
+    return false;
+  }
+
+  bool kill(unsigned int ret_code) {
+    if (!::TerminateProcess(handle_, ret_code))
+      return false;
+    Process closer(std::move(*this));
+    return true;
+  }
+
+  unsigned long resume() {
+    return ::ResumeThread(thread_);
+  }
+
+  ~Process() {
+    if (handle_) {
+      if (!::CloseHandle(handle_))
+        __debugbreak();
+      if (!::CloseHandle(thread_))
+        __debugbreak();
+    }
+  }
+
+  Process& operator=(Process&& process) {
+    std::swap(process.handle_, handle_);
+    std::swap(process.thread_, thread_);
+  }
+
+  bool is_valid() const { return (handle_ != 0UL) && (thread_ != 0UL); }
+  unsigned long error() const { return error_; }
+
+  static Process Create(const plx::FilePath& path,
+    const std::wstring& args,
+    const ProcessParams& pp) {
+    const wchar_t* fmt = (path.has_spaces()) ? L"\"%s\" %s" : L"%s %s";
+    auto cmd_line = plx::StringPrintf(fmt, path.raw(), args.c_str());
+
+    STARTUPINFO si = { sizeof(si), 0 };
+    PROCESS_INFORMATION pi = {};
+
+    if (!::CreateProcessW(NULL, &cmd_line[0],
+      nullptr, nullptr,
+      pp.inherit_handles() ? TRUE : FALSE,
+      pp.creation_flags(),
+      pp.environment(), nullptr,
+      &si, &pi)) {
+      return Process(0UL, 0UL, ::GetLastError());
+    }
+    return Process(pi.hProcess, pi.hThread, NO_ERROR);
+  }
+
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////

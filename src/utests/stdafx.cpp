@@ -226,6 +226,26 @@ bool PlatformCheck() {
   }
   return true;
 }
+int vsnprintf(char* buffer, size_t size,
+              const char* format, va_list arguments) {
+  int length = _vsprintf_p(buffer, size, format, arguments);
+  if (length < 0) {
+    if (size > 0)
+      buffer[0] = 0;
+    return _vscprintf_p(format, arguments);
+  }
+  return length;
+}
+int vsnprintf(wchar_t* buffer, size_t size,
+              const wchar_t* format, va_list arguments) {
+  int length = _vswprintf_p(buffer, size, format, arguments);
+  if (length < 0) {
+    if (size > 0)
+      buffer[0] = 0;
+    return _vscwprintf_p(format, arguments);
+  }
+  return length;
+}
 char32_t DecodeUTF8(plx::Range<const uint8_t>& ir) {
   if (!ir.valid() || (ir.size() == 0))
     throw plx::CodecException(__LINE__, nullptr);
@@ -400,26 +420,6 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) {
 
   auto r = plx::RangeFromBytes(range.start(), range.size());
   throw plx::CodecException(__LINE__, &r);
-}
-int vsnprintf(char* buffer, size_t size,
-              const char* format, va_list arguments) {
-  int length = _vsprintf_p(buffer, size, format, arguments);
-  if (length < 0) {
-    if (size > 0)
-      buffer[0] = 0;
-    return _vscprintf_p(format, arguments);
-  }
-  return length;
-}
-int vsnprintf(wchar_t* buffer, size_t size,
-              const wchar_t* format, va_list arguments) {
-  int length = _vswprintf_p(buffer, size, format, arguments);
-  if (length < 0) {
-    if (size > 0)
-      buffer[0] = 0;
-    return _vscwprintf_p(format, arguments);
-  }
-  return length;
 }
 std::wstring UTF16FromUTF8(const plx::Range<const uint8_t>& utf8, bool strict) {
   if (utf8.empty())
