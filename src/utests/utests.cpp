@@ -67,6 +67,7 @@ int wmain(int argc, wchar_t* argv[]) {
     Test_ServerPipe().Run();
     Test_IPCMsgDispatch().Run();
     Test_Version().Run();
+    Test_Process().Run();
   } catch (Fail& ex) {
     wprintf(L"Test %S  (%S) failed\n", ex.test, ex.kind);
     return 1;

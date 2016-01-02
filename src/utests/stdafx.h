@@ -692,6 +692,10 @@ public:
     return (path_.size() < 2) ? false : drive_impl();
   }
 
+  bool has_spaces() const {
+    return std::string::npos != path_.find(' ');
+  }
+
   const wchar_t* raw() const {
     return path_.c_str();
   }
@@ -2952,11 +2956,37 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range);
 plx::JsonValue ParseJsonValue(plx::Range<const char>& range) ;
 
 
+
 ///////////////////////////////////////////////////////////////////////////////
 // plx::StringPrintf  (c-style printf for std strings)
 //
 
-std::string StringPrintf(const char* fmt, ...) ;
+int vsnprintf(char* buffer, size_t size,
+              const char* format, va_list arguments) ;
+
+int vsnprintf(wchar_t* buffer, size_t size,
+              const wchar_t* format, va_list arguments) ;
+
+
+template <typename CH>
+std::basic_string<CH> StringPrintf(const CH* fmt, ...) {
+  int fmt_size = 128;
+  std::unique_ptr<CH> mem;
+
+  va_list args;
+  va_start(args, fmt);
+
+  while (true) {
+    mem.reset(new CH[fmt_size]);
+    int sz = vsnprintf(mem.get(), fmt_size, fmt, args);
+    if (sz < fmt_size)
+      break;
+    fmt_size = sz + 1;
+  }
+
+  va_end(args);
+  return mem.get();
+}
 
 
 ///////////////////////////////////////////////////////////////////////////////
