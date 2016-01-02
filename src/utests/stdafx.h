@@ -3183,7 +3183,7 @@ public:
   int rev() const { return v.rev; }
   int build() const { return v.build; }
 
-  static Version FromString(plx::Range<const uint8_t> r) {
+  static Version FromRange(plx::Range<const uint8_t> r) {
     if (r.empty())
       throw plx::CodecException(__LINE__, nullptr);
 

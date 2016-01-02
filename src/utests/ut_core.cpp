@@ -1515,7 +1515,7 @@ void Test_IPCMsgDispatch::Exec() {
 void Test_Version::Exec() {
   const char test_str[] = "5.22.3.1124";
   auto rv = plx::RangeFromLitStr(test_str).const_bytes();
-  auto v = plx::Version::FromString(rv);
+  auto v = plx::Version::FromRange(rv);
   CheckEQ(v.major(), 5);
   CheckEQ(v.minor(), 22);
   CheckEQ(v.rev(), 3);
