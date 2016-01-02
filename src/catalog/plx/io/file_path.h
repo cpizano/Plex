@@ -56,6 +56,10 @@ public:
     return (path_.size() < 2) ? false : drive_impl();
   }
 
+  bool has_spaces() const {
+    return std::string::npos != path_.find(' ');
+  }
+
   const wchar_t* raw() const {
     return path_.c_str();
   }
