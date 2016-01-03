@@ -1561,6 +1561,134 @@ private:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::JobObjEventHandler
+//
+
+class JobObjEventHandler {
+public:
+  virtual void AbnormalExit(unsigned int pid, unsigned long error) = 0;
+  virtual void NormalExit(unsigned int pid, unsigned long status) = 0;
+  virtual void NewProcess(unsigned int pid) = 0;
+  virtual void ActiveCountZero() = 0;
+  virtual void ActiveProcessLimit() = 0;
+  virtual void MemoryLimit(unsigned int pid) = 0;
+  virtual void TimeLimit(unsigned int pid) = 0;
+};
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::OverlappedContext
+//
+
+class OvIOHandler {
+public:
+  virtual bool OnCompleted(OVERLAPPED* ov) = 0;
+  virtual bool OnFailure(OVERLAPPED* ov, unsigned long error) = 0;
+};
+
+struct RawGQCPS {
+  unsigned long bytes;
+  ULONG_PTR key;
+  OVERLAPPED* ov;
+};
+
+class CompletionPort {
+  HANDLE port_;
+
+private:
+  CompletionPort() = delete;
+  CompletionPort(const CompletionPort&) = delete;
+  CompletionPort& operator=(const CompletionPort&) = delete;
+
+public:
+
+  explicit CompletionPort(unsigned long concurrent)
+    : port_(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrent)) {
+    if (!port_)
+      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::port);
+  }
+
+  ~CompletionPort() {
+    ::CloseHandle(port_);
+  }
+
+  void add_io_handler(HANDLE handle, OvIOHandler* handler) {
+    auto h = ::CreateIoCompletionPort(handle, port_, ULONG_PTR(handler), 0);
+    if (!h)
+      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::port);;
+  }
+
+  void release_waiter() {
+    ::PostQueuedCompletionStatus(port_, 0, 232, nullptr);
+  }
+
+  HANDLE handle() { return port_; }
+
+  enum WaitResult {
+    op_exit,
+    op_ok,
+    op_timeout,
+    op_error
+  };
+
+  WaitResult wait_for_io_op(unsigned long timeout) {
+    unsigned long bytes;
+    ULONG_PTR key;
+    OVERLAPPED* ov;
+
+    // return  | ov | bytes
+    // ----------------------------------------------------
+    //   false |  0 | na   The call to GQCS failed, and no data was dequeued from the IO port.
+    //                     Usually means wrong parameters.
+    //   false |  x | na   The call to GQCS failed, but data was read or written. There is an
+    //                     error condition on the underlying HANDLE. Usually seen when the other
+    //                     end has been forcibly closed but there's still data in the send or
+    //                     receive queue.
+    //   true  |  0 |  y   Only possible via PostQueuedCompletionStatus(). Can use y or key to
+    //                     communicate condtions.
+    //   true  |  x |  0   End of file for a file HANDLE, or the connection has been gracefully
+    //                     closed (for network connections).
+    //   true  |  x |  y   Sucess. y bytes of data have been transferred.
+
+    if (!::GetQueuedCompletionStatus(port_, &bytes, &key, &ov, timeout)) {
+      if (!ov) {
+        if (::GetLastError() == WAIT_TIMEOUT)
+          return op_timeout;
+        throw plx::IOException(__LINE__, nullptr);
+      } else if (key) {
+        return reinterpret_cast<OvIOHandler*>(
+            key)->OnFailure(ov, ::GetLastError()) ? op_ok : op_error;
+      }
+    } else if (!ov) {
+      return op_exit;
+    } else if (key) {
+      return reinterpret_cast<OvIOHandler*>(key)->OnCompleted(ov) ? op_ok : op_error;
+    }
+    throw plx::IOException(__LINE__, nullptr);
+  }
+
+  WaitResult wait_raw(unsigned long timeout, RawGQCPS* rgqcps) {
+    if (!::GetQueuedCompletionStatus(port_, &rgqcps->bytes,
+                                     &rgqcps->key, &rgqcps->ov, timeout))
+      return  (::GetLastError() == WAIT_TIMEOUT) ? op_timeout : op_error;
+    return  rgqcps->key == 232 ? op_exit : op_ok;
+  }
+
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::OverflowKind
+//
+enum class OverflowKind {
+  None,
+  Positive,
+  Negative,
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::JsonException
 //
 class JsonException : public plx::Exception {
@@ -1821,116 +1949,44 @@ class JsonValue {
 };
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
-// plx::OverlappedContext
+// plx::OverflowException (thrown by some numeric converters)
+// kind_ : Type of overflow, positive or negative.
 //
-
-class OvIOHandler {
-public:
-  virtual bool OnCompleted(OVERLAPPED* ov) = 0;
-  virtual bool OnFailure(OVERLAPPED* ov, unsigned long error) = 0;
-};
-
-struct RawGQCPS {
-  unsigned long bytes;
-  ULONG_PTR key;
-  OVERLAPPED* ov;
-};
-
-class CompletionPort {
-  HANDLE port_;
-
-private:
-  CompletionPort() = delete;
-  CompletionPort(const CompletionPort&) = delete;
-  CompletionPort& operator=(const CompletionPort&) = delete;
+class OverflowException : public plx::Exception {
+  plx::OverflowKind kind_;
 
 public:
-
-  explicit CompletionPort(unsigned long concurrent)
-    : port_(::CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, concurrent)) {
-    if (!port_)
-      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::port);
+  OverflowException(int line, plx::OverflowKind kind)
+      : Exception(line, "Overflow"), kind_(kind) {
+    PostCtor();
   }
-
-  ~CompletionPort() {
-    ::CloseHandle(port_);
-  }
-
-  void add_io_handler(HANDLE handle, OvIOHandler* handler) {
-    auto h = ::CreateIoCompletionPort(handle, port_, ULONG_PTR(handler), 0);
-    if (!h)
-      throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::port);;
-  }
-
-  void release_waiter() {
-    ::PostQueuedCompletionStatus(port_, 0, 232, nullptr);
-  }
-
-  HANDLE handle() { return port_; }
-
-  enum WaitResult {
-    op_exit,
-    op_ok,
-    op_timeout,
-    op_error
-  };
-
-  WaitResult wait_for_io_op(unsigned long timeout) {
-    unsigned long bytes;
-    ULONG_PTR key;
-    OVERLAPPED* ov;
-
-    // return  | ov | bytes
-    // ----------------------------------------------------
-    //   false |  0 | na   The call to GQCS failed, and no data was dequeued from the IO port.
-    //                     Usually means wrong parameters.
-    //   false |  x | na   The call to GQCS failed, but data was read or written. There is an
-    //                     error condition on the underlying HANDLE. Usually seen when the other
-    //                     end has been forcibly closed but there's still data in the send or
-    //                     receive queue.
-    //   true  |  0 |  y   Only possible via PostQueuedCompletionStatus(). Can use y or key to
-    //                     communicate condtions.
-    //   true  |  x |  0   End of file for a file HANDLE, or the connection has been gracefully
-    //                     closed (for network connections).
-    //   true  |  x |  y   Sucess. y bytes of data have been transferred.
-
-    if (!::GetQueuedCompletionStatus(port_, &bytes, &key, &ov, timeout)) {
-      if (!ov) {
-        if (::GetLastError() == WAIT_TIMEOUT)
-          return op_timeout;
-        throw plx::IOException(__LINE__, nullptr);
-      } else if (key) {
-        return reinterpret_cast<OvIOHandler*>(
-            key)->OnFailure(ov, ::GetLastError()) ? op_ok : op_error;
-      }
-    } else if (!ov) {
-      return op_exit;
-    } else if (key) {
-      return reinterpret_cast<OvIOHandler*>(key)->OnCompleted(ov) ? op_ok : op_error;
-    }
-    throw plx::IOException(__LINE__, nullptr);
-  }
-
-  WaitResult wait_raw(unsigned long timeout, RawGQCPS* rgqcps) {
-    if (!::GetQueuedCompletionStatus(port_, &rgqcps->bytes,
-                                     &rgqcps->key, &rgqcps->ov, timeout))
-      return  (::GetLastError() == WAIT_TIMEOUT) ? op_timeout : op_error;
-    return  rgqcps->key == 232 ? op_exit : op_ok;
-  }
-
+  plx::OverflowKind kind() const { return kind_; }
 };
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::OverflowKind
-//
-enum class OverflowKind {
-  None,
-  Positive,
-  Negative,
-};
+// plx::NextInt  integer promotion.
+
+short NextInt(char value) ;
+
+int NextInt(short value) ;
+
+long long NextInt(int value) ;
+
+long long NextInt(long value) ;
+
+long long NextInt(long long value) ;
+
+short NextInt(unsigned char value) ;
+
+int NextInt(unsigned short value) ;
+
+long long NextInt(unsigned int value) ;
+
+long long NextInt(unsigned long value) ;
+
+long long NextInt(unsigned long long value) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2042,46 +2098,6 @@ private:
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::OverflowException (thrown by some numeric converters)
-// kind_ : Type of overflow, positive or negative.
-//
-class OverflowException : public plx::Exception {
-  plx::OverflowKind kind_;
-
-public:
-  OverflowException(int line, plx::OverflowKind kind)
-      : Exception(line, "Overflow"), kind_(kind) {
-    PostCtor();
-  }
-  plx::OverflowKind kind() const { return kind_; }
-};
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::NextInt  integer promotion.
-
-short NextInt(char value) ;
-
-int NextInt(short value) ;
-
-long long NextInt(int value) ;
-
-long long NextInt(long value) ;
-
-long long NextInt(long long value) ;
-
-short NextInt(unsigned char value) ;
-
-int NextInt(unsigned short value) ;
-
-long long NextInt(unsigned int value) ;
-
-long long NextInt(unsigned long value) ;
-
-long long NextInt(unsigned long long value) ;
-
-
-///////////////////////////////////////////////////////////////////////////////
 // plx::To  (integer to integer type safe cast)
 //
 
@@ -2153,6 +2169,156 @@ To(const Src & value) {
   return ToCastHelper<std::numeric_limits<Src>::is_signed,
                       std::numeric_limits<Tgt>::is_signed>::cast<Tgt>(value);
 }
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::JobObjecNotification
+//
+
+class JobObjecNotification {
+  plx::CompletionPort* cp_;
+  plx::JobObjEventHandler* handler_;
+
+  friend class JobObject;
+  void config(HANDLE job) const {
+    if (cp_) {
+      JOBOBJECT_ASSOCIATE_COMPLETION_PORT info = { handler_, cp_->handle() };
+      ::SetInformationJobObject(
+        job, JobObjectAssociateCompletionPortInformation, &info, sizeof(info));
+    }
+  }
+
+public:
+  JobObjecNotification() : cp_(nullptr), handler_(nullptr) {}
+  JobObjecNotification(plx::CompletionPort* cp, JobObjEventHandler* handler)
+    : cp_(cp), handler_(handler) {}
+
+  plx::CompletionPort::WaitResult wait_for_event(unsigned long timeout) {
+    plx::RawGQCPS raw;
+    auto rv = cp_->wait_raw(timeout, &raw);
+    if (rv != plx::CompletionPort::op_ok)
+      return rv;
+    auto handler = reinterpret_cast<JobObjEventHandler*>(raw.key);
+    if (!handler)
+      return plx::CompletionPort::op_error;
+
+    auto pid = plx::To<unsigned int>(reinterpret_cast<UINT_PTR>(raw.ov));
+
+    switch (raw.bytes) {
+    case JOB_OBJECT_MSG_END_OF_JOB_TIME:
+      handler->TimeLimit(pid); break;
+    case JOB_OBJECT_MSG_END_OF_PROCESS_TIME:
+      handler->TimeLimit(pid); break;
+    case JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT:
+      break;
+    case JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO:
+      handler->ActiveCountZero(); break;
+    case JOB_OBJECT_MSG_NEW_PROCESS:
+      handler->NewProcess(pid); break;
+    case JOB_OBJECT_MSG_EXIT_PROCESS:
+      handler->NormalExit(pid, 0); break;
+    case JOB_OBJECT_MSG_ABNORMAL_EXIT_PROCESS:
+      handler->AbnormalExit(pid, 0); break;
+    case JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT:
+      handler->MemoryLimit(pid); break;
+    case JOB_OBJECT_MSG_JOB_MEMORY_LIMIT:
+      handler->MemoryLimit(pid); break;
+    case JOB_OBJECT_MSG_NOTIFICATION_LIMIT:
+    case JOB_OBJECT_MSG_JOB_CYCLE_TIME_LIMIT:
+    default:
+      break;
+    }
+    return rv;
+  }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::FilesInfo
+//
+#pragma comment(user, "plex.define=plex_vista_support")
+
+class FilesInfo {
+private:
+  FILE_ID_BOTH_DIR_INFO* info_;
+  plx::LinkedBuffers link_buffs_;
+  mutable bool done_;
+
+private:
+  FilesInfo() : info_(nullptr), done_(false) {}
+  FilesInfo(const FilesInfo&) = delete;
+
+public:
+  static FilesInfo FromDir(plx::File& file, long buffer_hint = 32) {
+    if (file.status() != (plx::File::directory | plx::File::existing))
+      throw plx::IOException(__LINE__, nullptr);
+
+    FilesInfo finf;
+    // |buffer_size| controls the tradeoff between speed and memory use.
+    const size_t buffer_size = buffer_hint * 128;
+
+    plx::Range<unsigned char> data;
+    for (size_t count = 0; ;++count) {
+      data = finf.link_buffs_.new_buffer(buffer_size);
+      if (!::GetFileInformationByHandleEx(
+          file.handle_,
+          count == 0 ? FileIdBothDirectoryRestartInfo: FileIdBothDirectoryInfo,
+          data.start(), plx::To<DWORD>(data.size()))) {
+        if (::GetLastError() != ERROR_NO_MORE_FILES)
+          throw plx::IOException(__LINE__, nullptr);
+        break;
+      }
+    }
+    // The last buffer contains garbage. remove it.
+    finf.link_buffs_.remove_last_buffer();
+    return std::move(finf);
+  }
+
+  FilesInfo(FilesInfo&& other)
+      : link_buffs_(std::move(other.link_buffs_)) {
+    std::swap(info_, other.info_);
+    std::swap(done_, other.done_);
+  }
+
+  void first() {
+    done_ = false;
+    link_buffs_.first();
+    info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
+  }
+
+  void next() {
+    if (!info_->NextEntryOffset) {
+      // last entry of this buffer. Move to next buffer.
+      link_buffs_.next();
+      if (link_buffs_.done()) {
+        done_ = true;
+      } else {
+        info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
+      }
+    } else {
+      info_ =reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(
+          ULONG_PTR(info_) + info_->NextEntryOffset);
+    }
+  }
+
+  bool done() const {
+    return done_;
+  }
+
+  const plx::ItRange<wchar_t*> file_name() const {
+    return plx::ItRange<wchar_t*>(
+      info_->FileName,
+      info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
+  }
+
+  long long creation_ns1600() const {
+    return info_->CreationTime.QuadPart;
+  }
+
+  bool is_directory() const {
+    return info_->FileAttributes & FILE_ATTRIBUTE_DIRECTORY? true : false;
+  }
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3111,91 +3277,67 @@ public:
 };
 
 
+
 ///////////////////////////////////////////////////////////////////////////////
-// plx::FilesInfo
+// plx::JobObject
 //
-#pragma comment(user, "plex.define=plex_vista_support")
 
-class FilesInfo {
-private:
-  FILE_ID_BOTH_DIR_INFO* info_;
-  plx::LinkedBuffers link_buffs_;
-  mutable bool done_;
+class JobObjectLimits {
+  friend class JobObject;
+  void config(HANDLE job) const {
+  }
+};
+
+class JobObject {
+  HANDLE handle_;
+  unsigned long status_;
 
 private:
-  FilesInfo() : info_(nullptr), done_(false) {}
-  FilesInfo(const FilesInfo&) = delete;
+  JobObject(HANDLE handle, unsigned long status)
+    : handle_(handle), status_(status) {}
+
+  JobObject(const JobObject&) = delete;
+  JobObject& operator=(const JobObject&) = delete;
 
 public:
-  static FilesInfo FromDir(plx::File& file, long buffer_hint = 32) {
-    if (file.status() != (plx::File::directory | plx::File::existing))
-      throw plx::IOException(__LINE__, nullptr);
+  JobObject() : handle_(0UL) {}
 
-    FilesInfo finf;
-    // |buffer_size| controls the tradeoff between speed and memory use.
-    const size_t buffer_size = buffer_hint * 128;
-
-    plx::Range<unsigned char> data;
-    for (size_t count = 0; ;++count) {
-      data = finf.link_buffs_.new_buffer(buffer_size);
-      if (!::GetFileInformationByHandleEx(
-          file.handle_,
-          count == 0 ? FileIdBothDirectoryRestartInfo: FileIdBothDirectoryInfo,
-          data.start(), plx::To<DWORD>(data.size()))) {
-        if (::GetLastError() != ERROR_NO_MORE_FILES)
-          throw plx::IOException(__LINE__, nullptr);
-        break;
-      }
-    }
-    // The last buffer contains garbage. remove it.
-    finf.link_buffs_.remove_last_buffer();
-    return std::move(finf);
+  JobObject(JobObject&& jobo) : handle_(0UL), status_(0UL) {
+    std::swap(jobo.handle_, handle_);
+    std::swap(jobo.status_, status_);
   }
 
-  FilesInfo(FilesInfo&& other)
-      : link_buffs_(std::move(other.link_buffs_)) {
-    std::swap(info_, other.info_);
-    std::swap(done_, other.done_);
-  }
-
-  void first() {
-    done_ = false;
-    link_buffs_.first();
-    info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
-  }
-
-  void next() {
-    if (!info_->NextEntryOffset) {
-      // last entry of this buffer. Move to next buffer.
-      link_buffs_.next();
-      if (link_buffs_.done()) {
-        done_ = true;
-      } else {
-        info_ = reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(link_buffs_.get().start());
-      }
-    } else {
-      info_ =reinterpret_cast<FILE_ID_BOTH_DIR_INFO*>(
-          ULONG_PTR(info_) + info_->NextEntryOffset);
+  ~JobObject() {
+    if (handle_) {
+      if (!::CloseHandle(handle_))
+        __debugbreak();
     }
   }
 
-  bool done() const {
-    return done_;
+  static JobObject Create(const wchar_t* name,
+    const JobObjectLimits& limits,
+    const plx::JobObjecNotification* notification) {
+    auto job = ::CreateJobObjectW(nullptr, name);
+    auto gle = ::GetLastError();
+    if (!job)
+      return JobObject(0UL, gle);
+
+    if (gle != ERROR_ALREADY_EXISTS) {
+      limits.config(job);
+    }
+    if (notification)
+      notification->config(job);
+    return JobObject(job, gle);
   }
 
-  const plx::ItRange<wchar_t*> file_name() const {
-    return plx::ItRange<wchar_t*>(
-      info_->FileName,
-      info_->FileName+ (info_->FileNameLength / sizeof(wchar_t)));
+  unsigned status() const { return status_; }
+
+  bool add_process(HANDLE process) {
+    return ::AssignProcessToJobObject(handle_, process) ? true : false;
   }
 
-  long long creation_ns1600() const {
-    return info_->CreationTime.QuadPart;
-  }
+  bool is_valid() const { return handle_ != 0UL; }
 
-  bool is_directory() const {
-    return info_->FileAttributes & FILE_ATTRIBUTE_DIRECTORY? true : false;
-  }
 };
 
 

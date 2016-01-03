@@ -181,12 +181,6 @@ std::string DecodeString(plx::Range<const char>& range) {
     }
   }
 }
-uint64_t LocalUniqueId() {
-  LUID luid;
-  ::AllocateLocallyUniqueId(&luid);
-  LARGE_INTEGER li = {luid.LowPart, luid.HighPart};
-  return li.QuadPart;
-}
 short NextInt(char value) {
   return short(value);
 }
@@ -218,6 +212,12 @@ long long NextInt(unsigned long long value) {
   if (static_cast<long long>(value) < 0LL)
     throw plx::OverflowException(__LINE__, plx::OverflowKind::Positive);
   return long long(value);
+}
+uint64_t LocalUniqueId() {
+  LUID luid;
+  ::AllocateLocallyUniqueId(&luid);
+  LARGE_INTEGER li = {luid.LowPart, luid.HighPart};
+  return li.QuadPart;
 }
 bool PlatformCheck() {
   __if_exists(plex_sse42_support) {

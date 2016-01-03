@@ -164,4 +164,8 @@ catalog 1 {
   plx::ParseSignedInt plx\string\parse_int.h;
   plx::Process plx\process.h;
   plx::ProcessParams plx\process.h;
+  plx::JobObjecNotification plx\jobobj\jobobj_notification.h;
+  plx::JobObjEventHandler plx\jobobj\jobobj_event_handler.h;
+  plx::JobObjectLimits plx\jobobj\job_object.h;
+  plx::JobObject plx\jobobj\job_object.h;
 }
