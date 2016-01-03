@@ -1,15 +1,8 @@
-//#~def plx::JobObjectLimits
 //#~def plx::JobObject
 ///////////////////////////////////////////////////////////////////////////////
 // plx::JobObject
 //
 namespace plx {
-
-class JobObjectLimits {
-  friend class JobObject;
-  void config(HANDLE job) const {
-  }
-};
 
 class JobObject {
   HANDLE handle_;
@@ -38,7 +31,7 @@ public:
   }
 
   static JobObject Create(const wchar_t* name,
-    const JobObjectLimits& limits,
+    const plx::JobObjectLimits& limits,
     const plx::JobObjecNotification* notification) {
     auto job = ::CreateJobObjectW(nullptr, name);
     auto gle = ::GetLastError();

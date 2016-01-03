@@ -9,29 +9,29 @@
 
 
 
-#include <shlobj.h>
-#include <intrin.h>
-#include <stdlib.h>
-#include <nmmintrin.h>
-#include <string.h>
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <functional>
 #include <initializer_list>
-#include <cctype>
+#include <intrin.h>
 #include <iterator>
+#include <limits>
 #include <list>
 #include <map>
-#include <algorithm>
-#include <utility>
-#include <limits>
-#include <type_traits>
+#include <memory>
+#include <nmmintrin.h>
+#include <shlobj.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string>
 #include <thread>
-#include <memory>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
-#include <stdint.h>
-#include <stdarg.h>
 
 const int plex_sse42_support = 1;
 
@@ -1679,6 +1679,18 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////////
+// plx::JobObjectLimits
+//
+
+class JobObjectLimits {
+  friend class JobObject;
+  void config(HANDLE job) const {
+    // $$ implement.
+  }
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
 // plx::OverflowKind
 //
 enum class OverflowKind {
@@ -2421,37 +2433,85 @@ uint64_t ParseUnsignedInt(plx::Range<const uint8_t>& r) {
 bool PlatformCheck() ;;
 
 
-
 ///////////////////////////////////////////////////////////////////////////////
-// plx::StringPrintf  (c-style printf for std strings)
+// plx::JobObject
 //
 
-int vsnprintf(char* buffer, size_t size,
-              const char* format, va_list arguments) ;
+class JobObject {
+  HANDLE handle_;
+  unsigned long status_;
 
-int vsnprintf(wchar_t* buffer, size_t size,
-              const wchar_t* format, va_list arguments) ;
+private:
+  JobObject(HANDLE handle, unsigned long status)
+    : handle_(handle), status_(status) {}
 
+  JobObject(const JobObject&) = delete;
+  JobObject& operator=(const JobObject&) = delete;
 
-template <typename CH>
-std::basic_string<CH> StringPrintf(const CH* fmt, ...) {
-  int fmt_size = 128;
-  std::unique_ptr<CH> mem;
+public:
+  JobObject() : handle_(0UL) {}
 
-  va_list args;
-  va_start(args, fmt);
-
-  while (true) {
-    mem.reset(new CH[fmt_size]);
-    int sz = vsnprintf(mem.get(), fmt_size, fmt, args);
-    if (sz < fmt_size)
-      break;
-    fmt_size = sz + 1;
+  JobObject(JobObject&& jobo) : handle_(0UL), status_(0UL) {
+    std::swap(jobo.handle_, handle_);
+    std::swap(jobo.status_, status_);
   }
 
-  va_end(args);
-  return mem.get();
-}
+  ~JobObject() {
+    if (handle_) {
+      if (!::CloseHandle(handle_))
+        __debugbreak();
+    }
+  }
+
+  static JobObject Create(const wchar_t* name,
+    const plx::JobObjectLimits& limits,
+    const plx::JobObjecNotification* notification) {
+    auto job = ::CreateJobObjectW(nullptr, name);
+    auto gle = ::GetLastError();
+    if (!job)
+      return JobObject(0UL, gle);
+
+    if (gle != ERROR_ALREADY_EXISTS) {
+      limits.config(job);
+    }
+    if (notification)
+      notification->config(job);
+    return JobObject(job, gle);
+  }
+
+  unsigned status() const { return status_; }
+
+  bool add_process(HANDLE process) {
+    return ::AssignProcessToJobObject(handle_, process) ? true : false;
+  }
+
+  bool is_valid() const { return handle_ != 0UL; }
+
+};
+
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::ProcessParams
+//
+
+class ProcessParams {
+  bool inherit_;
+  unsigned long flags_;
+  void* env_;
+  plx::JobObject* job_;
+
+  friend class Process;
+
+public:
+  ProcessParams(bool inherit, unsigned long flags)
+    : inherit_(inherit),
+      flags_(flags),
+      env_(nullptr) {
+  }
+
+  void set_enviroment(void* env) { env_ = env; }
+  void set_job(plx::JobObject* job) { job_ = job;  }
+};
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3173,27 +3233,40 @@ plx::JsonValue ParseJsonValue(plx::Range<const char>& range) ;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// plx::Process
+// plx::StringPrintf  (c-style printf for std strings)
 //
 
-class ProcessParams {
-  bool inherit_;
-  unsigned long flags_;
-  void* env_;
+int vsnprintf(char* buffer, size_t size,
+              const char* format, va_list arguments) ;
 
-public:
-  ProcessParams(bool inherit, unsigned long flags)
-    : inherit_(inherit),
-    flags_(flags),
-    env_(nullptr) {
+int vsnprintf(wchar_t* buffer, size_t size,
+              const wchar_t* format, va_list arguments) ;
+
+
+template <typename CH>
+std::basic_string<CH> StringPrintf(const CH* fmt, ...) {
+  int fmt_size = 128;
+  std::unique_ptr<CH> mem;
+
+  va_list args;
+  va_start(args, fmt);
+
+  while (true) {
+    mem.reset(new CH[fmt_size]);
+    int sz = vsnprintf(mem.get(), fmt_size, fmt, args);
+    if (sz < fmt_size)
+      break;
+    fmt_size = sz + 1;
   }
 
-  bool inherit_handles() const { return inherit_; }
-  unsigned long creation_flags() const { return flags_; }
-  void* environment() const { return env_; }
+  va_end(args);
+  return mem.get();
+}
 
-  void set_enviroment(void* env) { env_ = env; }
-};
+
+///////////////////////////////////////////////////////////////////////////////
+// plx::Process
+//
 
 class Process {
   HANDLE handle_;
@@ -3256,87 +3329,27 @@ public:
 
   static Process Create(const plx::FilePath& path,
     const std::wstring& args,
-    const ProcessParams& pp) {
+    const plx::ProcessParams& pp) {
     const wchar_t* fmt = (path.has_spaces()) ? L"\"%s\" %s" : L"%s %s";
     auto cmd_line = plx::StringPrintf(fmt, path.raw(), args.c_str());
 
     STARTUPINFO si = { sizeof(si), 0 };
     PROCESS_INFORMATION pi = {};
 
+    if (pp.job_) {
+
+    }
+
     if (!::CreateProcessW(NULL, &cmd_line[0],
       nullptr, nullptr,
-      pp.inherit_handles() ? TRUE : FALSE,
-      pp.creation_flags(),
-      pp.environment(), nullptr,
+      pp.inherit_ ? TRUE : FALSE,
+      pp.flags_,
+      pp.env_, nullptr,
       &si, &pi)) {
       return Process(0UL, 0UL, ::GetLastError());
     }
     return Process(pi.hProcess, pi.hThread, NO_ERROR);
   }
-
-};
-
-
-
-///////////////////////////////////////////////////////////////////////////////
-// plx::JobObject
-//
-
-class JobObjectLimits {
-  friend class JobObject;
-  void config(HANDLE job) const {
-  }
-};
-
-class JobObject {
-  HANDLE handle_;
-  unsigned long status_;
-
-private:
-  JobObject(HANDLE handle, unsigned long status)
-    : handle_(handle), status_(status) {}
-
-  JobObject(const JobObject&) = delete;
-  JobObject& operator=(const JobObject&) = delete;
-
-public:
-  JobObject() : handle_(0UL) {}
-
-  JobObject(JobObject&& jobo) : handle_(0UL), status_(0UL) {
-    std::swap(jobo.handle_, handle_);
-    std::swap(jobo.status_, status_);
-  }
-
-  ~JobObject() {
-    if (handle_) {
-      if (!::CloseHandle(handle_))
-        __debugbreak();
-    }
-  }
-
-  static JobObject Create(const wchar_t* name,
-    const JobObjectLimits& limits,
-    const plx::JobObjecNotification* notification) {
-    auto job = ::CreateJobObjectW(nullptr, name);
-    auto gle = ::GetLastError();
-    if (!job)
-      return JobObject(0UL, gle);
-
-    if (gle != ERROR_ALREADY_EXISTS) {
-      limits.config(job);
-    }
-    if (notification)
-      notification->config(job);
-    return JobObject(job, gle);
-  }
-
-  unsigned status() const { return status_; }
-
-  bool add_process(HANDLE process) {
-    return ::AssignProcessToJobObject(handle_, process) ? true : false;
-  }
-
-  bool is_valid() const { return handle_ != 0UL; }
 
 };
 

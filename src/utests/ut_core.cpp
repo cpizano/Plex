@@ -1533,7 +1533,7 @@ void Test_Version::Exec() {
 void Test_Process::Exec() {
   plx::ProcessParams pp(false, 0);
   plx::FilePath c(L"c:\\windows\\system32\\calc.exe");
-  auto calc = plx::Process::Create(c, L"-bunga", pp);
+  plx::Process calc = plx::Process::Create(c, L"-bunga", pp);
   CheckEQ(calc.is_valid(), true);
   CheckEQ(calc.wait_termination(5000), true);
 }

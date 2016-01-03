@@ -162,10 +162,10 @@ catalog 1 {
   plx::Version plx\version.h;
   plx::ParseUnsignedInt plx\string\parse_uint.h;
   plx::ParseSignedInt plx\string\parse_int.h;
-  plx::Process plx\process.h;
-  plx::ProcessParams plx\process.h;
+  plx::Process plx\process\process.h;
+  plx::ProcessParams plx\process\process_params.h;
   plx::JobObjecNotification plx\jobobj\jobobj_notification.h;
   plx::JobObjEventHandler plx\jobobj\jobobj_event_handler.h;
-  plx::JobObjectLimits plx\jobobj\job_object.h;
+  plx::JobObjectLimits plx\jobobj\jobobj_limits.h;
   plx::JobObject plx\jobobj\job_object.h;
 }
