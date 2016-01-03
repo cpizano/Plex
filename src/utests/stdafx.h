@@ -2497,8 +2497,8 @@ public:
 class ProcessParams {
   bool inherit_;
   unsigned long flags_;
-  void* env_;
   plx::JobObject* job_;
+  void* env_;
 
   friend class Process;
 
@@ -2506,6 +2506,7 @@ public:
   ProcessParams(bool inherit, unsigned long flags)
     : inherit_(inherit),
       flags_(flags),
+      job_(nullptr),
       env_(nullptr) {
   }
 
