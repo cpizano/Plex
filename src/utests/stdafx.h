@@ -3336,18 +3336,23 @@ public:
     STARTUPINFO si = { sizeof(si), 0 };
     PROCESS_INFORMATION pi = {};
 
-    if (pp.job_) {
-
-    }
+    auto flags = pp.job_ ? pp.flags_ | CREATE_SUSPENDED : pp.flags_;
 
     if (!::CreateProcessW(NULL, &cmd_line[0],
       nullptr, nullptr,
       pp.inherit_ ? TRUE : FALSE,
-      pp.flags_,
+      flags,
       pp.env_, nullptr,
       &si, &pi)) {
       return Process(0UL, 0UL, ::GetLastError());
     }
+
+    if (pp.job_) {
+      pp.job_->add_process(pi.hProcess);
+      if ((pp.flags_ & CREATE_SUSPENDED) == 0)
+        ::ResumeThread(pi.hThread);
+    }
+
     return Process(pi.hProcess, pi.hThread, NO_ERROR);
   }
 
