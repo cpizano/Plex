@@ -2205,28 +2205,28 @@ public:
     auto pid = plx::To<unsigned int>(reinterpret_cast<UINT_PTR>(raw.ov));
 
     switch (raw.bytes) {
-    case JOB_OBJECT_MSG_END_OF_JOB_TIME:
-      handler->TimeLimit(pid); break;
-    case JOB_OBJECT_MSG_END_OF_PROCESS_TIME:
-      handler->TimeLimit(pid); break;
-    case JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT:
-      break;
-    case JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO:
-      handler->ActiveCountZero(); break;
-    case JOB_OBJECT_MSG_NEW_PROCESS:
-      handler->NewProcess(pid); break;
-    case JOB_OBJECT_MSG_EXIT_PROCESS:
-      handler->NormalExit(pid, 0); break;
-    case JOB_OBJECT_MSG_ABNORMAL_EXIT_PROCESS:
-      handler->AbnormalExit(pid, 0); break;
-    case JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT:
-      handler->MemoryLimit(pid); break;
-    case JOB_OBJECT_MSG_JOB_MEMORY_LIMIT:
-      handler->MemoryLimit(pid); break;
-    case JOB_OBJECT_MSG_NOTIFICATION_LIMIT:
-    case JOB_OBJECT_MSG_JOB_CYCLE_TIME_LIMIT:
-    default:
-      break;
+      case JOB_OBJECT_MSG_END_OF_JOB_TIME:
+        handler->TimeLimit(pid); break;
+      case JOB_OBJECT_MSG_END_OF_PROCESS_TIME:
+        handler->TimeLimit(pid); break;
+      case JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT:
+        break;
+      case JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO:
+        handler->ActiveCountZero(); break;
+      case JOB_OBJECT_MSG_NEW_PROCESS:
+        handler->NewProcess(pid); break;
+      case JOB_OBJECT_MSG_EXIT_PROCESS:
+        handler->NormalExit(pid, 0); break;
+      case JOB_OBJECT_MSG_ABNORMAL_EXIT_PROCESS:
+        handler->AbnormalExit(pid, 0); break;
+      case JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT:
+        handler->MemoryLimit(pid); break;
+      case JOB_OBJECT_MSG_JOB_MEMORY_LIMIT:
+        handler->MemoryLimit(pid); break;
+      case JOB_OBJECT_MSG_NOTIFICATION_LIMIT:
+      case JOB_OBJECT_MSG_JOB_CYCLE_TIME_LIMIT:
+      default:
+        break;
     }
     return rv;
   }
