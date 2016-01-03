@@ -11,6 +11,12 @@ public:
   virtual bool OnFailure(OVERLAPPED* ov, unsigned long error) = 0;
 };
 
+struct RawGQCPS {
+  unsigned long bytes;
+  ULONG_PTR key;
+  OVERLAPPED* ov;
+};
+
 class CompletionPort {
   HANDLE port_;
 
@@ -31,15 +37,17 @@ public:
     ::CloseHandle(port_);
   }
 
-  void add_handler(HANDLE handle, OvIOHandler* handler) {
+  void add_io_handler(HANDLE handle, OvIOHandler* handler) {
     auto h = ::CreateIoCompletionPort(handle, port_, ULONG_PTR(handler), 0);
     if (!h)
       throw plx::Kernel32Exception(__LINE__, plx::Kernel32Exception::port);;
   }
 
   void release_waiter() {
-    ::PostQueuedCompletionStatus(port_, 0, 1, nullptr);
+    ::PostQueuedCompletionStatus(port_, 0, 232, nullptr);
   }
+
+  HANDLE handle() { return port_; }
 
   enum WaitResult {
     op_exit,
@@ -48,7 +56,7 @@ public:
     op_error
   };
 
-  WaitResult wait_for_op(unsigned long timeout) {
+  WaitResult wait_for_io_op(unsigned long timeout) {
     unsigned long bytes;
     ULONG_PTR key;
     OVERLAPPED* ov;
@@ -73,7 +81,8 @@ public:
           return op_timeout;
         throw plx::IOException(__LINE__, nullptr);
       } else if (key) {
-        return reinterpret_cast<OvIOHandler*>(key)->OnFailure(ov, ::GetLastError()) ? op_ok : op_error;
+        return reinterpret_cast<OvIOHandler*>(
+            key)->OnFailure(ov, ::GetLastError()) ? op_ok : op_error;
       }
     } else if (!ov) {
       return op_exit;
@@ -83,7 +92,13 @@ public:
     throw plx::IOException(__LINE__, nullptr);
   }
 
-};
+  WaitResult wait_raw(unsigned long timeout, RawGQCPS* rgqcps) {
+    if (!::GetQueuedCompletionStatus(port_, &rgqcps->bytes,
+                                     &rgqcps->key, &rgqcps->ov, timeout))
+      return  (::GetLastError() == WAIT_TIMEOUT) ? op_timeout : op_error;
+    return  rgqcps->key == 232 ? op_exit : op_ok;
+  }
 
+};
 
 }

@@ -1415,7 +1415,7 @@ void Test_ServerPipe::Exec() {
 
   std::thread t1([&cp] {
     while (true) {
-      auto res = cp.wait_for_op(INFINITE);
+      auto res = cp.wait_for_io_op(INFINITE);
       if (res == plx::CompletionPort::op_exit)
         break;
     }
@@ -1536,5 +1536,186 @@ void Test_Process::Exec() {
   auto calc = plx::Process::Create(c, L"-bunga", pp);
   CheckEQ(calc.is_valid(), true);
   CheckEQ(calc.wait_termination(5000), true);
+}
 
+class JobObjEventHandler {
+public:
+  virtual void AbnormalExit(unsigned int pid, unsigned long error) = 0;
+  virtual void NormalExit(unsigned int pid, unsigned long status) = 0;
+  virtual void NewProcess(unsigned int pid) = 0;
+  virtual void ActiveCountZero() = 0;
+  virtual void ActiveProcessLimit() = 0;
+  virtual void MemoryLimit(unsigned int pid) = 0;
+  virtual void TimeLimit(unsigned int pid) = 0;
+};
+
+class JobObjecNotification {
+  plx::CompletionPort* cp_;
+  JobObjEventHandler* handler_;
+
+  friend class JobObject;
+  void config(HANDLE job) const {
+    if (cp_) {
+      JOBOBJECT_ASSOCIATE_COMPLETION_PORT info = { handler_, cp_->handle() };
+      ::SetInformationJobObject(
+          job, JobObjectAssociateCompletionPortInformation, &info, sizeof(info));
+    }
+  }
+
+public:
+  JobObjecNotification() : cp_(nullptr), handler_(nullptr) {}
+
+  void set_completion_port(plx::CompletionPort* cp, JobObjEventHandler* handler) {
+    cp_ = cp; 
+    handler_ = handler;
+  }
+
+  plx::CompletionPort::WaitResult wait_for_event(unsigned long timeout) {
+    plx::RawGQCPS raw;
+    auto rv = cp_->wait_raw(timeout, &raw);
+    if (rv != plx::CompletionPort::op_ok)
+      return rv;
+    auto handler = reinterpret_cast<JobObjEventHandler*>(raw.key);
+    if (!handler)
+      return plx::CompletionPort::op_error;
+
+    auto pid = plx::To<unsigned int>(reinterpret_cast<UINT_PTR>(raw.ov));
+
+    switch (raw.bytes) {
+      case JOB_OBJECT_MSG_END_OF_JOB_TIME:
+        handler->TimeLimit(pid); break;
+      case JOB_OBJECT_MSG_END_OF_PROCESS_TIME:
+        handler->TimeLimit(pid); break;
+      case JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT:
+        break;
+      case JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO:
+        handler->ActiveCountZero(); break;
+      case JOB_OBJECT_MSG_NEW_PROCESS:
+        handler->NewProcess(pid); break;
+      case JOB_OBJECT_MSG_EXIT_PROCESS:
+        handler->NormalExit(pid, 0); break;
+      case JOB_OBJECT_MSG_ABNORMAL_EXIT_PROCESS:
+        handler->AbnormalExit(pid, 0); break;
+      case JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT:
+        handler->MemoryLimit(pid); break;
+      case JOB_OBJECT_MSG_JOB_MEMORY_LIMIT:
+        handler->MemoryLimit(pid); break;
+      case JOB_OBJECT_MSG_NOTIFICATION_LIMIT:
+      case JOB_OBJECT_MSG_JOB_CYCLE_TIME_LIMIT:
+      default:
+        break;
+    }
+    return rv;
+  }
+};
+
+class JobObjectLimits {
+  friend class JobObject;
+  void config(HANDLE job) const {
+  }
+};
+
+class JobObject {
+  HANDLE handle_;
+  unsigned long status_;
+
+private:
+  JobObject(HANDLE handle, unsigned long status) 
+    : handle_(handle), status_(status) {}
+
+  JobObject(const JobObject&) = delete;
+  JobObject& operator=(const JobObject&) = delete;
+
+public:
+  JobObject() : handle_(0UL) {}
+
+  JobObject(JobObject&& jobo) : handle_(0UL), status_(0UL) {
+    std::swap(jobo.handle_, handle_);
+    std::swap(jobo.status_, status_);
+  }
+
+  ~JobObject() {
+    if (handle_) {
+      if (!::CloseHandle(handle_))
+        __debugbreak();
+    }
+  }
+
+  static JobObject Create(const wchar_t* name,
+                          const JobObjectLimits& limits,
+                          const JobObjecNotification* notification) {
+    auto job = ::CreateJobObjectW(nullptr, name);
+    auto gle = ::GetLastError();
+    if (!job)
+      return JobObject(0UL, gle);
+
+    if (gle != ERROR_ALREADY_EXISTS) {
+      limits.config(job);
+    }
+    if (notification)
+      notification->config(job);
+    return JobObject(job, gle);
+  }
+
+  unsigned status() const { return status_; }
+
+  bool add_process(HANDLE process) {
+    return ::AssignProcessToJobObject(handle_, process) ? true : false;
+  }
+
+  bool is_valid() const { return handle_ != 0UL; }
+
+};
+
+class JobInfoTestHandler : public JobObjEventHandler {
+public:
+  std::vector<unsigned int> new_pids;
+  std::vector<unsigned int> dead_pids;
+
+  void AbnormalExit(unsigned int pid, unsigned long error) override {
+    dead_pids.push_back(pid);
+  }
+  void NormalExit(unsigned int pid, unsigned long status) override {
+    dead_pids.push_back(pid);
+  }
+  void NewProcess(unsigned int pid) override {
+    new_pids.push_back(pid);
+  }
+  void ActiveCountZero() override {
+    __debugbreak();
+  }
+  void ActiveProcessLimit() override {
+    __debugbreak();
+  }
+  void MemoryLimit(unsigned int pid) {
+    __debugbreak();
+  }
+  void TimeLimit(unsigned int pid) {
+    __debugbreak();
+  }
+};
+
+void Test_JobObject::Exec() {
+  plx::CompletionPort cp(1);
+  JobObjecNotification notification;
+  JobInfoTestHandler handler;
+  notification.set_completion_port(&cp, &handler);
+  auto job = JobObject::Create(L"blueman1", JobObjectLimits(), &notification);
+  CheckEQ(job.is_valid(), true);
+  CheckEQ(job.status(), 0);
+
+  std::thread t1([&notification] {
+    while (true) {
+      auto res = notification.wait_for_event(INFINITE);
+      if (res == plx::CompletionPort::op_exit)
+        break;
+    }
+  });
+
+  job.add_process(::GetCurrentProcess());
+  cp.release_waiter();
+  t1.join();
+  CheckEQ(handler.dead_pids.size(), 0);
+  CheckEQ(handler.new_pids.size(), 1);
+  CheckEQ(handler.new_pids[0], ::GetCurrentProcessId());
 }

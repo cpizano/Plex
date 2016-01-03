@@ -107,4 +107,5 @@ TEST(Test_ServerPipe);
 TEST(Test_IPCMsgDispatch);
 TEST(Test_Version);
 TEST(Test_Process);
+TEST(Test_JobObject);
 #undef TEST

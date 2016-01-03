@@ -99,7 +99,7 @@ public:
 
   void associate_cp(plx::CompletionPort* cp, plx::OverlappedChannelHandler* handler) {
     handler_ = handler;
-    cp->add_handler(pipe_, this);
+    cp->add_io_handler(pipe_, this);
   }
 
   bool connect(void* ctx) {
