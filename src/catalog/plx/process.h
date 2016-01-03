@@ -38,7 +38,7 @@ private:
   Process& operator=(const Process&) = delete;
 
 public:
-  Process() : handle_(0), thread_(0), error_(NO_ERROR) {}
+  Process() : handle_(0UL), thread_(0UL), error_(NO_ERROR) {}
 
   Process(Process&& process)
     : handle_(0), thread_(0), error_(NO_ERROR) {
